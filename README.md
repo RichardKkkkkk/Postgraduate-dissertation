@@ -12,17 +12,30 @@
 conda activate vit_research
 ```
 
-然后先跑一个小规模实验：
+默认会使用完整 CIFAR-10 训练集和测试集：
 
 ```bash
-python train_cifar10.py --epochs 2 --train-subset 2000 --test-subset 500
+python train_cifar10.py
 ```
 
-确认逻辑没问题后，再逐步变大：
+默认训练 `5` 个 epoch。想跑更多轮，比如 20 个 epoch：
 
 ```bash
-python train_cifar10.py --epochs 10 --train-subset 10000 --test-subset 2000
+python train_cifar10.py --epochs 20
 ```
+
+如果只是想快速确认代码能跑，可以手动指定小子集：
+
+```bash
+python train_cifar10.py --epochs 1 --train-subset 2000 --test-subset 500
+```
+
+训练结束后会保存：
+
+- 指标 CSV：`results/metrics/`
+- 实验配置 JSON：`results/metrics/`
+- 结果摘要 JSON：`results/metrics/`
+- loss 和 accuracy 曲线：`results/figures/`
 
 ## 文件结构
 

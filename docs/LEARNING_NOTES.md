@@ -48,6 +48,45 @@ CIFAR-10 适合当前 MVP：
 7. 用 `loss.backward()` 反向传播。
 8. 用 `optimizer.step()` 更新参数。
 9. 每个 epoch 后在测试集上评估 loss 和 accuracy。
+10. 训练结束后保存指标 CSV、摘要 JSON、loss 曲线和 accuracy 曲线。
+
+默认情况下，脚本会使用完整 CIFAR-10：
+
+```text
+train: 50000 images
+test: 10000 images
+```
+
+默认训练 `5` 个 epoch。epoch 可以理解为“完整看一遍训练集”。如果 `epochs=5`，模型会把训练集从头到尾学习 5 遍。
+
+代码里这一行控制训练轮数：
+
+```python
+parser.add_argument("--epochs", type=int, default=5)
+```
+
+训练循环是：
+
+```python
+for epoch in range(1, args.epochs + 1):
+    ...
+```
+
+如果 `args.epochs = 5`，`range(1, 6)` 会依次产生：
+
+```text
+1, 2, 3, 4, 5
+```
+
+所以它会跑 5 个 epoch。
+
+`--train-subset` 和 `--test-subset` 只是为了快速 smoke test。例如：
+
+```bash
+python train_cifar10.py --epochs 1 --train-subset 2000 --test-subset 500
+```
+
+这表示只抽 2000 张训练图、500 张测试图来快速验证代码能跑，不代表正式实验设置。
 
 ## 一个 batch 的 shape
 
@@ -114,3 +153,74 @@ optimizer.step()
 def evaluate(...):
     model.eval()
 ```
+
+## 结果保存
+
+训练结束后，脚本会保存四类结果。
+
+第一类是逐 epoch 指标：
+
+```text
+results/metrics/<run_name>_metrics.csv
+```
+
+CSV 里面每一行对应一个 epoch：
+
+```text
+epoch, train_loss, train_acc, test_loss, test_acc
+```
+
+第二类是摘要：
+
+```text
+results/metrics/<run_name>_config.json
+```
+
+这里记录本次实验的关键设置，包括：
+
+```text
+command: 原始运行命令
+device: 使用 cpu / mps / cuda
+dataset: 数据集名称、实际 train/test 样本数、data_dir
+training: epochs、batch_size、lr、weight_decay、seed 等
+model: img_size、patch_size、embed_dim、num_heads、num_blocks 等
+outputs: results_dir 和 run_name
+```
+
+这就是为了防止以后忘记某次实验到底是怎么跑的。
+
+第三类是摘要：
+
+```text
+results/metrics/<run_name>_summary.json
+```
+
+这里记录最佳测试准确率、最佳 epoch、最后一个 epoch 的结果，以及本次运行的命令行参数。
+
+第四类是曲线图：
+
+```text
+results/figures/<run_name>_loss.png
+results/figures/<run_name>_accuracy.png
+```
+
+loss 曲线用来看模型是不是在学习。如果 train loss 下降，说明模型正在拟合训练集。accuracy 曲线用来看分类结果是否变好。
+
+## 要不要单独分 validation dataset
+
+严格实验里，一般会有 `train / validation / test` 三部分。
+
+它们的分工是：
+
+- `train`：用来反向传播和更新参数。
+- `validation`：用来调学习率、模型大小、epoch 数、位置编码方案等超参数。
+- `test`：只在最后使用，用来报告最终泛化性能。
+
+CIFAR-10 官方只给了 `train` 和 `test`。所以常见做法是从官方训练集里再切一部分做 validation：
+
+```text
+官方 train 50000 -> train 45000 + validation 5000
+官方 test 10000 -> final test
+```
+
+现在这个 MVP 暂时每个 epoch 直接看 test loss 和 test accuracy，是为了先把训练流程跑通。等开始比较不同位置编码方案时，就应该加 validation split，避免一边调参一边反复看 test，导致 test 结果不再客观。

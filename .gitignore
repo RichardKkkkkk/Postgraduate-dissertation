@@ -3,5 +3,6 @@
 .vscode/
 data/
 checkpoints/
+results/matplotlib_cache/
 __pycache__/
 *.pyc
