@@ -96,7 +96,7 @@ def build_dataloaders(data_dir, batch_size, train_subset, test_subset, num_worke
     return train_loader, test_loader
 
 
-def train_one_epoch(model, loader, criterion, optimizer, device, log_interval):
+def train_one_epoch(model, loader, criterion, optimizer, device):
     model.train()
     total_loss = 0.0
     correct = 0
@@ -118,14 +118,6 @@ def train_one_epoch(model, loader, criterion, optimizer, device, log_interval):
         predictions = logits.argmax(dim=1)
         correct += (predictions == labels).sum().item()
         total += batch_size
-
-        if batch_idx % log_interval == 0:
-            avg_loss = total_loss / total
-            accuracy = correct / total * 100
-            print(
-                f"  batch {batch_idx:04d}/{len(loader)} "
-                f"loss={avg_loss:.4f} acc={accuracy:.2f}%"
-            )
 
     return total_loss / total, correct / total
 
@@ -259,7 +251,6 @@ def parse_args():
     parser.add_argument("--test-subset", type=int, default=None)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--log-interval", type=int, default=20)
     return parser.parse_args()
 
 
@@ -310,7 +301,6 @@ def main():
             criterion=criterion,
             optimizer=optimizer,
             device=device,
-            log_interval=args.log_interval,
         )
         test_loss, test_acc = evaluate(
             model=model,

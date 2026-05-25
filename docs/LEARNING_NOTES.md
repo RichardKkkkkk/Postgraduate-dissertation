@@ -88,6 +88,15 @@ python train_cifar10.py --epochs 1 --train-subset 2000 --test-subset 500
 
 这表示只抽 2000 张训练图、500 张测试图来快速验证代码能跑，不代表正式实验设置。
 
+训练时默认每个 epoch 输出一次汇总结果，而不是每个 batch 都输出。这样日志更适合观察整体趋势：
+
+```text
+Epoch 1/5
+  train loss=... acc=... | test loss=... acc=...
+Epoch 2/5
+  train loss=... acc=... | test loss=... acc=...
+```
+
 ## 一个 batch 的 shape
 
 CIFAR-10 的一张图片原始大小是 `32x32`，RGB 三通道。
