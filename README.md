@@ -12,6 +12,12 @@
 conda activate vit_research
 ```
 
+如果是在新电脑上配置环境，可以在激活环境后安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
 默认会使用完整 CIFAR-10 训练集和测试集：
 
 ```bash

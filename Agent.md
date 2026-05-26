@@ -20,6 +20,7 @@ This is a PyTorch Vision Transformer MVP project.
 - Explain important PyTorch syntax with examples.
 - Include tensor shapes where relevant.
 - Update `docs/LEARNING_NOTES.md` after meaningful changes.
+- When the user proposes a new research or development idea, record the idea and reasoning in `docs/DEVELOPMENT_MAP.md`.
 
 ## Test commands
 
