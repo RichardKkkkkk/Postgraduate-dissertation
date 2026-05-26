@@ -233,3 +233,51 @@ CIFAR-10 官方只给了 `train` 和 `test`。所以常见做法是从官方训�
 ```
 
 现在这个 MVP 暂时每个 epoch 直接看 test loss 和 test accuracy，是为了先把训练流程跑通。等开始比较不同位置编码方案时，就应该加 validation split，避免一边调参一边反复看 test，导致 test 结果不再客观。
+
+## CNN baseline
+
+下一步加入 `train_cnn_cifar10.py`，用 ResNet18 作为 CNN baseline。
+
+为什么这个 baseline 有意义：
+
+- CNN 有卷积归纳偏置，天然擅长局部纹理和局部空间结构。
+- ResNet18 是经典 CNN，结构成熟，训练稳定。
+- ImageNet 预训练权重能提供很强的图像特征起点。
+- 和从零训练的小 ViT 对比，可以帮助我们判断：当前差距来自模型结构、数据量，还是预训练。
+
+默认 CNN 脚本使用：
+
+```text
+model: torchvision.models.resnet18
+weights: ImageNet pretrained
+input image size: 224x224
+num_classes: 10
+```
+
+因为 ImageNet 预训练 ResNet18 原本是在 `224x224` 图片上训练的，所以脚本会把 CIFAR-10 的 `32x32` 图片 resize 到 `224x224`。这样更符合预训练模型原来的输入习惯。
+
+如果不用预训练：
+
+```bash
+python train_cnn_cifar10.py --weights none
+```
+
+默认输入尺寸会变成 `32x32`，这样更像“从零训练一个 CNN 来分类 CIFAR-10”。
+
+ResNet18 的最后一层原本输出 ImageNet 的 1000 类。这里要改成 CIFAR-10 的 10 类：
+
+```python
+model = models.resnet18(weights=weights)
+model.fc = nn.Linear(model.fc.in_features, 10)
+```
+
+重要 shape：
+
+```text
+images: [B, 3, 224, 224]  # pretrained ResNet18 默认
+logits: [B, 10]
+labels: [B]
+loss: scalar
+```
+
+这里的 `model.fc` 是 ResNet18 的分类头。前面的卷积层负责提取图像特征，最后的 `fc` 把特征映射到类别分数。

@@ -30,6 +30,18 @@ python train_cifar10.py --epochs 20
 python train_cifar10.py --epochs 1 --train-subset 2000 --test-subset 500
 ```
 
+训练 CNN baseline：
+
+```bash
+python train_cnn_cifar10.py
+```
+
+默认使用 ImageNet 预训练的 ResNet18。第一次运行如果本地没有权重，`torchvision` 会下载预训练权重。快速 smoke test 可以不用预训练：
+
+```bash
+python train_cnn_cifar10.py --weights none --epochs 1 --train-subset 2000 --test-subset 500
+```
+
 训练结束后会保存：
 
 - 指标 CSV：`results/metrics/`
@@ -41,6 +53,8 @@ python train_cifar10.py --epochs 1 --train-subset 2000 --test-subset 500
 
 - `vit.py`：最小 ViT 模型实现。
 - `train_cifar10.py`：CIFAR-10 训练和评估脚本。
+- `train_cnn_cifar10.py`：CIFAR-10 ResNet18 CNN baseline 训练和评估脚本。
 - `docs/LEARNING_NOTES.md`：学习笔记，记录代码解释、PyTorch 语法和 tensor shape。
+- `docs/DEVELOPMENT_MAP.md`：项目开发思维导图，记录每一步为什么这样做。
 
 添加新的可运行脚本时，需要同步更新这个 README。

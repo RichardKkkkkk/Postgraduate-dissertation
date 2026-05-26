@@ -205,7 +205,7 @@ def save_summary_json(args, history, path):
         json.dump(summary, f, indent=2, default=str)
 
 
-def plot_curves(history, figure_dir, run_name):
+def plot_curves(history, figure_dir, run_name, title_prefix="CIFAR-10 ViT"):
     figure_dir.mkdir(parents=True, exist_ok=True)
     epochs = [row["epoch"] for row in history]
 
@@ -214,7 +214,7 @@ def plot_curves(history, figure_dir, run_name):
     plt.plot(epochs, [row["test_loss"] for row in history], label="test loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
-    plt.title("CIFAR-10 ViT Loss")
+    plt.title(f"{title_prefix} Loss")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -227,7 +227,7 @@ def plot_curves(history, figure_dir, run_name):
     plt.plot(epochs, [row["test_acc"] * 100 for row in history], label="test acc")
     plt.xlabel("Epoch")
     plt.ylabel("Accuracy (%)")
-    plt.title("CIFAR-10 ViT Accuracy")
+    plt.title(f"{title_prefix} Accuracy")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
