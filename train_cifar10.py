@@ -251,6 +251,10 @@ def parse_args():
     parser.add_argument("--test-subset", type=int, default=None)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--embedding-dropout", type=float, default=0.0)
+    parser.add_argument("--attention-dropout", type=float, default=0.0)
+    parser.add_argument("--projection-dropout", type=float, default=0.0)
+    parser.add_argument("--mlp-dropout", type=float, default=0.0)
     return parser.parse_args()
 
 
@@ -282,6 +286,10 @@ def main():
         "num_blocks": 4,
         "num_heads": 4,
         "mlp_hidden_dim": 512,
+        "embedding_dropout": args.embedding_dropout,
+        "attention_dropout": args.attention_dropout,
+        "projection_dropout": args.projection_dropout,
+        "mlp_dropout": args.mlp_dropout,
     }
     model = ViT(**model_config).to(device)
 
