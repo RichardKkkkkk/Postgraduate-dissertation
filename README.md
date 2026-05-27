@@ -92,18 +92,53 @@ Use `generate_comparison_report.py` to compare multiple runs and generate:
 - overlay plots for every shared numeric metric in `results/metrics/*_metrics.csv`
 - a CSV summary of final and best values
 - a config-difference CSV built from `*_config.json`
-- a simple `.pptx` deck for weekly meeting updates
+- an `overview.md` summary with meeting-ready takeaway text
+- a `presentation_summary.json` file that records the report headline insights
+- a meeting-ready `.pptx` deck with:
+  - title page
+  - experiment setup / run context
+  - results overview
+  - main metrics comparison
+  - curve pages
+  - confusion matrix / per-class analysis pages when those artifacts exist
+  - a short conclusion page
 
-Example:
+Recommended usage:
+
+- Put the baseline or reference run first in the command so all deltas and meeting conclusions read naturally.
+- Use `run_name=Display Label` so the slide text stays readable.
+- Re-run the same command each week and only update the `--run` list / `--title`.
+
+Example for a weekly meeting deck:
 
 ```bash
 python generate_comparison_report.py \
   --run cnn_resnet18_baseline="CNN Baseline" \
   --run vit_dropout_01="ViT Dropout 0.1" \
-  --report-name cnn_vs_vit_dropout
+  --report-name cnn_vs_vit_dropout \
+  --title "Weekly Comparison: CNN Baseline vs ViT Dropout 0.1"
+```
+
+Example that also includes confusion matrix and per-class pages from existing
+selected-checkpoint evaluation outputs:
+
+```bash
+python generate_comparison_report.py \
+  --run cnn_eval_smoke="CNN Eval Smoke" \
+  --run vit_eval_smoke="ViT Eval Smoke" \
+  --report-name weekly_eval_smoke \
+  --title "Weekly Comparison: CNN vs ViT (Eval Smoke)"
 ```
 
 Outputs are written to `results/reports/<report_name>/`.
+
+Key output files:
+
+- `comparison_summary.csv`: final / best metric table
+- `config_comparison.csv`: differing config values across runs
+- `overview.md`: short written summary for notes or email updates
+- `presentation_summary.json`: structured summary for downstream tooling
+- `<report_name>.pptx`: the weekly meeting deck
 
 ## Validation Split
 
@@ -130,3 +165,15 @@ Useful options:
 
 Both scripts now restore the best validation checkpoint before writing the final
 summary JSON.
+
+## Extra Evaluation Outputs
+
+Both training scripts now also save selected-checkpoint evaluation artifacts:
+
+- best checkpoint under `checkpoints/<run_name>_best.pt`
+- test confusion matrix CSV under `results/metrics/`
+- test confusion matrix figure under `results/figures/`
+- macro precision / recall / F1 inside `summary.json`
+
+The selected checkpoint is the model chosen by the validation monitoring rule,
+not simply the final epoch.
