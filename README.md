@@ -64,3 +64,22 @@ python train_cnn_cifar10.py --weights none --epochs 1 --train-subset 2000 --test
 - `docs/DEVELOPMENT_MAP.md`：项目开发思维导图，记录每一步为什么这样做。
 
 添加新的可运行脚本时，需要同步更新这个 README。
+## Experiment Comparison Reports
+
+Use `generate_comparison_report.py` to compare multiple runs and generate:
+
+- overlay plots for every shared numeric metric in `results/metrics/*_metrics.csv`
+- a CSV summary of final and best values
+- a config-difference CSV built from `*_config.json`
+- a simple `.pptx` deck for weekly meeting updates
+
+Example:
+
+```bash
+python generate_comparison_report.py \
+  --run cnn_resnet18_baseline="CNN Baseline" \
+  --run vit_dropout_01="ViT Dropout 0.1" \
+  --report-name cnn_vs_vit_dropout
+```
+
+Outputs are written to `results/reports/<report_name>/`.

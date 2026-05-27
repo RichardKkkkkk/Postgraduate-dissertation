@@ -281,3 +281,16 @@ loss: scalar
 ```
 
 这里的 `model.fc` 是 ResNet18 的分类头。前面的卷积层负责提取图像特征，最后的 `fc` 把特征映射到类别分数。
+## Experiment Reporting
+
+`generate_comparison_report.py` is designed to sit on top of the existing
+artifact format instead of being tied to a single model:
+
+- it reads `results/metrics/<run_name>_metrics.csv`
+- it reads `results/metrics/<run_name>_config.json`
+- it reads `results/metrics/<run_name>_summary.json`
+- it compares every shared numeric metric across runs
+- it exports plots, CSV summaries, and a simple PPT deck
+
+This keeps the reporting layer reusable when new models or new metrics are
+added later, as long as they follow the same result-file convention.

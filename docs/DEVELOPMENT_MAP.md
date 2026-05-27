@@ -185,3 +185,15 @@ ResNet18 from scratch vs ViT from scratch
 ```
 
 因为一旦开始比较不同 ViT 优化方案，就不能一直用 test set 做调参依据。
+## Reporting Layer
+
+The project now also needs a reusable reporting layer for weekly meetings.
+Instead of hard-coding "ViT vs CNN" or "accuracy/loss only", the reporting
+script should treat experiment outputs as a stable interface:
+
+- inputs: per-run CSV metrics, config JSON, summary JSON
+- core job: find shared metrics, compare them, and surface config differences
+- outputs: comparison plots, summary tables, and a lightweight PPT
+
+This makes later extensions easier when new architectures or extra evaluation
+metrics are introduced.
