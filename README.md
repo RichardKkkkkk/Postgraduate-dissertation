@@ -104,3 +104,29 @@ python generate_comparison_report.py \
 ```
 
 Outputs are written to `results/reports/<report_name>/`.
+
+## Validation Split
+
+Training now uses a `train / validation / test` workflow.
+
+- `train`: used for parameter updates
+- `validation`: used for early stopping and model selection
+- `test`: only used for final reporting each epoch and for the selected checkpoint summary
+
+Default behavior:
+
+```bash
+python train_cifar10.py --val-ratio 0.1
+python train_cnn_cifar10.py --val-ratio 0.1
+```
+
+Useful options:
+
+```bash
+--val-subset 500
+--early-stopping-metric val_acc
+--early-stopping-metric val_loss
+```
+
+Both scripts now restore the best validation checkpoint before writing the final
+summary JSON.

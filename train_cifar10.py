@@ -21,7 +21,7 @@ from vit import ViT
 
 CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
 CIFAR10_STD = (0.2470, 0.2435, 0.2616)
-EARLY_STOPPING_METRICS = ("test_acc", "test_loss")
+EARLY_STOPPING_METRICS = ("val_acc", "val_loss")
 
 
 def set_seed(seed):
@@ -48,7 +48,31 @@ def make_subset(dataset, subset_size, seed):
     return Subset(dataset, indices)
 
 
-def build_dataloaders(data_dir, batch_size, train_subset, test_subset, num_workers, seed):
+def split_train_val_indices(dataset_size, val_ratio, seed):
+    if not 0.0 < val_ratio < 1.0:
+        raise ValueError("val_ratio must be between 0 and 1.")
+
+    generator = torch.Generator().manual_seed(seed)
+    indices = torch.randperm(dataset_size, generator=generator).tolist()
+    val_size = max(1, int(dataset_size * val_ratio))
+    if val_size >= dataset_size:
+        raise ValueError("val_ratio leaves no training samples.")
+
+    val_indices = indices[:val_size]
+    train_indices = indices[val_size:]
+    return train_indices, val_indices
+
+
+def build_dataloaders(
+    data_dir,
+    batch_size,
+    train_subset,
+    val_subset,
+    test_subset,
+    num_workers,
+    seed,
+    val_ratio,
+):
     transform_train = transforms.Compose(
         [
             transforms.RandomCrop(32, padding=4),
@@ -64,11 +88,17 @@ def build_dataloaders(data_dir, batch_size, train_subset, test_subset, num_worke
         ]
     )
 
-    train_dataset = datasets.CIFAR10(
+    full_train_dataset = datasets.CIFAR10(
         root=data_dir,
         train=True,
         download=True,
         transform=transform_train,
+    )
+    full_val_dataset = datasets.CIFAR10(
+        root=data_dir,
+        train=True,
+        download=False,
+        transform=transform_test,
     )
     test_dataset = datasets.CIFAR10(
         root=data_dir,
@@ -77,13 +107,29 @@ def build_dataloaders(data_dir, batch_size, train_subset, test_subset, num_worke
         transform=transform_test,
     )
 
+    train_indices, val_indices = split_train_val_indices(
+        dataset_size=len(full_train_dataset),
+        val_ratio=val_ratio,
+        seed=seed,
+    )
+    train_dataset = Subset(full_train_dataset, train_indices)
+    val_dataset = Subset(full_val_dataset, val_indices)
+
     train_dataset = make_subset(train_dataset, train_subset, seed)
+    val_dataset = make_subset(val_dataset, val_subset, seed)
     test_dataset = make_subset(test_dataset, test_subset, seed)
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
         num_workers=num_workers,
         pin_memory=torch.cuda.is_available(),
     )
@@ -95,7 +141,7 @@ def build_dataloaders(data_dir, batch_size, train_subset, test_subset, num_worke
         pin_memory=torch.cuda.is_available(),
     )
 
-    return train_loader, test_loader
+    return train_loader, val_loader, test_loader
 
 
 def train_one_epoch(model, loader, criterion, optimizer, device):
@@ -191,7 +237,15 @@ def maybe_update_early_stopping(
 
 def save_metrics_csv(history, path):
     path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = ["epoch", "train_loss", "train_acc", "test_loss", "test_acc"]
+    fieldnames = [
+        "epoch",
+        "train_loss",
+        "train_acc",
+        "val_loss",
+        "val_acc",
+        "test_loss",
+        "test_acc",
+    ]
 
     with path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -199,7 +253,7 @@ def save_metrics_csv(history, path):
         writer.writerows(history)
 
 
-def save_config_json(args, model_config, train_size, test_size, device, path):
+def save_config_json(args, model_config, train_size, val_size, test_size, device, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     config = {
         "command": " ".join(sys.argv),
@@ -207,6 +261,7 @@ def save_config_json(args, model_config, train_size, test_size, device, path):
         "dataset": {
             "name": "CIFAR-10",
             "train_size": train_size,
+            "val_size": val_size,
             "test_size": test_size,
             "data_dir": str(args.data_dir),
         },
@@ -216,7 +271,9 @@ def save_config_json(args, model_config, train_size, test_size, device, path):
             "lr": args.lr,
             "weight_decay": args.weight_decay,
             "train_subset": args.train_subset,
+            "val_subset": args.val_subset,
             "test_subset": args.test_subset,
+            "val_ratio": args.val_ratio,
             "seed": args.seed,
             "num_workers": args.num_workers,
             "early_stopping_patience": args.early_stopping_patience,
@@ -234,13 +291,17 @@ def save_config_json(args, model_config, train_size, test_size, device, path):
         json.dump(config, f, indent=2)
 
 
-def save_summary_json(args, history, path, early_stopping_info):
+def save_summary_json(args, history, path, early_stopping_info, selected_model_metrics):
     path.parent.mkdir(parents=True, exist_ok=True)
-    best_epoch = max(history, key=lambda row: row["test_acc"])
+    best_val_epoch = max(history, key=lambda row: row["val_acc"])
+    best_test_epoch = max(history, key=lambda row: row["test_acc"])
     summary = {
-        "best_epoch": best_epoch["epoch"],
-        "best_test_acc": best_epoch["test_acc"],
+        "best_val_epoch": best_val_epoch["epoch"],
+        "best_val_acc": best_val_epoch["val_acc"],
+        "best_test_epoch": best_test_epoch["epoch"],
+        "best_test_acc": best_test_epoch["test_acc"],
         "final_epoch": history[-1],
+        "selected_model": selected_model_metrics,
         "early_stopping": early_stopping_info,
         "config": vars(args),
     }
@@ -255,6 +316,7 @@ def plot_curves(history, figure_dir, run_name, title_prefix="CIFAR-10 ViT"):
 
     plt.figure(figsize=(7, 5))
     plt.plot(epochs, [row["train_loss"] for row in history], label="train loss")
+    plt.plot(epochs, [row["val_loss"] for row in history], label="val loss")
     plt.plot(epochs, [row["test_loss"] for row in history], label="test loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
@@ -268,6 +330,7 @@ def plot_curves(history, figure_dir, run_name, title_prefix="CIFAR-10 ViT"):
 
     plt.figure(figsize=(7, 5))
     plt.plot(epochs, [row["train_acc"] * 100 for row in history], label="train acc")
+    plt.plot(epochs, [row["val_acc"] * 100 for row in history], label="val acc")
     plt.plot(epochs, [row["test_acc"] * 100 for row in history], label="test acc")
     plt.xlabel("Epoch")
     plt.ylabel("Accuracy (%)")
@@ -292,7 +355,9 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.05)
     parser.add_argument("--train-subset", type=int, default=None)
+    parser.add_argument("--val-subset", type=int, default=None)
     parser.add_argument("--test-subset", type=int, default=None)
+    parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--embedding-dropout", type=float, default=0.0)
@@ -305,7 +370,7 @@ def parse_args():
         "--early-stopping-metric",
         type=str,
         choices=EARLY_STOPPING_METRICS,
-        default="test_acc",
+        default="val_acc",
     )
     return parser.parse_args()
 
@@ -327,13 +392,15 @@ def main():
             f"min_delta={args.early_stopping_min_delta}"
         )
 
-    train_loader, test_loader = build_dataloaders(
+    train_loader, val_loader, test_loader = build_dataloaders(
         data_dir=args.data_dir,
         batch_size=args.batch_size,
         train_subset=args.train_subset,
+        val_subset=args.val_subset,
         test_subset=args.test_subset,
         num_workers=args.num_workers,
         seed=args.seed,
+        val_ratio=args.val_ratio,
     )
 
     model_config = {
@@ -374,6 +441,12 @@ def main():
             optimizer=optimizer,
             device=device,
         )
+        val_loss, val_acc = evaluate(
+            model=model,
+            loader=val_loader,
+            criterion=criterion,
+            device=device,
+        )
         test_loss, test_acc = evaluate(
             model=model,
             loader=test_loader,
@@ -382,12 +455,15 @@ def main():
         )
         print(
             f"  train loss={train_loss:.4f} acc={train_acc * 100:.2f}% | "
+            f"val loss={val_loss:.4f} acc={val_acc * 100:.2f}% | "
             f"test loss={test_loss:.4f} acc={test_acc * 100:.2f}%"
         )
         epoch_metrics = {
             "epoch": epoch,
             "train_loss": train_loss,
             "train_acc": train_acc,
+            "val_loss": val_loss,
+            "val_acc": val_acc,
             "test_loss": test_loss,
             "test_acc": test_acc,
         }
@@ -416,6 +492,23 @@ def main():
 
     if best_state_dict is not None:
         model.load_state_dict(best_state_dict)
+    selected_val_loss, selected_val_acc = evaluate(
+        model=model,
+        loader=val_loader,
+        criterion=criterion,
+        device=device,
+    )
+    selected_test_loss, selected_test_acc = evaluate(
+        model=model,
+        loader=test_loader,
+        criterion=criterion,
+        device=device,
+    )
+    print(
+        f"Selected checkpoint epoch {best_epoch}: "
+        f"val loss={selected_val_loss:.4f} acc={selected_val_acc * 100:.2f}% | "
+        f"test loss={selected_test_loss:.4f} acc={selected_test_acc * 100:.2f}%"
+    )
 
     metrics_dir = args.results_dir / "metrics"
     figure_dir = args.results_dir / "figures"
@@ -428,6 +521,7 @@ def main():
         args=args,
         model_config=model_config,
         train_size=len(train_loader.dataset),
+        val_size=len(val_loader.dataset),
         test_size=len(test_loader.dataset),
         device=device,
         path=config_path,
@@ -443,7 +537,20 @@ def main():
         "best_metric_value": best_metric_value,
         "epochs_completed": len(history),
     }
-    save_summary_json(args, history, summary_path, early_stopping_info)
+    selected_model_metrics = {
+        "epoch": best_epoch,
+        "val_loss": selected_val_loss,
+        "val_acc": selected_val_acc,
+        "test_loss": selected_test_loss,
+        "test_acc": selected_test_acc,
+    }
+    save_summary_json(
+        args,
+        history,
+        summary_path,
+        early_stopping_info,
+        selected_model_metrics,
+    )
 
     print(f"Saved metrics: {metrics_path}")
     print(f"Saved config: {config_path}")

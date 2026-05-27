@@ -294,6 +294,24 @@ artifact format instead of being tied to a single model:
 
 This keeps the reporting layer reusable when new models or new metrics are
 added later, as long as they follow the same result-file convention.
+
+## Validation-Based Training
+
+The project now uses a split inside the official CIFAR-10 training set:
+
+```text
+official train -> train split + validation split
+official test -> final test split
+```
+
+Why this matters:
+
+- `train` is for gradient updates
+- `validation` is for early stopping and checkpoint selection
+- `test` is no longer used to decide when to stop training
+
+This is a more correct experimental setup for later architecture ablations,
+because it reduces the risk of overfitting decisions to the test set.
 ## Early Stopping
 
 Early stopping is now implemented in both `train_cifar10.py` and

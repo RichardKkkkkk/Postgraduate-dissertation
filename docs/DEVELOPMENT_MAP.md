@@ -209,3 +209,15 @@ control loop itself. Early stopping is a low-risk optimization step because it:
 The current implementation monitors the existing evaluation split. A later
 methodology upgrade should introduce `train / validation / test` and move early
 stopping to validation.
+
+## Validation Upgrade
+
+That methodology upgrade is now the immediate next step in the project:
+
+- split the official CIFAR-10 training set into train and validation
+- monitor `val_acc` or `val_loss` for early stopping
+- select the best checkpoint by validation instead of test
+- keep test for final reporting only
+
+This is the minimum experimental cleanup needed before comparing PoPE or other
+image-oriented ViT structure changes.

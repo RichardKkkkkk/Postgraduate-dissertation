@@ -12,7 +12,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-PRIORITY_METRICS = ["test_acc", "test_loss", "train_acc", "train_loss"]
+PRIORITY_METRICS = [
+    "val_acc",
+    "val_loss",
+    "test_acc",
+    "test_loss",
+    "train_acc",
+    "train_loss",
+]
 CONFIG_PRIORITY_PREFIXES = ["model.", "training.", "dataset.", "device", "command"]
 SLIDE_WIDTH_INCHES = 13.333
 SLIDE_HEIGHT_INCHES = 7.5
