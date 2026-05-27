@@ -294,3 +294,25 @@ artifact format instead of being tied to a single model:
 
 This keeps the reporting layer reusable when new models or new metrics are
 added later, as long as they follow the same result-file convention.
+## Early Stopping
+
+Early stopping is now implemented in both `train_cifar10.py` and
+`train_cnn_cifar10.py`.
+
+What it does:
+
+- after each epoch, it checks one monitored metric
+- if that metric does not improve for `patience` epochs, training stops early
+- it records the best epoch and best monitored value in the summary JSON
+
+Current supported monitor metrics:
+
+- `test_acc`
+- `test_loss`
+
+Important note:
+
+- this is a practical first step, but it still monitors the current evaluation
+  split, which is the test set in the current project structure
+- for stricter experimental methodology, early stopping should later be moved
+  onto a validation split instead

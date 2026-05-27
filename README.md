@@ -64,6 +64,27 @@ python train_cnn_cifar10.py --weights none --epochs 1 --train-subset 2000 --test
 - `docs/DEVELOPMENT_MAP.md`：项目开发思维导图，记录每一步为什么这样做。
 
 添加新的可运行脚本时，需要同步更新这个 README。
+## Early Stopping
+
+Both training scripts now support early stopping:
+
+```bash
+python train_cifar10.py --epochs 30 --early-stopping-patience 5
+python train_cnn_cifar10.py --epochs 30 --early-stopping-patience 5
+```
+
+Optional controls:
+
+```bash
+--early-stopping-metric test_acc
+--early-stopping-metric test_loss
+--early-stopping-min-delta 0.001
+```
+
+Current behavior keeps the project simple by monitoring the existing evaluation
+split. For more rigorous experiments, the next step should be switching early
+stopping from the test set to a dedicated validation split.
+
 ## Experiment Comparison Reports
 
 Use `generate_comparison_report.py` to compare multiple runs and generate:

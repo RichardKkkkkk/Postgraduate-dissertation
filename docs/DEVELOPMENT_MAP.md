@@ -197,3 +197,15 @@ script should treat experiment outputs as a stable interface:
 
 This makes later extensions easier when new architectures or extra evaluation
 metrics are introduced.
+## Early Stopping Step
+
+Before adding larger architecture changes, it is useful to improve the training
+control loop itself. Early stopping is a low-risk optimization step because it:
+
+- reduces wasted epochs when the metric plateaus
+- gives a cleaner comparison between runs with different regularization choices
+- prepares the codebase for later validation-based model selection
+
+The current implementation monitors the existing evaluation split. A later
+methodology upgrade should introduce `train / validation / test` and move early
+stopping to validation.

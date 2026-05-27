@@ -8,11 +8,14 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, models, transforms
 
 from train_cifar10 import (
+    EARLY_STOPPING_METRICS,
     CIFAR10_MEAN,
     CIFAR10_STD,
     evaluate,
     get_device,
+    get_metric_mode,
     make_subset,
+    maybe_update_early_stopping,
     plot_curves,
     save_config_json,
     save_metrics_csv,
@@ -119,6 +122,14 @@ def parse_args():
     parser.add_argument("--test-subset", type=int, default=None)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--early-stopping-patience", type=int, default=None)
+    parser.add_argument("--early-stopping-min-delta", type=float, default=0.0)
+    parser.add_argument(
+        "--early-stopping-metric",
+        type=str,
+        choices=EARLY_STOPPING_METRICS,
+        default="test_acc",
+    )
     return parser.parse_args()
 
 
@@ -134,6 +145,13 @@ def main():
     print(f"Epochs: {args.epochs}")
     print(f"Weights: {args.weights}")
     print(f"Image size: {args.image_size}")
+    if args.early_stopping_patience is not None:
+        print(
+            "Early stopping: "
+            f"metric={args.early_stopping_metric}, "
+            f"patience={args.early_stopping_patience}, "
+            f"min_delta={args.early_stopping_min_delta}"
+        )
 
     train_loader, test_loader = build_dataloaders(
         data_dir=args.data_dir,
@@ -162,6 +180,11 @@ def main():
     )
 
     history = []
+    best_metric_value = None
+    best_epoch = None
+    best_state_dict = None
+    patience_counter = 0
+    stopped_early = False
     for epoch in range(1, args.epochs + 1):
         print(f"Epoch {epoch}/{args.epochs}")
         train_loss, train_acc = train_one_epoch(
@@ -181,15 +204,38 @@ def main():
             f"  train loss={train_loss:.4f} acc={train_acc * 100:.2f}% | "
             f"test loss={test_loss:.4f} acc={test_acc * 100:.2f}%"
         )
-        history.append(
-            {
-                "epoch": epoch,
-                "train_loss": train_loss,
-                "train_acc": train_acc,
-                "test_loss": test_loss,
-                "test_acc": test_acc,
-            }
+        epoch_metrics = {
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "train_acc": train_acc,
+            "test_loss": test_loss,
+            "test_acc": test_acc,
+        }
+        history.append(epoch_metrics)
+
+        best_metric_value, best_epoch, best_state_dict, patience_counter, improved = maybe_update_early_stopping(
+            model=model,
+            epoch_metrics=epoch_metrics,
+            monitor_metric=args.early_stopping_metric,
+            min_delta=args.early_stopping_min_delta,
+            best_metric_value=best_metric_value,
+            best_epoch=best_epoch,
+            best_state_dict=best_state_dict,
+            patience_counter=patience_counter,
         )
+        if args.early_stopping_patience is not None:
+            status = "improved" if improved else f"no improvement ({patience_counter}/{args.early_stopping_patience})"
+            print(
+                f"  early stopping monitor {args.early_stopping_metric}="
+                f"{epoch_metrics[args.early_stopping_metric]:.4f} -> {status}"
+            )
+            if patience_counter >= args.early_stopping_patience:
+                stopped_early = True
+                print(f"Early stopping triggered at epoch {epoch}.")
+                break
+
+    if best_state_dict is not None:
+        model.load_state_dict(best_state_dict)
 
     metrics_dir = args.results_dir / "metrics"
     figure_dir = args.results_dir / "figures"
@@ -211,7 +257,18 @@ def main():
         device=device,
         path=config_path,
     )
-    save_summary_json(args, history, summary_path)
+    early_stopping_info = {
+        "enabled": args.early_stopping_patience is not None,
+        "metric": args.early_stopping_metric,
+        "mode": get_metric_mode(args.early_stopping_metric),
+        "patience": args.early_stopping_patience,
+        "min_delta": args.early_stopping_min_delta,
+        "stopped_early": stopped_early,
+        "best_epoch": best_epoch,
+        "best_metric_value": best_metric_value,
+        "epochs_completed": len(history),
+    }
+    save_summary_json(args, history, summary_path, early_stopping_info)
 
     print(f"Saved metrics: {metrics_path}")
     print(f"Saved config: {config_path}")
