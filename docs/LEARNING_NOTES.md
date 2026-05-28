@@ -297,65 +297,85 @@ added later, as long as they follow the same result-file convention.
 
 ## Validation-Based Training
 
-The project now uses a split inside the official CIFAR-10 training set:
+项目现在采用更规范的 `train / validation / test` 流程。
 
 ```text
-official train -> train split + validation split
-official test -> final test split
+official CIFAR-10 train -> train split + validation split
+official CIFAR-10 test  -> final test split
 ```
 
-Why this matters:
+为什么这一步重要：
 
-- `train` is for gradient updates
-- `validation` is for early stopping and checkpoint selection
-- `test` is no longer used to decide when to stop training
+- `train` 只负责参数更新
+- `validation` 用来 early stopping 和模型选择
+- `test` 只用于最终报告，不再参与调参
 
-This is a more correct experimental setup for later architecture ablations,
-because it reduces the risk of overfitting decisions to the test set.
+这是后面做结构对比前必须补齐的方法学清理。
+否则你会在不知不觉中不断根据 `test` 结果做决策，最后让实验结论失去说服力。
 
-## Confusion Matrix And Macro Metrics
+英文可以记一句：
+`Validation is for selection, test is for final reporting.`
 
-The project now records more than just loss and accuracy for the selected best
-validation checkpoint.
+## Selected-Checkpoint Evaluation Outputs
 
-Why these are useful:
+训练脚本现在保存的是“最佳 validation checkpoint”的评估结果，而不只是最后一个 epoch 的结果。
 
-- `confusion matrix`: shows which classes are being confused with each other
-- `macro precision / recall / F1`: treats each class more evenly than overall
-  accuracy
-- `per-class accuracy`: helps identify whether gains are broad or only from a
+当前会额外保存：
+
+- `confusion matrix`
+- `macro precision`
+- `macro recall`
+- `macro F1`
+- `per-class precision / recall / F1 / accuracy`
+- saved best checkpoint under `checkpoints/`
+
+这些结果为什么有用：
+
+- `accuracy` 只能告诉你“整体有没有变好”
+- `confusion matrix` 能告诉你“具体是哪些类别的混淆变了”
+- `macro` 指标比单纯 accuracy 更平衡，后面如果迁移到医疗或类别不均衡数据，会更重要
 
 ## Why Split Baseline And RoPE
 
-When a paper needs clean ablations, it is better not to keep adding structural
-branches into the same baseline model file.
+对于论文来说，`clean ablation boundary` 很重要。
+如果 baseline 模型文件里一直往下堆条件分支，后面就很难说清楚：
+“这次性能变化到底来自结构改动，还是来自 baseline 被顺手改过了。”
 
-The current project now uses:
+现在的组织方式是：
 
 - `vit.py`: original ViT baseline with learned absolute positional embedding
-- `vit_rope.py`: separate RoPE reproduction baseline
+- `vit_rope.py`: separate basic RoPE reproduction baseline
 
-This makes later reasoning cleaner:
+这样拆开的好处：
 
-- if `ViT + RoPE` improves, the change can be attributed to the RoPE variant
-- the original baseline implementation stays readable
-- later variants such as `2D RoPE` or `RoPE + locality bias` can be added
-  without polluting the baseline class
+- `vit.py` 可以一直保持为干净的 baseline
+- `ViT baseline` 和 `ViT + RoPE` 变成显式的两个模型分支
+- 后面如果继续做 `2D RoPE`、`RoPE + locality bias`，边界会更清楚
+
+英文可以记一句：
+`Keep the baseline stable, add variants explicitly.`
 
 ## Basic RoPE Intuition
 
-RoPE does not add a learned position vector to each token.
-Instead, it injects position information by rotating `Q` and `K` inside
-self-attention.
+最基础的 RoPE 可以先记成一句话：
 
-In the current reproduction:
+`RoPE = rotate Q and K by position.`
 
-- image patches are still produced the same way as the baseline ViT
+展开来说就是：
+
+- 它不是像 absolute positional embedding 那样，直接给 token 加一个位置向量
+- 它是按照位置对 `Q` 和 `K` 做旋转
+- 因此位置信息是进入了 attention 计算本身，而不是作为额外 token 内容拼进去
+
+在当前这版复现里：
+
+- image patches are still produced exactly like the baseline ViT
 - `cls token` is still concatenated at the front
 - only patch-token `Q` and `K` are rotated
 - `V` is not rotated
+- the implementation is still a simple 1D sequence-style RoPE
 
-For the current CIFAR-10 setup:
+如果按当前 CIFAR-10 的小 ViT 配置来看，shape 是：
 
 ```text
 images: [B, 3, 32, 32]
@@ -366,48 +386,99 @@ patch-only q / k used for RoPE: [B, 4, 64, 32]
 cos / sin cache: [1, 1, 64, 32]
 ```
 
-That means the current version is a good learning baseline, but it is still a
-1D sequence-style RoPE rather than a true 2D image-aware positional design.
-  few classes
+这里最关键的是：
 
-These outputs are especially useful later when comparing positional encoding or
-image-bias variants, because the question is not only "did accuracy go up?" but
-also "did the error pattern change in a meaningful way?"
+- `32x32` 图像切成 `4x4 patch` 后，会得到 `8x8=64` 个 patch
+- 加上 `cls token` 之后，序列长度变成 `65`
+- 进入多头注意力后，每个 head 的维度是 `32`
+- RoPE 只作用在 patch token 上，所以真正被旋转的是 `[B, 4, 64, 32]`
 
-## Basic RoPE Intuition
+因此这版更适合叫：
 
-The most basic idea of RoPE is:
+- `RoPE learning baseline`
+- 还不是 `2D image-aware RoPE`
 
-- do not add a learned position vector to every token
-- instead, rotate the `Q` and `K` vectors according to position
-
-In other words, RoPE changes how attention sees position, rather than adding
-position as extra token content.
-
-For the current minimal ViT reproduction:
-
-- `absolute` mode keeps the learned `pos_embed`
-- `rope` mode removes that addition and applies rotary position embedding inside
-  self-attention
-- the current version is still a simple 1D sequence-style RoPE, which is a good
-  first step before exploring image-specific 2D variants
 ## Early Stopping
 
-Early stopping is now implemented in both `train_cifar10.py` and
-`train_cnn_cifar10.py`.
+现在 `train_cifar10.py` 和 `train_cnn_cifar10.py` 都已经支持 early stopping。
 
-What it does:
+它的作用是：
 
-- after each epoch, it checks one monitored metric
-- if that metric does not improve for `patience` epochs, training stops early
-- it records the best epoch and best monitored value in the summary JSON
+- 每个 epoch 结束后检查一次监控指标
+- 如果连续 `patience` 个 epoch 没有提升，就提前停止
+- 把最佳 epoch 和最佳指标值写进 `summary.json`
+- 在输出最终评估结果前，先恢复最佳 validation checkpoint
 
-Current supported monitor metrics:
+当前支持监控的指标：
 
 - `val_acc`
 - `val_loss`
 
-Important note:
+## Unified Experiment Runner
 
-- it now monitors the validation split rather than the test split
-- this makes later architecture comparisons more methodologically sound
+现在项目里除了模型专用入口外，还新增了一个统一实验入口：
+
+```text
+train_cifar10_experiment.py
+```
+
+它的作用不是替代所有旧脚本，而是提供一个更稳定的实验接口。
+
+当前支持的模型名：
+
+- `vit_baseline`
+- `vit_rope`
+- `resnet18_scratch`
+- `resnet18_imagenet`
+
+这样做的好处是：
+
+- 以后跑实验时，命令风格统一
+- 结果文件结构保持一致
+- 后面加新模型时，更自然的做法是“往统一入口注册一个新模型”
+- 不需要每来一个变体就复制一份新的 `main` 训练脚本
+
+英文可以记一句：
+`Use one experiment runner, register multiple model variants.`
+
+## Model-Aware Reporting Layer
+
+`generate_comparison_report.py` 现在不再主要依赖 run name 猜模型，而是优先读取
+结果文件里已经保存好的结构化字段，例如：
+
+- `selected_model.model_name`
+- `selected_model.model_family`
+- `selected_model.model_variant`
+- `position_encoding` 或可以稳定推断它的字段
+
+这样做的原因是：
+
+- `unified_vit_baseline_smoke` 这种 run name 更像工程文件名
+- 但组会 PPT 里更应该显示 `ViT Baseline`
+- 报告页应该围绕“模型家族 / 变体 / 位置编码 / 初始化方式”来讲，而不是围绕日志文件名来讲
+
+现在报告层支持更清楚地展示：
+
+- `ViT Baseline vs ViT RoPE`
+- `ViT vs CNN`
+- `ResNet18 scratch vs ImageNet pretrained`
+
+## Analysis Layer vs PPT Layer
+
+这次也把报告脚本内部继续往两层拆了一步：
+
+- analysis layer:
+  - load run artifacts
+  - infer model metadata
+  - detect comparison scenario
+  - build metric / macro / per-class payloads
+- presentation layer:
+  - consume the prepared context
+  - place tables, cards, figures, and conclusion text into slides
+
+可以记一句英文：
+
+`Prepare comparison context first, render slides second.`
+
+这样后面如果再新增模型，不需要第一时间去改 PPT 排版代码，
+而是先把元信息识别和分析 payload 补上。

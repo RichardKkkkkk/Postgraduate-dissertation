@@ -187,64 +187,152 @@ ResNet18 from scratch vs ViT from scratch
 因为一旦开始比较不同 ViT 优化方案，就不能一直用 test set 做调参依据。
 ## Reporting Layer
 
-The project now also needs a reusable reporting layer for weekly meetings.
-Instead of hard-coding "ViT vs CNN" or "accuracy/loss only", the reporting
-script should treat experiment outputs as a stable interface:
+周会汇报现在不应该被当成“一次性画图脚本”，而应该被当成可复用的工程层。
+
+理想的数据流是：
 
 - inputs: per-run CSV metrics, config JSON, summary JSON
-- core job: find shared metrics, compare them, and surface config differences
-- outputs: comparison plots, summary tables, and a lightweight PPT
+- analysis layer: compare shared metrics and summarize config differences
+- presentation layer: turn those outputs into meeting-ready PPT content
 
-This makes later extensions easier when new architectures or extra evaluation
-metrics are introduced.
-## Early Stopping Step
+这样做的原因是，后面的实验一定会出现：
 
-Before adding larger architecture changes, it is useful to improve the training
-control loop itself. Early stopping is a low-risk optimization step because it:
+- 更多模型变体
+- 更多指标
+- 更多对比关系
 
-- reduces wasted epochs when the metric plateaus
-- gives a cleaner comparison between runs with different regularization choices
-- prepares the codebase for later validation-based model selection
+如果分析层和展示层不分开，后面会越来越乱。
 
-The current implementation monitors the existing evaluation split. A later
-methodology upgrade should introduce `train / validation / test` and move early
-stopping to validation.
+英文可以记一句：
+`Analysis artifacts and presentation should be loosely coupled.`
 
-## Validation Upgrade
+## Methodology Cleanup
 
-That methodology upgrade is now the immediate next step in the project:
+在真正进入结构改动之前，训练协议必须先变得更规范。
 
-- split the official CIFAR-10 training set into train and validation
-- monitor `val_acc` or `val_loss` for early stopping
-- select the best checkpoint by validation instead of test
-- keep test for final reporting only
+目前已经完成的清理步骤是：
 
-This is the minimum experimental cleanup needed before comparing PoPE or other
-image-oriented ViT structure changes.
+1. early stopping support
+2. validation-based model selection
+3. richer selected-checkpoint evaluation outputs
 
-## Evaluation Upgrade
+这些步骤本身不是论文创新点，但它们很重要，因为它们决定了后面结构实验是否可信。
 
-After moving model selection to validation, the next supporting upgrade is to
-store richer evaluation outputs for the chosen checkpoint:
+也可以理解成：
 
-- confusion matrix
-- macro precision / recall / F1
-- saved best model checkpoint
+- 这些是 `research infrastructure`
+- 不是 `research contribution`
 
-This strengthens later ablation analysis, because the comparison can look at
-how the structure changes the error distribution, not only the top-line
-accuracy.
+## Current Experimental Contract
+
+当前项目已经建立起一套比较稳定的实验协议：
+
+- `train` split for optimization
+- `validation` split for checkpoint selection
+- `test` split for final reporting
+- selected checkpoint metrics saved to disk
+- confusion matrix and macro metrics included in the result artifacts
+
+后面不管你做 `RoPE`、`2D RoPE`，还是加别的图像归纳偏置，最好都沿用这套协议。
+这样后续对比才有可比性。
 
 ## Baseline Boundary Cleanup
 
-Before adding more structural variants, the project now needs a cleaner model
-boundary:
+另一个关键清理动作，是把原始 baseline 和后续结构变体分开。
 
-- keep `vit.py` as the original ViT baseline
-- move RoPE into a separate `vit_rope.py`
-- let the training script choose between `baseline` and `rope`
+现在的边界是：
 
-This supports cleaner ablations and keeps the paper story easier to defend:
-the baseline implementation remains stable, and each new positional variant can
-be tracked as an explicit model branch rather than a hidden conditional path
-inside the baseline file.
+- `vit.py` = original ViT baseline
+- `vit_rope.py` = basic RoPE reproduction baseline
+- `train_cifar10.py` chooses between `baseline` and `rope`
+
+为什么这一步重要：
+
+- baseline 可以长期稳定
+- 每个结构改动都变成显式、可追踪的分支
+- 后面加 `2D RoPE`、`RoPE + locality bias`、甚至更远一点的图像偏置时，都不会把 baseline 文件污染掉
+
+## Immediate Research Path
+
+接下来真正进入研究主线时，路径应该保持递进，不要一下子把很多东西混在一起。
+
+1. run clean `ViT baseline` vs `ViT + RoPE`
+2. confirm the implementation is stable and compare curves / macro metrics
+3. decide whether RoPE is worth extending into a 2D image-aware version
+4. only after that consider adding one lightweight image bias, such as locality
+   or relative position ideas
+
+这样做的好处是，论文叙事会非常清楚：
+
+- baseline 是什么
+- 第一层结构改动是什么
+- 它有没有带来收益
+- 如果有，再继续做第二层图像归纳偏置
+
+这会比一开始就直接做一个 `RoPE + Swin-style idea + 其他 trick` 的混合模型，更容易讲清楚，也更容易写成 clean ablation。
+
+## Unified Runner Step
+
+随着模型变体开始增加，项目需要一个更统一的实验入口。
+
+如果继续沿用：
+
+- 一个模型一个训练脚本
+- 一个变体一个新的 `main`
+
+那么后面很容易出现：
+
+- 参数接口不一致
+- 默认超参数不一致
+- 结果文件格式虽然类似，但入口逻辑越来越分散
+
+所以现在新增统一入口 `train_cifar10_experiment.py` 是一个合理的工程步骤。
+
+它的角色不是取代所有旧脚本，而是：
+
+- 为后续实验提供统一命令接口
+- 把模型选择变成显式参数
+- 让后续新模型更像“注册新分支”，而不是“再复制一个训练脚本”
+
+这属于很典型的 `research infrastructure` 优化：
+它不会直接提升分数，但会显著降低后续做 ablation 的混乱度。
+
+## Reporting For Unified Models
+
+随着统一实验入口已经支持：
+
+- `vit_baseline`
+- `vit_rope`
+- `resnet18_scratch`
+- `resnet18_imagenet`
+
+汇报层也需要同步升级，否则会出现一个常见问题：
+
+- 训练层已经在用统一模型命名
+- 但报告层还在靠旧脚本时代的 run name 和零散字段猜模型
+
+这会直接影响组会叙事质量，因为你真正想讲的是：
+
+- baseline vs rope
+- vit vs cnn
+- scratch vs pretrained
+
+而不是：
+
+- 某个时间戳 run 和另一个时间戳 run 的对比
+
+因此 reporting layer 的合理方向是：
+
+1. 优先读取结构化模型元信息
+2. 自动识别对比场景
+3. 先生成 analysis context
+4. 再让 PPT layer 只负责排版
+
+这样后面如果再注册新模型分支，报告层的扩展点会更清楚：
+
+- add metadata inference
+- add scenario narrative if needed
+- reuse the existing table / chart / slide layout logic
+
+这依然属于 `research infrastructure`，但它对周会和论文写作都很重要，
+因为它决定了实验结果能不能被稳定、清楚地讲出来。

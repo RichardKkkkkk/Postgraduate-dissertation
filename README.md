@@ -90,11 +90,19 @@ Use `generate_comparison_report.py` to compare multiple runs and generate:
 - a config-difference CSV built from `*_config.json`
 - an `overview.md` summary with meeting-ready takeaway text
 - a `presentation_summary.json` file that records the report headline insights
+- model-aware comparison tables that prioritize:
+  - `model_name`
+  - `model_family`
+  - `model_variant`
+  - `position_encoding`
+  - initialization / pretraining status
 - a meeting-ready `.pptx` deck with:
   - title page
   - experiment setup / run context
+  - model comparison page
   - results overview
   - main metrics comparison
+  - macro metrics page
   - curve pages
   - confusion matrix / per-class analysis pages when those artifacts exist
   - a short conclusion page
@@ -109,21 +117,30 @@ Example for a weekly meeting deck:
 
 ```bash
 python generate_comparison_report.py \
-  --run cnn_resnet18_baseline="CNN Baseline" \
-  --run vit_dropout_01="ViT Dropout 0.1" \
-  --report-name cnn_vs_vit_dropout \
-  --title "Weekly Comparison: CNN Baseline vs ViT Dropout 0.1"
+  --run unified_vit_baseline_smoke \
+  --run unified_vit_rope_smoke \
+  --report-name vit_baseline_vs_rope \
+  --title "Weekly Comparison: ViT Baseline vs ViT RoPE"
 ```
 
-Example that also includes confusion matrix and per-class pages from existing
-selected-checkpoint evaluation outputs:
+ViT vs CNN example:
 
 ```bash
 python generate_comparison_report.py \
-  --run cnn_eval_smoke="CNN Eval Smoke" \
-  --run vit_eval_smoke="ViT Eval Smoke" \
-  --report-name weekly_eval_smoke \
-  --title "Weekly Comparison: CNN vs ViT (Eval Smoke)"
+  --run unified_vit_baseline_smoke \
+  --run unified_resnet_smoke \
+  --report-name vit_vs_cnn \
+  --title "Weekly Comparison: ViT vs CNN"
+```
+
+Scratch vs pretrained example:
+
+```bash
+python generate_comparison_report.py \
+  --run resnet18_scratch_run="ResNet18 Scratch" \
+  --run resnet18_imagenet_run="ResNet18 ImageNet" \
+  --report-name scratch_vs_pretrained \
+  --title "Weekly Comparison: ResNet18 Scratch vs ImageNet Pretrained"
 ```
 
 Outputs are written to `results/reports/<report_name>/`.

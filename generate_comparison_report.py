@@ -74,6 +74,56 @@ COLOR_BAD = (220, 38, 38)
 COLOR_CARD = (255, 255, 255)
 COLOR_HEADER_FILL = (226, 232, 240)
 FONT_FAMILY = "Aptos"
+MODEL_DISPLAY_NAMES = {
+    "vit_baseline": "ViT Baseline",
+    "vit_rope": "ViT RoPE",
+    "resnet18_scratch": "ResNet18 Scratch",
+    "resnet18_imagenet": "ResNet18 ImageNet",
+    "vit": "ViT",
+    "resnet18": "ResNet18",
+}
+MODEL_FAMILY_DISPLAY = {
+    "vit": "ViT",
+    "resnet18": "ResNet18",
+    "cnn": "CNN",
+}
+MODEL_VARIANT_DISPLAY = {
+    "baseline": "Baseline",
+    "rope": "RoPE",
+    "scratch": "Scratch",
+    "imagenet": "ImageNet",
+    "pretrained": "Pretrained",
+}
+POSITION_ENCODING_DISPLAY = {
+    "absolute": "Absolute",
+    "rope": "RoPE",
+    "none": "None",
+}
+INITIALIZATION_DISPLAY = {
+    "scratch": "From scratch",
+    "imagenet": "ImageNet pretrained",
+    "none": "From scratch",
+    "unknown": "Unknown",
+}
+
+
+@dataclass
+class ComparisonContext:
+    report_name: str
+    title: str
+    scenario: str
+    runs: list
+    metrics: list[str]
+    selected_metric_keys: list[str]
+    macro_metric_keys: list[str]
+    summary_rows: list[dict]
+    varying_rows: list[tuple]
+    all_varying_keys: list[str]
+    metric_figure_paths: dict[str, Path]
+    macro_figure_payload: dict | None
+    per_class_figure_payloads: list[dict]
+    headline_insights: list[str]
+    conclusion_lines: list[str]
 
 
 @dataclass
@@ -86,6 +136,11 @@ class RunArtifacts:
     available_metrics: list[str]
     flat_config: dict
     model_name: str
+    model_family: str
+    model_variant: str
+    position_encoding: str
+    initialization: str
+    model_display_name: str
     device: str
     completed_epochs: int
     selected_epoch: int | None
@@ -171,21 +226,153 @@ def flatten_dict(data, prefix=""):
     return flat
 
 
-def infer_model_name(config: dict):
-    model_cfg = config.get("model", {})
-    if isinstance(model_cfg, dict) and model_cfg.get("architecture"):
-        return str(model_cfg["architecture"])
+def extract_command_model_name(command: str):
+    tokens = str(command).split()
+    if "--model" in tokens:
+        index = tokens.index("--model")
+        if index + 1 < len(tokens):
+            return tokens[index + 1].strip()
+    return None
 
-    command = str(config.get("command", ""))
-    if "train_cnn_cifar10.py" in command:
-        return "resnet18"
-    if "train_cifar10.py" in command:
-        return "vit"
-    if config.get("weights") is not None:
-        return "resnet18"
-    if any(key in config for key in ["embedding_dropout", "attention_dropout", "mlp_dropout"]):
-        return "vit"
-    return "unknown"
+
+def format_family_display(family: str):
+    return MODEL_FAMILY_DISPLAY.get(family, family.replace("_", " ").title() if family else "Unknown")
+
+
+def format_variant_display(variant: str):
+    return MODEL_VARIANT_DISPLAY.get(variant, variant.replace("_", " ").title() if variant else "Unknown")
+
+
+def format_position_encoding_display(position_encoding: str):
+    return POSITION_ENCODING_DISPLAY.get(
+        position_encoding,
+        position_encoding.replace("_", " ").title() if position_encoding else "Unknown",
+    )
+
+
+def format_initialization_display(initialization: str):
+    return INITIALIZATION_DISPLAY.get(
+        initialization,
+        initialization.replace("_", " ").title() if initialization else "Unknown",
+    )
+
+
+def build_model_display_name(model_name: str, family: str, variant: str, initialization: str):
+    if model_name in MODEL_DISPLAY_NAMES:
+        return MODEL_DISPLAY_NAMES[model_name]
+    if family == "vit":
+        if variant == "baseline":
+            return "ViT Baseline"
+        if variant == "rope":
+            return "ViT RoPE"
+        return f"ViT {format_variant_display(variant)}"
+    if family == "resnet18":
+        if initialization == "imagenet" or variant == "imagenet":
+            return "ResNet18 ImageNet"
+        if initialization == "scratch" or variant == "scratch":
+            return "ResNet18 Scratch"
+        return f"ResNet18 {format_variant_display(variant)}"
+    if family:
+        return f"{format_family_display(family)} {format_variant_display(variant)}".strip()
+    return model_name or "Unknown Model"
+
+
+def infer_model_metadata(config: dict, summary: dict, run_name: str):
+    selected = summary.get("selected_model", {}) if isinstance(summary.get("selected_model"), dict) else {}
+    summary_config = summary.get("config", {}) if isinstance(summary.get("config"), dict) else {}
+    model_cfg = config.get("model", {}) if isinstance(config.get("model"), dict) else {}
+
+    command_model_name = extract_command_model_name(str(config.get("command", "")))
+    raw_model_name = (
+        selected.get("model_name")
+        or summary_config.get("model_name")
+        or summary_config.get("model")
+        or command_model_name
+    )
+    family = (
+        selected.get("model_family")
+        or summary_config.get("model_family")
+        or model_cfg.get("family")
+        or model_cfg.get("architecture")
+    )
+    variant = (
+        selected.get("model_variant")
+        or summary_config.get("model_variant")
+        or model_cfg.get("variant")
+    )
+    position_encoding = (
+        selected.get("position_encoding")
+        or summary_config.get("position_encoding")
+        or model_cfg.get("position_encoding")
+    )
+
+    if not raw_model_name and family and variant:
+        raw_model_name = f"{family}_{variant}"
+
+    if not family and raw_model_name:
+        if raw_model_name.startswith("vit"):
+            family = "vit"
+        elif raw_model_name.startswith("resnet18"):
+            family = "resnet18"
+    if not family:
+        command = str(config.get("command", ""))
+        if "train_cnn_cifar10.py" in command:
+            family = "resnet18"
+        elif "train_cifar10.py" in command or "train_cifar10_experiment.py" in command:
+            family = "vit"
+        elif config.get("weights") is not None:
+            family = "resnet18"
+        elif any(key in config for key in ["embedding_dropout", "attention_dropout", "mlp_dropout"]):
+            family = "vit"
+
+    if not variant and raw_model_name:
+        if raw_model_name in {"vit_baseline", "vit_rope", "resnet18_scratch", "resnet18_imagenet"}:
+            variant = raw_model_name.split("_", 1)[1]
+        elif raw_model_name == "resnet18":
+            variant = "baseline"
+        elif raw_model_name == "vit":
+            variant = "baseline"
+
+    weights_value = (
+        model_cfg.get("weights")
+        or summary_config.get("weights")
+        or config.get("weights")
+    )
+    if family == "resnet18":
+        if str(weights_value).lower() == "imagenet" or variant in {"imagenet", "pretrained"}:
+            initialization = "imagenet"
+        elif str(weights_value).lower() == "none" or variant in {"scratch", "none"}:
+            initialization = "scratch"
+        else:
+            initialization = "unknown"
+    else:
+        initialization = "scratch" if family == "vit" else "unknown"
+
+    if not position_encoding:
+        if variant == "rope":
+            position_encoding = "rope"
+        elif family == "vit":
+            position_encoding = "absolute"
+        else:
+            position_encoding = "none"
+
+    if not raw_model_name:
+        if family and variant:
+            raw_model_name = f"{family}_{variant}"
+        elif family:
+            raw_model_name = family
+        else:
+            raw_model_name = run_name
+
+    display_name = build_model_display_name(raw_model_name, family or "unknown", variant or "unknown", initialization)
+    return {
+        "model_name": raw_model_name,
+        "model_family": family or "unknown",
+        "model_variant": variant or "unknown",
+        "position_encoding": position_encoding or "unknown",
+        "initialization": initialization or "unknown",
+        "model_display_name": display_name,
+    }
 
 
 def resolve_optional_path(project_root: Path, value):
@@ -252,16 +439,23 @@ def load_run_artifacts(results_dir: Path, project_root: Path, run_name: str, lab
     summary = load_json(summary_path)
     flat_config = flatten_dict(config)
     selected = summary.get("selected_model", {}) if isinstance(summary.get("selected_model"), dict) else {}
+    model_metadata = infer_model_metadata(config, summary, run_name)
+    effective_label = model_metadata["model_display_name"] if label == run_name else label
 
     return RunArtifacts(
         run_name=run_name,
-        label=label,
+        label=effective_label,
         history=history,
         config=config,
         summary=summary,
         available_metrics=available_metrics,
         flat_config=flat_config,
-        model_name=infer_model_name(config),
+        model_name=model_metadata["model_name"],
+        model_family=model_metadata["model_family"],
+        model_variant=model_metadata["model_variant"],
+        position_encoding=model_metadata["position_encoding"],
+        initialization=model_metadata["initialization"],
+        model_display_name=model_metadata["model_display_name"],
         device=str(config.get("device", "unknown")),
         completed_epochs=int(history[-1]["epoch"]),
         selected_epoch=int(selected["epoch"]) if isinstance(selected.get("epoch"), (int, float)) else None,
@@ -326,6 +520,65 @@ def determine_selected_metric_keys(runs, history_metrics):
     return sorted(shared, key=lambda key: (priority(key), key))
 
 
+def determine_macro_metric_keys(selected_metric_keys):
+    preferred = [
+        "test_macro_precision",
+        "test_macro_recall",
+        "test_macro_f1",
+        "val_macro_precision",
+        "val_macro_recall",
+        "val_macro_f1",
+    ]
+    return [metric for metric in preferred if metric in selected_metric_keys]
+
+
+def detect_comparison_scenario(runs):
+    families = {run.model_family for run in runs}
+    variants = {run.model_variant for run in runs}
+
+    if families == {"vit"} and {"baseline", "rope"}.issubset(variants):
+        return "baseline_vs_rope"
+    if families == {"resnet18"} and "scratch" in variants and ("imagenet" in variants or "pretrained" in variants):
+        return "scratch_vs_pretrained"
+    if "vit" in families and "resnet18" in families:
+        return "vit_vs_cnn"
+    return "generic_multi_run"
+
+
+def build_default_title(runs, scenario):
+    if scenario == "baseline_vs_rope":
+        return "Weekly Comparison: ViT Baseline vs ViT RoPE"
+    if scenario == "scratch_vs_pretrained":
+        return "Weekly Comparison: ResNet18 Scratch vs ResNet18 ImageNet"
+    if scenario == "vit_vs_cnn":
+        return "Weekly Comparison: ViT vs CNN"
+    joined = " vs ".join(run.label for run in runs[:3])
+    return f"Experiment Comparison: {joined}" if joined else "Experiment Comparison Report"
+
+
+def format_comparison_scenario(scenario: str):
+    mapping = {
+        "baseline_vs_rope": "ViT Baseline vs RoPE",
+        "scratch_vs_pretrained": "ResNet18 Scratch vs Pretrained",
+        "vit_vs_cnn": "ViT vs CNN",
+        "generic_multi_run": "Multi-run comparison",
+    }
+    return mapping.get(scenario, scenario.replace("_", " ").title())
+
+
+def ensure_unique_run_labels(runs):
+    counts = {}
+    for run in runs:
+        counts[run.label] = counts.get(run.label, 0) + 1
+    if all(count == 1 for count in counts.values()):
+        return runs
+
+    for run in runs:
+        if counts[run.label] > 1:
+            run.label = f"{run.label} ({run.run_name})"
+    return runs
+
+
 def is_percentage_metric(metric_name: str):
     tokens = ["acc", "accuracy", "precision", "recall", "f1"]
     lowered = metric_name.lower()
@@ -387,6 +640,11 @@ def build_summary_rows(runs, metrics, selected_metric_keys):
             "run_name": run.run_name,
             "label": run.label,
             "model_name": run.model_name,
+            "model_display_name": run.model_display_name,
+            "model_family": run.model_family,
+            "model_variant": run.model_variant,
+            "position_encoding": run.position_encoding,
+            "initialization": run.initialization,
             "device": run.device,
             "completed_epochs": run.completed_epochs,
             "selected_epoch": run.selected_epoch,
@@ -466,7 +724,7 @@ def build_metric_insight_rows(summary_rows, metrics, reference_label):
     return rows
 
 
-def build_headline_insights(runs, summary_rows, metrics):
+def build_headline_insights(runs, summary_rows, metrics, scenario):
     if not metrics:
         return []
 
@@ -484,6 +742,22 @@ def build_headline_insights(runs, summary_rows, metrics):
             f"{format_metric_value(primary_metric, best_row[f'final_{primary_metric}'])}."
         )
     ]
+
+    if scenario == "baseline_vs_rope":
+        insights.insert(
+            0,
+            "This deck is framed as a ViT baseline vs RoPE comparison, so position encoding is the first story to highlight.",
+        )
+    elif scenario == "scratch_vs_pretrained":
+        insights.insert(
+            0,
+            "This deck is framed as a scratch vs pretrained comparison, so initialization should be called out before raw metric differences.",
+        )
+    elif scenario == "vit_vs_cnn":
+        insights.insert(
+            0,
+            "This deck is framed as a ViT vs CNN comparison, so architecture family differences should be separated from training hyperparameter differences.",
+        )
 
     if best_row["label"] != reference_row["label"]:
         delta = best_row[f"final_{primary_metric}"] - reference_row[f"final_{primary_metric}"]
@@ -519,7 +793,7 @@ def build_headline_insights(runs, summary_rows, metrics):
     return insights[:4]
 
 
-def build_conclusion_lines(runs, summary_rows, metrics, per_class_metric_keys):
+def build_conclusion_lines(runs, summary_rows, metrics, per_class_metric_keys, scenario):
     conclusions = []
     if metrics:
         primary_metric = metrics[0]
@@ -545,6 +819,19 @@ def build_conclusion_lines(runs, summary_rows, metrics, per_class_metric_keys):
                 f"When presenting baseline vs comparison, use {reference['label']} as reference and report "
                 f"{challenger['label']} at {format_delta(metric, delta)} on {metric_display_name(metric)}."
             )
+        )
+
+    if scenario == "baseline_vs_rope":
+        conclusions.append(
+            "For baseline vs RoPE slides, keep the takeaway centered on positional encoding rather than on generic hyperparameter drift."
+        )
+    elif scenario == "scratch_vs_pretrained":
+        conclusions.append(
+            "For scratch vs pretrained slides, explicitly state whether the observed gain looks like an initialization effect or a persistent optimization gap."
+        )
+    elif scenario == "vit_vs_cnn":
+        conclusions.append(
+            "For ViT vs CNN slides, treat architecture family as the main axis and keep variant-level details as secondary notes."
         )
 
     if per_class_metric_keys:
@@ -576,6 +863,7 @@ def estimate_table_font_size(column_count, row_count):
 def save_summary_outputs(
     report_dir: Path,
     title: str,
+    scenario: str,
     runs,
     metrics,
     selected_metric_keys,
@@ -585,7 +873,19 @@ def save_summary_outputs(
     conclusion_lines,
 ):
     summary_csv_path = report_dir / "comparison_summary.csv"
-    fieldnames = ["run_name", "label", "model_name", "device", "completed_epochs", "selected_epoch"]
+    fieldnames = [
+        "run_name",
+        "label",
+        "model_name",
+        "model_display_name",
+        "model_family",
+        "model_variant",
+        "position_encoding",
+        "initialization",
+        "device",
+        "completed_epochs",
+        "selected_epoch",
+    ]
     for metric in metrics:
         fieldnames.extend(
             [f"final_{metric}", f"best_{metric}", f"best_epoch_{metric}"]
@@ -610,6 +910,7 @@ def save_summary_outputs(
     overview_path = report_dir / "overview.md"
     overview_lines = [f"# {title}", ""]
     overview_lines.append(f"Generated: {datetime.now().isoformat(timespec='seconds')}")
+    overview_lines.append(f"Comparison scenario: `{scenario}`")
     overview_lines.append(f"Reference run: `{runs[0].label}`")
     overview_lines.append("")
     overview_lines.append("## Headline Takeaways")
@@ -621,8 +922,9 @@ def save_summary_outputs(
     overview_lines.append("")
     for run in runs:
         overview_lines.append(
-            f"- `{run.label}` (`{run.run_name}`), model: `{run.model_name}`, "
-            f"epochs completed: `{run.completed_epochs}`, device: `{run.device}`"
+            f"- `{run.label}` (`{run.run_name}`), model: `{run.model_display_name}`, "
+            f"family: `{run.model_family}`, variant: `{run.model_variant}`, "
+            f"position encoding: `{run.position_encoding}`, epochs completed: `{run.completed_epochs}`, device: `{run.device}`"
         )
     overview_lines.append("")
     overview_lines.append("## Key Metrics")
@@ -648,6 +950,7 @@ def save_summary_outputs(
     presentation_summary_path = report_dir / "presentation_summary.json"
     presentation_summary = {
         "title": title,
+        "scenario": scenario,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "reference_run": {"run_name": runs[0].run_name, "label": runs[0].label},
         "headline_insights": headline_insights,
@@ -665,6 +968,7 @@ def save_summary_outputs(
     manifest = {
         "report_dir": str(report_dir),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "scenario": scenario,
         "runs": [{"run_name": run.run_name, "label": run.label} for run in runs],
         "metrics": metrics,
         "selected_checkpoint_metrics": selected_metric_keys,
@@ -715,6 +1019,73 @@ def plot_metric(figures_dir: Path, runs, metric_name: str):
     return figure_path
 
 
+def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
+    if not macro_metric_keys:
+        return None
+
+    focus_metrics = [
+        metric
+        for metric in ["test_macro_precision", "test_macro_recall", "test_macro_f1"]
+        if metric in macro_metric_keys
+    ]
+    if not focus_metrics:
+        focus_metrics = macro_metric_keys[:3]
+
+    setup_plot_style()
+    figure, axis = plt.subplots(figsize=(8.0, 4.8))
+    x_positions = np.arange(len(focus_metrics))
+    width = min(0.75 / max(1, len(runs)), 0.22)
+    colors = ["#2563eb", "#0891b2", "#16a34a", "#dc2626", "#7c3aed", "#ea580c"]
+
+    for index, run in enumerate(runs):
+        values = [scale_metric_value(metric_name, run.selected_metrics[metric_name]) for metric_name in focus_metrics]
+        offset = (index - (len(runs) - 1) / 2) * width
+        axis.bar(
+            x_positions + offset,
+            values,
+            width=width,
+            label=run.label,
+            color=colors[index % len(colors)],
+            alpha=0.9,
+        )
+
+    axis.set_xticks(x_positions)
+    axis.set_xticklabels([metric_display_name(metric_name) for metric_name in focus_metrics], fontsize=10)
+    axis.set_ylabel("Percentage (%)")
+    axis.set_ylim(0, max(100.0, axis.get_ylim()[1]))
+    axis.set_title("Selected Checkpoint Macro Metrics", fontsize=14, pad=12)
+    axis.legend(loc="upper center", ncol=min(3, len(runs)), frameon=True)
+    figure.tight_layout()
+
+    figure_path = figures_dir / "macro_metrics_comparison.png"
+    figure.savefig(figure_path, dpi=180)
+    plt.close(figure)
+
+    summary_lines = []
+    if "test_macro_f1" in focus_metrics:
+        best_run = max(runs, key=lambda run: run.selected_metrics["test_macro_f1"])
+        best_value = best_run.selected_metrics["test_macro_f1"]
+        summary_lines.append(
+            f"Best selected Test Macro F1: {best_run.label} ({format_metric_value('test_macro_f1', best_value)})."
+        )
+    if "test_macro_precision" in focus_metrics:
+        best_precision_run = max(runs, key=lambda run: run.selected_metrics["test_macro_precision"])
+        summary_lines.append(
+            f"Best selected Test Macro Precision: {best_precision_run.label} ({format_metric_value('test_macro_precision', best_precision_run.selected_metrics['test_macro_precision'])})."
+        )
+    if "test_macro_recall" in focus_metrics:
+        best_recall_run = max(runs, key=lambda run: run.selected_metrics["test_macro_recall"])
+        summary_lines.append(
+            f"Best selected Test Macro Recall: {best_recall_run.label} ({format_metric_value('test_macro_recall', best_recall_run.selected_metrics['test_macro_recall'])})."
+        )
+
+    return {
+        "path": figure_path,
+        "metrics": focus_metrics,
+        "summary_lines": summary_lines[:3],
+    }
+
+
 def load_confusion_matrix_csv(path: Path):
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.reader(handle)
@@ -732,12 +1103,13 @@ def load_confusion_matrix_csv(path: Path):
 
 
 def ensure_confusion_matrix_figure(figures_dir: Path, run: RunArtifacts):
-    if run.confusion_matrix_figure and run.confusion_matrix_figure.exists():
+    if run.confusion_matrix_csv and run.confusion_matrix_csv.exists():
+        class_names, matrix = load_confusion_matrix_csv(run.confusion_matrix_csv)
+    elif run.confusion_matrix_figure and run.confusion_matrix_figure.exists():
         return run.confusion_matrix_figure
-    if not run.confusion_matrix_csv or not run.confusion_matrix_csv.exists():
+    else:
         return None
 
-    class_names, matrix = load_confusion_matrix_csv(run.confusion_matrix_csv)
     data = np.array(matrix, dtype=float)
 
     setup_plot_style()
@@ -749,7 +1121,7 @@ def ensure_confusion_matrix_figure(figures_dir: Path, run: RunArtifacts):
     axis.set_yticklabels(class_names, fontsize=8)
     axis.set_xlabel("Predicted label")
     axis.set_ylabel("True label")
-    axis.set_title(f"{run.label} Confusion Matrix", fontsize=13, pad=10)
+    axis.set_title(f"{run.model_display_name} Test Confusion Matrix", fontsize=13, pad=10)
 
     for row_index in range(data.shape[0]):
         for column_index in range(data.shape[1]):
@@ -877,9 +1249,16 @@ def make_default_report_name(run_specs):
 def build_run_profile_lines(run: RunArtifacts, selected_varying_keys):
     lines = [
         f"Run ID: {run.run_name}",
-        f"Model / device: {run.model_name} / {run.device}",
+        f"Model / device: {run.model_display_name} / {run.device}",
         f"Epochs completed: {run.completed_epochs}",
     ]
+
+    lines.append(
+        f"Family / variant: {format_family_display(run.model_family)} / {format_variant_display(run.model_variant)}"
+    )
+    lines.append(
+        f"Position / init: {format_position_encoding_display(run.position_encoding)} / {format_initialization_display(run.initialization)}"
+    )
 
     batch_size = run.flat_config.get("training.batch_size", run.flat_config.get("batch_size"))
     lr = run.flat_config.get("training.lr", run.flat_config.get("lr"))
@@ -890,11 +1269,6 @@ def build_run_profile_lines(run: RunArtifacts, selected_varying_keys):
             f"{stringify_config_value(batch_size)} / {stringify_config_value(lr)} / {stringify_config_value(weight_decay)}"
         )
 
-    command = run.config.get("command")
-    if command:
-        script_name = Path(str(command).split()[0]).name
-        lines.append(f"Script: {script_name}")
-
     early_stopping = run.early_stopping or {}
     if early_stopping.get("enabled"):
         lines.append(
@@ -903,37 +1277,57 @@ def build_run_profile_lines(run: RunArtifacts, selected_varying_keys):
             f"stopped_early={early_stopping.get('stopped_early', False)})"
         )
 
-    def run_info_priority(key):
-        if key in RUN_INFO_PRIORITY:
-            return RUN_INFO_PRIORITY.index(key)
-        return len(RUN_INFO_PRIORITY)
-
-    added = 0
-    for key in sorted(selected_varying_keys, key=lambda item: (run_info_priority(item), item)):
-        if key in {
-            "batch_size",
-            "lr",
-            "weight_decay",
-            "training.batch_size",
-            "training.lr",
-            "training.weight_decay",
-            "command",
-        }:
-            continue
-        value = run.flat_config.get(key)
-        if value is None:
-            continue
-        rendered = f"{key}: {stringify_config_value(value)}"
-        lines.append(shorten(rendered, width=72, placeholder="..."))
-        added += 1
-        if added >= 2:
-            break
     return lines[:7]
+
+
+def build_model_comparison_rows(runs):
+    headers = [
+        "Run",
+        "Model",
+        "Family",
+        "Variant",
+        "Position Encoding",
+        "Initialization",
+        "Batch / LR / WD",
+    ]
+    rows = []
+    for run in runs:
+        batch_size = run.flat_config.get("training.batch_size", run.flat_config.get("batch_size"))
+        lr = run.flat_config.get("training.lr", run.flat_config.get("lr"))
+        weight_decay = run.flat_config.get("training.weight_decay", run.flat_config.get("weight_decay"))
+        rows.append(
+            [
+                run.label,
+                run.model_display_name,
+                format_family_display(run.model_family),
+                format_variant_display(run.model_variant),
+                format_position_encoding_display(run.position_encoding),
+                format_initialization_display(run.initialization),
+                f"{stringify_config_value(batch_size)} / {stringify_config_value(lr)} / {stringify_config_value(weight_decay)}",
+            ]
+        )
+    return headers, rows
+
+
+def build_macro_metric_rows(summary_rows, macro_metric_keys):
+    headers = ["Macro Metric", "Direction"] + [row["label"] for row in summary_rows] + ["Best Run"]
+    rows = []
+    for metric_name in macro_metric_keys:
+        best_row = max(summary_rows, key=lambda row: row[f"selected_{metric_name}"])
+        rows.append(
+            [
+                f"Selected {metric_display_name(metric_name)}",
+                "Higher",
+                *[format_metric_value(metric_name, row[f"selected_{metric_name}"]) for row in summary_rows],
+                best_row["label"],
+            ]
+        )
+    return headers, rows
 
 
 def build_results_overview_rows(summary_rows, metrics):
     chosen_metrics = metrics[: min(3, len(metrics))]
-    headers = ["Run", "Model", "Epochs", "Selected Epoch"]
+    headers = ["Run", "Model", "Variant", "Epochs", "Selected Epoch"]
     headers.extend(metric_display_name(metric) for metric in chosen_metrics)
 
     rows = []
@@ -941,7 +1335,8 @@ def build_results_overview_rows(summary_rows, metrics):
         rows.append(
             [
                 row["label"],
-                row["model_name"],
+                row["model_display_name"],
+                format_variant_display(row["model_variant"]),
                 str(row["completed_epochs"]),
                 str(row["selected_epoch"]) if row["selected_epoch"] is not None else "n/a",
                 *[format_metric_value(metric, row[f"final_{metric}"]) for metric in chosen_metrics],
@@ -979,21 +1374,7 @@ def build_main_metric_rows(summary_rows, metrics, selected_metric_keys):
     return headers, rows
 
 
-def export_ppt(
-    report_dir: Path,
-    report_name: str,
-    title: str,
-    runs,
-    metrics,
-    selected_metric_keys,
-    summary_rows,
-    varying_rows,
-    all_varying_keys,
-    metric_figure_paths,
-    per_class_figure_payloads,
-    headline_insights,
-    conclusion_lines,
-):
+def export_ppt(report_dir: Path, context: ComparisonContext):
     try:
         from pptx import Presentation
         from pptx.dml.color import RGBColor
@@ -1007,6 +1388,22 @@ def export_ppt(
 
     def rgb(color):
         return RGBColor(*color)
+
+    report_name = context.report_name
+    title = context.title
+    runs = context.runs
+    metrics = context.metrics
+    selected_metric_keys = context.selected_metric_keys
+    macro_metric_keys = context.macro_metric_keys
+    summary_rows = context.summary_rows
+    varying_rows = context.varying_rows
+    all_varying_keys = context.all_varying_keys
+    metric_figure_paths = context.metric_figure_paths
+    macro_figure_payload = context.macro_figure_payload
+    per_class_figure_payloads = context.per_class_figure_payloads
+    headline_insights = context.headline_insights
+    conclusion_lines = context.conclusion_lines
+    scenario = context.scenario
 
     prs = Presentation()
     prs.slide_width = Inches(SLIDE_WIDTH_INCHES)
@@ -1197,11 +1594,19 @@ def export_ppt(
         accent.fill.fore_color.rgb = rgb(COLOR_CYAN)
         accent.line.fill.background()
 
-        add_textbox(slide, 0.72, 0.9, 11.5, 0.85, title, 28, color=(255, 255, 255), bold=True)
+        title_font_size = 28
+        title_height = 0.85
+        if len(title) > 58:
+            title_font_size = 24
+            title_height = 1.15
+        if len(title) > 78:
+            title_font_size = 21
+            title_height = 1.35
+        add_textbox(slide, 0.72, 0.9, 12.0, title_height, title, title_font_size, color=(255, 255, 255), bold=True)
         add_textbox(
             slide,
             0.74,
-            1.86,
+            2.0,
             10.6,
             0.4,
             "Weekly experiment comparison deck generated from existing run artifacts",
@@ -1209,7 +1614,7 @@ def export_ppt(
             color=(226, 232, 240),
         )
 
-        run_chip_top = 2.55
+        run_chip_top = 2.7
         for index, run in enumerate(runs[:4]):
             chip = slide.shapes.add_shape(
                 MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
@@ -1252,9 +1657,10 @@ def export_ppt(
             5.25,
             1.3,
             [
+                f"Comparison scenario: {format_comparison_scenario(scenario)}",
                 f"Reference run: {runs[0].label}",
                 f"Compared runs: {len(runs)}",
-                f"Shared training metrics: {', '.join(metric_display_name(metric) for metric in metrics[:4])}",
+                f"Shared training metrics: {', '.join(metric_display_name(metric) for metric in metrics[:3])}",
             ],
             font_size=12,
             color=(226, 232, 240),
@@ -1281,6 +1687,10 @@ def export_ppt(
                 positions = [(0.55, 1.72), (6.85, 1.72)]
                 card_width = 5.9
                 card_height = 3.15
+            elif len(run_group) == 3:
+                positions = [(0.55, 1.72), (6.85, 1.72), (0.55, 4.1)]
+                card_width = 5.9
+                card_height = 2.52
             else:
                 positions = [
                     (0.55, 1.7),
@@ -1359,6 +1769,45 @@ def export_ppt(
         )
 
         add_footer(slide, "This slide replaces generic 'key takeaways' text with meeting-ready comparison statements.")
+
+    def add_model_comparison_slide():
+        headers, rows = build_model_comparison_rows(runs)
+        add_table_slides(
+            "Model Comparison",
+            "This page is keyed off model family, variant, position encoding, and initialization rather than off raw run names.",
+            headers,
+            rows,
+            sticky_columns=2,
+            max_total_columns=7,
+            max_body_rows=7,
+            font_size=11,
+            footer_text="Use this page to frame baseline vs RoPE, ViT vs CNN, or scratch vs pretrained before discussing metrics.",
+        )
+
+    def add_macro_metrics_slide():
+        if not macro_metric_keys or not macro_figure_payload:
+            return
+
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        apply_slide_background(slide, COLOR_BG)
+        add_slide_header(
+            slide,
+            "Macro Metrics",
+            "Selected-checkpoint macro precision, recall, and F1 are grouped here for quick meeting discussion.",
+            section_label="Macro Metrics",
+        )
+        slide.shapes.add_picture(str(macro_figure_payload["path"]), Inches(0.62), Inches(1.82), width=Inches(7.25))
+        add_card(
+            slide,
+            8.25,
+            1.98,
+            4.0,
+            2.9,
+            "Macro readout",
+            macro_figure_payload["summary_lines"] or ["Macro metrics are available but no summary line was generated."],
+            accent=COLOR_CYAN,
+        )
+        add_footer(slide, "Macro metrics help when accuracy alone hides uneven class performance.")
 
     def add_table_slides(title_text, subtitle_text, headers, rows, sticky_columns=1, max_total_columns=6, max_body_rows=8, font_size=None, footer_text=""):
         if len(headers) <= max_total_columns:
@@ -1459,7 +1908,7 @@ def export_ppt(
             apply_slide_background(slide, COLOR_BG)
             add_slide_header(
                 slide,
-                f"Confusion Matrix | {run.label}",
+                f"Confusion Matrix | {run.model_display_name}",
                 "Selected-checkpoint error analysis pulled from existing evaluation outputs.",
                 section_label="Error Analysis",
             )
@@ -1530,6 +1979,7 @@ def export_ppt(
     add_title_slide()
     add_run_info_slides()
     add_highlight_slide()
+    add_model_comparison_slide()
 
     overview_headers, overview_rows = build_results_overview_rows(summary_rows, metrics)
     add_table_slides(
@@ -1538,7 +1988,7 @@ def export_ppt(
         overview_headers,
         overview_rows,
         sticky_columns=2,
-        max_total_columns=7,
+        max_total_columns=8,
         max_body_rows=7,
         footer_text="This table is intentionally compact so it remains readable on projected slides.",
     )
@@ -1554,6 +2004,20 @@ def export_ppt(
         max_body_rows=8,
         footer_text="Direction indicates whether higher or lower values are preferable.",
     )
+
+    if macro_metric_keys:
+        macro_headers, macro_rows = build_macro_metric_rows(summary_rows, macro_metric_keys)
+        add_table_slides(
+            "Macro Metrics Table",
+            "Exact selected-checkpoint macro metrics for precision, recall, and F1.",
+            macro_headers,
+            macro_rows,
+            sticky_columns=2,
+            max_total_columns=6,
+            max_body_rows=8,
+            footer_text="This table complements the macro bar chart on the next page.",
+        )
+        add_macro_metrics_slide()
 
     if varying_rows:
         config_headers = ["Config"] + [run.label for run in runs]
@@ -1580,58 +2044,94 @@ def export_ppt(
     return ppt_path
 
 
-def main():
-    args = parse_args()
-    project_root = Path.cwd()
-    run_specs = [parse_run_spec(spec) for spec in args.runs]
+def build_report_context(args, run_specs, project_root: Path):
     report_name = args.report_name or make_default_report_name(run_specs)
-    title = args.title or "Experiment Comparison Report"
-
     runs = [
         load_run_artifacts(args.results_dir, project_root, run_name, label)
         for run_name, label in run_specs
     ]
+    runs = ensure_unique_run_labels(runs)
     metrics = determine_metrics(runs, explicit_metrics=args.metrics)
     if not metrics:
         raise ValueError("No shared numeric metrics were found across the selected runs.")
 
+    scenario = detect_comparison_scenario(runs)
+    title = args.title or build_default_title(runs, scenario)
     selected_metric_keys = determine_selected_metric_keys(runs, metrics)
-    report_dir, figures_dir = ensure_report_dirs(args.results_dir, report_name)
+    macro_metric_keys = determine_macro_metric_keys(selected_metric_keys)
     summary_rows = build_summary_rows(runs, metrics, selected_metric_keys)
     selected_varying_keys, all_varying_keys = choose_varying_config_keys(
         runs, args.max_config_rows
     )
     varying_rows = build_varying_rows(runs, selected_varying_keys, args.max_config_rows)
 
-    metric_figure_paths = {}
-    for metric in metrics:
-        metric_figure_paths[metric] = plot_metric(figures_dir, runs, metric)
-
-    per_class_metric_keys = determine_available_per_class_metric_keys(runs)
-    per_class_figure_payloads = []
-    for metric_name in per_class_metric_keys:
-        figure_path, class_names = plot_per_class_metric(figures_dir, runs, metric_name)
-        per_class_figure_payloads.append(
-            {
-                "metric": metric_name,
-                "path": figure_path,
-                "summary": summarize_per_class_metric(runs, metric_name, class_names),
-            }
-        )
-
-    headline_insights = build_headline_insights(runs, summary_rows, metrics)
-    conclusion_lines = build_conclusion_lines(runs, summary_rows, metrics, per_class_metric_keys)
-
-    summary_csv_path, config_csv_path, overview_path, presentation_summary_path, manifest_path = save_summary_outputs(
-        report_dir=report_dir,
+    return ComparisonContext(
+        report_name=report_name,
         title=title,
+        scenario=scenario,
         runs=runs,
         metrics=metrics,
         selected_metric_keys=selected_metric_keys,
+        macro_metric_keys=macro_metric_keys,
         summary_rows=summary_rows,
-        varying_keys=all_varying_keys,
-        headline_insights=headline_insights,
-        conclusion_lines=conclusion_lines,
+        varying_rows=varying_rows,
+        all_varying_keys=all_varying_keys,
+        metric_figure_paths={},
+        macro_figure_payload=None,
+        per_class_figure_payloads=[],
+        headline_insights=[],
+        conclusion_lines=[],
+    )
+
+
+def main():
+    args = parse_args()
+    project_root = Path.cwd()
+    run_specs = [parse_run_spec(spec) for spec in args.runs]
+    context = build_report_context(args, run_specs, project_root)
+    report_dir, figures_dir = ensure_report_dirs(args.results_dir, context.report_name)
+
+    for metric in context.metrics:
+        context.metric_figure_paths[metric] = plot_metric(figures_dir, context.runs, metric)
+
+    if context.macro_metric_keys:
+        context.macro_figure_payload = plot_macro_metrics(
+            figures_dir, context.runs, context.macro_metric_keys
+        )
+
+    per_class_metric_keys = determine_available_per_class_metric_keys(context.runs)
+    for metric_name in per_class_metric_keys:
+        figure_path, class_names = plot_per_class_metric(figures_dir, context.runs, metric_name)
+        context.per_class_figure_payloads.append(
+            {
+                "metric": metric_name,
+                "path": figure_path,
+                "summary": summarize_per_class_metric(context.runs, metric_name, class_names),
+            }
+        )
+
+    context.headline_insights = build_headline_insights(
+        context.runs, context.summary_rows, context.metrics, context.scenario
+    )
+    context.conclusion_lines = build_conclusion_lines(
+        context.runs,
+        context.summary_rows,
+        context.metrics,
+        per_class_metric_keys,
+        context.scenario,
+    )
+
+    summary_csv_path, config_csv_path, overview_path, presentation_summary_path, manifest_path = save_summary_outputs(
+        report_dir=report_dir,
+        title=context.title,
+        scenario=context.scenario,
+        runs=context.runs,
+        metrics=context.metrics,
+        selected_metric_keys=context.selected_metric_keys,
+        summary_rows=context.summary_rows,
+        varying_keys=context.all_varying_keys,
+        headline_insights=context.headline_insights,
+        conclusion_lines=context.conclusion_lines,
     )
 
     print(f"Report directory: {report_dir}")
@@ -1640,27 +2140,15 @@ def main():
     print(f"Overview Markdown: {overview_path}")
     print(f"Presentation Summary JSON: {presentation_summary_path}")
     print(f"Manifest JSON: {manifest_path}")
-    for metric, path in metric_figure_paths.items():
+    for metric, path in context.metric_figure_paths.items():
         print(f"Figure ({metric}): {path}")
-    for payload in per_class_figure_payloads:
+    if context.macro_figure_payload:
+        print(f"Macro Figure: {context.macro_figure_payload['path']}")
+    for payload in context.per_class_figure_payloads:
         print(f"Per-class Figure ({payload['metric']}): {payload['path']}")
 
     if not args.skip_ppt:
-        ppt_path = export_ppt(
-            report_dir=report_dir,
-            report_name=report_name,
-            title=title,
-            runs=runs,
-            metrics=metrics,
-            selected_metric_keys=selected_metric_keys,
-            summary_rows=summary_rows,
-            varying_rows=varying_rows,
-            all_varying_keys=all_varying_keys,
-            metric_figure_paths=metric_figure_paths,
-            per_class_figure_payloads=per_class_figure_payloads,
-            headline_insights=headline_insights,
-            conclusion_lines=conclusion_lines,
-        )
+        ppt_path = export_ppt(report_dir=report_dir, context=context)
         print(f"PPTX: {ppt_path}")
 
 
