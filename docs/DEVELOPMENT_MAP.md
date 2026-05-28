@@ -221,3 +221,16 @@ That methodology upgrade is now the immediate next step in the project:
 
 This is the minimum experimental cleanup needed before comparing PoPE or other
 image-oriented ViT structure changes.
+
+## Evaluation Upgrade
+
+After moving model selection to validation, the next supporting upgrade is to
+store richer evaluation outputs for the chosen checkpoint:
+
+- confusion matrix
+- macro precision / recall / F1
+- saved best model checkpoint
+
+This strengthens later ablation analysis, because the comparison can look at
+how the structure changes the error distribution, not only the top-line
+accuracy.

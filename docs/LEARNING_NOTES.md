@@ -312,6 +312,23 @@ Why this matters:
 
 This is a more correct experimental setup for later architecture ablations,
 because it reduces the risk of overfitting decisions to the test set.
+
+## Confusion Matrix And Macro Metrics
+
+The project now records more than just loss and accuracy for the selected best
+validation checkpoint.
+
+Why these are useful:
+
+- `confusion matrix`: shows which classes are being confused with each other
+- `macro precision / recall / F1`: treats each class more evenly than overall
+  accuracy
+- `per-class accuracy`: helps identify whether gains are broad or only from a
+  few classes
+
+These outputs are especially useful later when comparing positional encoding or
+image-bias variants, because the question is not only "did accuracy go up?" but
+also "did the error pattern change in a meaningful way?"
 ## Early Stopping
 
 Early stopping is now implemented in both `train_cifar10.py` and

@@ -193,6 +193,104 @@ def evaluate(model, loader, criterion, device):
     return total_loss / total, correct / total
 
 
+def unwrap_dataset(dataset):
+    current = dataset
+    while isinstance(current, Subset):
+        current = current.dataset
+    return current
+
+
+def get_class_names(dataset):
+    base_dataset = unwrap_dataset(dataset)
+    if hasattr(base_dataset, "classes"):
+        return list(base_dataset.classes)
+    return [str(index) for index in range(len(base_dataset))]
+
+
+def compute_confusion_matrix(targets, predictions, num_classes):
+    matrix = torch.zeros((num_classes, num_classes), dtype=torch.int64)
+    for target, prediction in zip(targets, predictions):
+        matrix[target, prediction] += 1
+    return matrix
+
+
+def compute_classification_metrics(confusion_matrix):
+    matrix = confusion_matrix.to(torch.float32)
+    true_positives = matrix.diag()
+    predicted_positives = matrix.sum(dim=0)
+    actual_positives = matrix.sum(dim=1)
+
+    precision = torch.where(
+        predicted_positives > 0,
+        true_positives / predicted_positives,
+        torch.zeros_like(true_positives),
+    )
+    recall = torch.where(
+        actual_positives > 0,
+        true_positives / actual_positives,
+        torch.zeros_like(true_positives),
+    )
+    f1 = torch.where(
+        (precision + recall) > 0,
+        2 * precision * recall / (precision + recall),
+        torch.zeros_like(precision),
+    )
+    per_class_accuracy = recall
+
+    return {
+        "macro_precision": precision.mean().item(),
+        "macro_recall": recall.mean().item(),
+        "macro_f1": f1.mean().item(),
+        "per_class_precision": precision.tolist(),
+        "per_class_recall": recall.tolist(),
+        "per_class_f1": f1.tolist(),
+        "per_class_accuracy": per_class_accuracy.tolist(),
+    }
+
+
+@torch.no_grad()
+def evaluate_with_details(model, loader, criterion, device, num_classes):
+    model.eval()
+    total_loss = 0.0
+    correct = 0
+    total = 0
+    all_predictions = []
+    all_targets = []
+
+    for images, labels in loader:
+        images = images.to(device)
+        labels = labels.to(device)
+
+        logits = model(images)
+        loss = criterion(logits, labels)
+        predictions = logits.argmax(dim=1)
+
+        batch_size = labels.size(0)
+        total_loss += loss.item() * batch_size
+        correct += (predictions == labels).sum().item()
+        total += batch_size
+
+        all_predictions.append(predictions.cpu())
+        all_targets.append(labels.cpu())
+
+    predictions = torch.cat(all_predictions)
+    targets = torch.cat(all_targets)
+    confusion_matrix = compute_confusion_matrix(
+        targets=targets.tolist(),
+        predictions=predictions.tolist(),
+        num_classes=num_classes,
+    )
+    metrics = compute_classification_metrics(confusion_matrix)
+    metrics.update(
+        {
+            "loss": total_loss / total,
+            "acc": correct / total,
+            "confusion_matrix": confusion_matrix.tolist(),
+        }
+    )
+    return metrics
+
+
 def make_run_name():
     return datetime.now().strftime("cifar10_vit_%Y%m%d_%H%M%S")
 
@@ -231,8 +329,51 @@ def maybe_update_early_stopping(
             copy.deepcopy(model.state_dict()),
             0,
             True,
-        )
+    )
     return best_metric_value, best_epoch, best_state_dict, patience_counter + 1, False
+
+
+def save_confusion_matrix_csv(confusion_matrix, class_names, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["true/pred", *class_names])
+        for class_name, row in zip(class_names, confusion_matrix):
+            writer.writerow([class_name, *row])
+
+
+def plot_confusion_matrix(confusion_matrix, class_names, path, title):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    matrix = torch.tensor(confusion_matrix, dtype=torch.float32)
+
+    plt.figure(figsize=(8, 6))
+    plt.imshow(matrix, cmap="Blues")
+    plt.colorbar()
+    plt.xticks(range(len(class_names)), class_names, rotation=45, ha="right")
+    plt.yticks(range(len(class_names)), class_names)
+    plt.xlabel("Predicted label")
+    plt.ylabel("True label")
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig(path, dpi=150)
+    plt.close()
+
+
+def save_best_checkpoint(path, model, model_config, device, args, best_epoch, best_metric_value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "run_name": args.run_name,
+            "model_state_dict": model.state_dict(),
+            "model_config": model_config,
+            "device": str(device),
+            "best_epoch": best_epoch,
+            "best_metric_name": args.early_stopping_metric,
+            "best_metric_value": best_metric_value,
+            "args": vars(args),
+        },
+        path,
+    )
 
 
 def save_metrics_csv(history, path):
@@ -283,6 +424,7 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
         "model": model_config,
         "outputs": {
             "results_dir": str(args.results_dir),
+            "checkpoint_dir": str(args.checkpoint_dir),
             "run_name": args.run_name,
         },
     }
@@ -349,6 +491,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train the small ViT on CIFAR-10.")
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
+    parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
     parser.add_argument("--run-name", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=5, help="Number of training epochs.")
     parser.add_argument("--batch-size", type=int, default=128)
@@ -432,6 +575,8 @@ def main():
     best_state_dict = None
     patience_counter = 0
     stopped_early = False
+    class_names = get_class_names(test_loader.dataset)
+    num_classes = len(class_names)
     for epoch in range(1, args.epochs + 1):
         print(f"Epoch {epoch}/{args.epochs}")
         train_loss, train_acc = train_one_epoch(
@@ -492,30 +637,57 @@ def main():
 
     if best_state_dict is not None:
         model.load_state_dict(best_state_dict)
-    selected_val_loss, selected_val_acc = evaluate(
+    selected_val_metrics = evaluate_with_details(
         model=model,
         loader=val_loader,
         criterion=criterion,
         device=device,
+        num_classes=num_classes,
     )
-    selected_test_loss, selected_test_acc = evaluate(
+    selected_test_metrics = evaluate_with_details(
         model=model,
         loader=test_loader,
         criterion=criterion,
         device=device,
+        num_classes=num_classes,
     )
     print(
         f"Selected checkpoint epoch {best_epoch}: "
-        f"val loss={selected_val_loss:.4f} acc={selected_val_acc * 100:.2f}% | "
-        f"test loss={selected_test_loss:.4f} acc={selected_test_acc * 100:.2f}%"
+        f"val loss={selected_val_metrics['loss']:.4f} acc={selected_val_metrics['acc'] * 100:.2f}% | "
+        f"test loss={selected_test_metrics['loss']:.4f} acc={selected_test_metrics['acc'] * 100:.2f}% | "
+        f"test macro_f1={selected_test_metrics['macro_f1']:.4f}"
     )
 
     metrics_dir = args.results_dir / "metrics"
     figure_dir = args.results_dir / "figures"
+    checkpoint_dir = args.checkpoint_dir
     metrics_path = metrics_dir / f"{args.run_name}_metrics.csv"
     config_path = metrics_dir / f"{args.run_name}_config.json"
     summary_path = metrics_dir / f"{args.run_name}_summary.json"
+    confusion_csv_path = metrics_dir / f"{args.run_name}_test_confusion_matrix.csv"
+    confusion_figure_path = figure_dir / f"{args.run_name}_test_confusion_matrix.png"
+    checkpoint_path = checkpoint_dir / f"{args.run_name}_best.pt"
     loss_path, acc_path = plot_curves(history, figure_dir, args.run_name)
+    save_confusion_matrix_csv(
+        confusion_matrix=selected_test_metrics["confusion_matrix"],
+        class_names=class_names,
+        path=confusion_csv_path,
+    )
+    plot_confusion_matrix(
+        confusion_matrix=selected_test_metrics["confusion_matrix"],
+        class_names=class_names,
+        path=confusion_figure_path,
+        title=f"{args.run_name} Test Confusion Matrix",
+    )
+    save_best_checkpoint(
+        path=checkpoint_path,
+        model=model,
+        model_config=model_config,
+        device=device,
+        args=args,
+        best_epoch=best_epoch,
+        best_metric_value=best_metric_value,
+    )
     save_metrics_csv(history, metrics_path)
     save_config_json(
         args=args,
@@ -539,10 +711,23 @@ def main():
     }
     selected_model_metrics = {
         "epoch": best_epoch,
-        "val_loss": selected_val_loss,
-        "val_acc": selected_val_acc,
-        "test_loss": selected_test_loss,
-        "test_acc": selected_test_acc,
+        "val_loss": selected_val_metrics["loss"],
+        "val_acc": selected_val_metrics["acc"],
+        "val_macro_precision": selected_val_metrics["macro_precision"],
+        "val_macro_recall": selected_val_metrics["macro_recall"],
+        "val_macro_f1": selected_val_metrics["macro_f1"],
+        "test_loss": selected_test_metrics["loss"],
+        "test_acc": selected_test_metrics["acc"],
+        "test_macro_precision": selected_test_metrics["macro_precision"],
+        "test_macro_recall": selected_test_metrics["macro_recall"],
+        "test_macro_f1": selected_test_metrics["macro_f1"],
+        "test_per_class_accuracy": selected_test_metrics["per_class_accuracy"],
+        "test_per_class_precision": selected_test_metrics["per_class_precision"],
+        "test_per_class_recall": selected_test_metrics["per_class_recall"],
+        "test_per_class_f1": selected_test_metrics["per_class_f1"],
+        "test_confusion_matrix_csv": str(confusion_csv_path),
+        "test_confusion_matrix_figure": str(confusion_figure_path),
+        "checkpoint_path": str(checkpoint_path),
     }
     save_summary_json(
         args,
@@ -557,6 +742,9 @@ def main():
     print(f"Saved summary: {summary_path}")
     print(f"Saved loss plot: {loss_path}")
     print(f"Saved accuracy plot: {acc_path}")
+    print(f"Saved confusion matrix CSV: {confusion_csv_path}")
+    print(f"Saved confusion matrix figure: {confusion_figure_path}")
+    print(f"Saved best checkpoint: {checkpoint_path}")
 
 
 if __name__ == "__main__":
