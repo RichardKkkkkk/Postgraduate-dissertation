@@ -1,8 +1,11 @@
 
 .venv/
 .vscode/
+~$*
 data/
 checkpoints/
-results/
+results/*
+!results/reports/
+!results/reports/**
 __pycache__/
 *.pyc
