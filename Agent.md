@@ -10,6 +10,10 @@ This is a PyTorch Vision Transformer MVP project.
 - Keep checkpoints under `checkpoints/` and do not commit them.
 - Save plots under `results/figures/`.
 - Update README when adding runnable scripts.
+- When changing a shared or unified training interface, also update README with:
+  - the supported CLI parameters
+  - which parameters are model-specific
+  - the default values the user should expect
 - Use the conda environment `vit_research` for project development.
 - Do not create a `.venv` for this project.
 - Remind the user when the current changes form a reasonable commit checkpoint, suggest a clear commit message, but do not commit unless explicitly asked.

@@ -194,3 +194,146 @@ The current RoPE implementation is intentionally minimal:
 - it rotates `Q` and `K` inside self-attention
 - it leaves the `cls token` unrotated
 - it uses a simple 1D sequence-style setup, not a 2D image-aware RoPE yet
+
+## Unified Experiment Runner
+
+项目现在额外提供了一个统一的 CIFAR-10 实验入口：
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline
+python train_cifar10_experiment.py --model vit_rope
+python train_cifar10_experiment.py --model resnet18_scratch
+python train_cifar10_experiment.py --model resnet18_imagenet
+```
+
+推荐用法：
+
+- 默认优先使用 `train_cifar10_experiment.py`
+- 保留 `train_cifar10.py` 和 `train_cnn_cifar10.py` 作为模型专用入口
+- 后续新增模型时，优先注册到统一入口，而不是每次再新建一个训练 `main`
+
+示例：
+
+```bash
+python train_cifar10_experiment.py --model vit_rope --epochs 20 --run-name vit_rope_clean
+python train_cifar10_experiment.py --model resnet18_imagenet --epochs 20 --run-name cnn_ref
+```
+
+### 当前支持的模型
+
+- `vit_baseline`：原始 ViT baseline，使用 learned absolute positional embedding
+- `vit_rope`：当前最基础的 ViT + RoPE 版本
+- `resnet18_scratch`：不加载预训练权重，从随机初始化开始训练的 ResNet18
+- `resnet18_imagenet`：加载 ImageNet 预训练权重的 ResNet18
+
+### 通用 CLI 参数
+
+下面这些参数所有模型都支持：
+
+- `--model`
+- `--data-dir`
+- `--results-dir`
+- `--checkpoint-dir`
+- `--run-name`
+- `--epochs`
+- `--batch-size`
+- `--lr`
+- `--weight-decay`
+- `--train-subset`
+- `--val-subset`
+- `--test-subset`
+- `--val-ratio`
+- `--num-workers`
+- `--seed`
+- `--early-stopping-patience`
+- `--early-stopping-min-delta`
+- `--early-stopping-metric`
+
+### 模型专属参数
+
+ViT 系列：
+
+- `--embedding-dropout`
+- `--attention-dropout`
+- `--projection-dropout`
+- `--mlp-dropout`
+
+RoPE 专属：
+
+- `--rope-base`
+
+ResNet18 系列：
+
+- `--image-size`
+
+### 默认值
+
+通用默认值：
+
+- `--epochs 5`
+- `--val-ratio 0.1`
+- `--num-workers 2`
+- `--seed 42`
+- `--early-stopping-metric val_acc`
+- `--early-stopping-min-delta 0.0`
+- `--early-stopping-patience` 默认不开启，需要你手动指定
+
+ViT 默认值：
+
+- `--batch-size 128`
+- `--lr 3e-4`
+- `--weight-decay 0.05`
+- `--embedding-dropout 0.0`
+- `--attention-dropout 0.0`
+- `--projection-dropout 0.0`
+- `--mlp-dropout 0.0`
+
+RoPE 额外默认值：
+
+- `--rope-base 10000.0`
+
+ResNet18 默认值：
+
+- `--batch-size 64`
+- `--lr 1e-4`
+- `--weight-decay 0.01`
+- `resnet18_scratch` 默认 `--image-size 32`
+- `resnet18_imagenet` 默认 `--image-size 224`
+
+### 常用命令模板
+
+运行 ViT baseline：
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline --epochs 20 --run-name vit_baseline
+```
+
+运行 ViT + RoPE：
+
+```bash
+python train_cifar10_experiment.py --model vit_rope --epochs 20 --run-name vit_rope
+```
+
+运行 ResNet18 from scratch：
+
+```bash
+python train_cifar10_experiment.py --model resnet18_scratch --epochs 20 --run-name cnn_scratch
+```
+
+运行带 ImageNet 预训练的 ResNet18：
+
+```bash
+python train_cifar10_experiment.py --model resnet18_imagenet --epochs 20 --run-name cnn_imagenet
+```
+
+运行一个快速 smoke test：
+
+```bash
+python train_cifar10_experiment.py --model vit_rope --epochs 1 --train-subset 128 --val-subset 64 --test-subset 64 --num-workers 0 --run-name smoke_vit_rope
+```
+
+运行带 early stopping 的实验：
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline --epochs 30 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name vit_baseline_es
+```
