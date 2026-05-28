@@ -176,7 +176,7 @@ results/metrics/<run_name>_metrics.csv
 CSV 里面每一行对应一个 epoch：
 
 ```text
-epoch, train_loss, train_acc, test_loss, test_acc
+epoch, train_loss, train_acc, val_loss, val_acc, test_loss, test_acc
 ```
 
 第二类是摘要：
@@ -324,11 +324,73 @@ Why these are useful:
 - `macro precision / recall / F1`: treats each class more evenly than overall
   accuracy
 - `per-class accuracy`: helps identify whether gains are broad or only from a
+
+## Why Split Baseline And RoPE
+
+When a paper needs clean ablations, it is better not to keep adding structural
+branches into the same baseline model file.
+
+The current project now uses:
+
+- `vit.py`: original ViT baseline with learned absolute positional embedding
+- `vit_rope.py`: separate RoPE reproduction baseline
+
+This makes later reasoning cleaner:
+
+- if `ViT + RoPE` improves, the change can be attributed to the RoPE variant
+- the original baseline implementation stays readable
+- later variants such as `2D RoPE` or `RoPE + locality bias` can be added
+  without polluting the baseline class
+
+## Basic RoPE Intuition
+
+RoPE does not add a learned position vector to each token.
+Instead, it injects position information by rotating `Q` and `K` inside
+self-attention.
+
+In the current reproduction:
+
+- image patches are still produced the same way as the baseline ViT
+- `cls token` is still concatenated at the front
+- only patch-token `Q` and `K` are rotated
+- `V` is not rotated
+
+For the current CIFAR-10 setup:
+
+```text
+images: [B, 3, 32, 32]
+patch tokens after PatchEmbedding: [B, 64, 128]
+after cls token concat: [B, 65, 128]
+q / k / v after multi-head split: [B, 4, 65, 32]
+patch-only q / k used for RoPE: [B, 4, 64, 32]
+cos / sin cache: [1, 1, 64, 32]
+```
+
+That means the current version is a good learning baseline, but it is still a
+1D sequence-style RoPE rather than a true 2D image-aware positional design.
   few classes
 
 These outputs are especially useful later when comparing positional encoding or
 image-bias variants, because the question is not only "did accuracy go up?" but
 also "did the error pattern change in a meaningful way?"
+
+## Basic RoPE Intuition
+
+The most basic idea of RoPE is:
+
+- do not add a learned position vector to every token
+- instead, rotate the `Q` and `K` vectors according to position
+
+In other words, RoPE changes how attention sees position, rather than adding
+position as extra token content.
+
+For the current minimal ViT reproduction:
+
+- `absolute` mode keeps the learned `pos_embed`
+- `rope` mode removes that addition and applies rotary position embedding inside
+  self-attention
+- the current version is still a simple 1D sequence-style RoPE, which is a good
+  first step before exploring image-specific 2D variants
 ## Early Stopping
 
 Early stopping is now implemented in both `train_cifar10.py` and
@@ -342,12 +404,10 @@ What it does:
 
 Current supported monitor metrics:
 
-- `test_acc`
-- `test_loss`
+- `val_acc`
+- `val_loss`
 
 Important note:
 
-- this is a practical first step, but it still monitors the current evaluation
-  split, which is the test set in the current project structure
-- for stricter experimental methodology, early stopping should later be moved
-  onto a validation split instead
+- it now monitors the validation split rather than the test split
+- this makes later architecture comparisons more methodologically sound

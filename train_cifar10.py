@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
 from vit import ViT
+from vit_rope import ViTRoPE
 
 
 CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
@@ -507,6 +508,13 @@ def parse_args():
     parser.add_argument("--attention-dropout", type=float, default=0.0)
     parser.add_argument("--projection-dropout", type=float, default=0.0)
     parser.add_argument("--mlp-dropout", type=float, default=0.0)
+    parser.add_argument(
+        "--model-variant",
+        type=str,
+        choices=("baseline", "rope"),
+        default="baseline",
+    )
+    parser.add_argument("--rope-base", type=float, default=10000.0)
     parser.add_argument("--early-stopping-patience", type=int, default=None)
     parser.add_argument("--early-stopping-min-delta", type=float, default=0.0)
     parser.add_argument(
@@ -560,7 +568,11 @@ def main():
         "projection_dropout": args.projection_dropout,
         "mlp_dropout": args.mlp_dropout,
     }
-    model = ViT(**model_config).to(device)
+    if args.model_variant == "rope":
+        model_config["rope_base"] = args.rope_base
+        model = ViTRoPE(**model_config).to(device)
+    else:
+        model = ViT(**model_config).to(device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(

@@ -234,3 +234,17 @@ store richer evaluation outputs for the chosen checkpoint:
 This strengthens later ablation analysis, because the comparison can look at
 how the structure changes the error distribution, not only the top-line
 accuracy.
+
+## Baseline Boundary Cleanup
+
+Before adding more structural variants, the project now needs a cleaner model
+boundary:
+
+- keep `vit.py` as the original ViT baseline
+- move RoPE into a separate `vit_rope.py`
+- let the training script choose between `baseline` and `rope`
+
+This supports cleaner ablations and keeps the paper story easier to defend:
+the baseline implementation remains stable, and each new positional variant can
+be tracked as an explicit model branch rather than a hidden conditional path
+inside the baseline file.

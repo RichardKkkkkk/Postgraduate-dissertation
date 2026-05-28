@@ -76,14 +76,10 @@ python train_cnn_cifar10.py --epochs 30 --early-stopping-patience 5
 Optional controls:
 
 ```bash
---early-stopping-metric test_acc
---early-stopping-metric test_loss
+--early-stopping-metric val_acc
+--early-stopping-metric val_loss
 --early-stopping-min-delta 0.001
 ```
-
-Current behavior keeps the project simple by monitoring the existing evaluation
-split. For more rigorous experiments, the next step should be switching early
-stopping from the test set to a dedicated validation split.
 
 ## Experiment Comparison Reports
 
@@ -177,3 +173,24 @@ Both training scripts now also save selected-checkpoint evaluation artifacts:
 
 The selected checkpoint is the model chosen by the validation monitoring rule,
 not simply the final epoch.
+
+## RoPE Baseline
+
+The original ViT baseline and the RoPE variant are now split into separate
+model files so the baseline implementation stays clean:
+
+- `vit.py`: original ViT with learned absolute positional embedding
+- `vit_rope.py`: basic RoPE variant
+
+Run them from the same training script:
+
+```bash
+python train_cifar10.py --model-variant baseline
+python train_cifar10.py --model-variant rope
+```
+
+The current RoPE implementation is intentionally minimal:
+
+- it rotates `Q` and `K` inside self-attention
+- it leaves the `cls token` unrotated
+- it uses a simple 1D sequence-style setup, not a 2D image-aware RoPE yet
