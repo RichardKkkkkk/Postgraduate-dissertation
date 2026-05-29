@@ -177,14 +177,23 @@ ResNet18 from scratch vs ViT from scratch
 - 训练指标和图像保存。
 - 实验配置保存。
 - ResNet18 CNN baseline。
+- train / validation / test 实验协议。
+- early stopping 和 validation-based checkpoint selection。
+- confusion matrix、macro metrics 和 best checkpoint 保存。
+- 基础 RoPE 变体，并与原始 ViT baseline 分离。
+- weekly comparison report / PPT 生成层。
 
 下一步最适合做：
 
 ```text
-加入 train / validation / test 划分
+先清理当前训练入口与文档之间的不一致，再跑 ViT baseline vs ViT + RoPE 的干净对比
 ```
 
-因为一旦开始比较不同 ViT 优化方案，就不能一直用 test set 做调参依据。
+因为当前 `README.md` 和本路线图提到了 `train_cifar10_experiment.py`，
+但工作区暂时没有这个文件。继续研究前，应该先确认统一入口到底是缺失、
+尚未同步，还是已经被当前两个专用训练脚本取代。
+
+这个同步问题已记录在 `docs/PROJECT_LOG.md`。
 ## Reporting Layer
 
 周会汇报现在不应该被当成“一次性画图脚本”，而应该被当成可复用的工程层。

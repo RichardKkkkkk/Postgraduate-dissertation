@@ -62,6 +62,7 @@ python train_cnn_cifar10.py --weights none --epochs 1 --train-subset 2000 --test
 - `train_cnn_cifar10.py`：CIFAR-10 ResNet18 CNN baseline 训练和评估脚本。
 - `docs/LEARNING_NOTES.md`：学习笔记，记录代码解释、PyTorch 语法和 tensor shape。
 - `docs/DEVELOPMENT_MAP.md`：项目开发思维导图，记录每一步为什么这样做。
+- `docs/PROJECT_LOG.md`：跨设备开发交接日志，记录当前进度、已知问题和下一步。
 
 添加新的可运行脚本时，需要同步更新这个 README。
 ## Early Stopping

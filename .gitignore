@@ -1,11 +1,13 @@
 
 .venv/
 .vscode/
+.DS_Store
 ~$*
 data/
 checkpoints/
 results/*
 !results/reports/
 !results/reports/**
+results/**/.DS_Store
 __pycache__/
 *.pyc
