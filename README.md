@@ -48,6 +48,14 @@ python train_cnn_cifar10.py
 python train_cnn_cifar10.py --weights none --epochs 1 --train-subset 2000 --test-subset 500
 ```
 
+训练不加载预训练权重的 ResNet18 scratch baseline：
+
+```bash
+python train_resnet18_scratch_cifar10.py
+```
+
+这个脚本复用 `train_cnn_cifar10.py` 的完整训练、validation、early stopping、结果保存逻辑，但固定使用随机初始化的 ResNet18。
+
 训练结束后会保存：
 
 - 指标 CSV：`results/metrics/`
@@ -60,6 +68,7 @@ python train_cnn_cifar10.py --weights none --epochs 1 --train-subset 2000 --test
 - `vit.py`：最小 ViT 模型实现。
 - `train_cifar10.py`：CIFAR-10 训练和评估脚本。
 - `train_cnn_cifar10.py`：CIFAR-10 ResNet18 CNN baseline 训练和评估脚本。
+- `train_resnet18_scratch_cifar10.py`：固定不加载预训练权重的 ResNet18 scratch 训练入口。
 - `docs/LEARNING_NOTES.md`：学习笔记，记录代码解释、PyTorch 语法和 tensor shape。
 - `docs/DEVELOPMENT_MAP.md`：项目开发思维导图，记录每一步为什么这样做。
 - `docs/PROJECT_LOG.md`：跨设备开发交接日志，记录当前进度、已知问题和下一步。

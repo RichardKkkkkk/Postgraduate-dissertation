@@ -264,6 +264,44 @@ python train_cnn_cifar10.py --weights none
 
 默认输入尺寸会变成 `32x32`，这样更像“从零训练一个 CNN 来分类 CIFAR-10”。
 
+为了让这个 scratch baseline 更清楚，现在额外提供了：
+
+```text
+train_resnet18_scratch_cifar10.py
+```
+
+它只是一个明确入口，内部仍然复用 `train_cnn_cifar10.py` 的训练流程。它会强制补上：
+
+```text
+--weights none
+```
+
+这样以后跑“ResNet18 不加载权重”时，不需要记住额外参数，也不会不小心跑成 ImageNet 预训练版本。
+
+这个文件里的关键 Python 语法是 `sys.argv`。`sys.argv` 保存命令行参数，比如：
+
+```bash
+python train_resnet18_scratch_cifar10.py --epochs 1
+```
+
+在 Python 里大概会变成：
+
+```python
+["train_resnet18_scratch_cifar10.py", "--epochs", "1"]
+```
+
+脚本会在调用原训练入口前追加：
+
+```python
+sys.argv.extend(["--weights", "none"])
+```
+
+所以最终等价于：
+
+```bash
+python train_cnn_cifar10.py --epochs 1 --weights none
+```
+
 ResNet18 的最后一层原本输出 ImageNet 的 1000 类。这里要改成 CIFAR-10 的 10 类：
 
 ```python

@@ -77,3 +77,22 @@ README 和 `docs/DEVELOPMENT_MAP.md` 中提到了统一入口 `train_cifar10_exp
 ### Next
 - ...
 ```
+
+## 2026-06-02 Explicit ResNet18 Scratch Entry
+
+### Changed
+- Added `train_resnet18_scratch_cifar10.py` as an explicit ResNet18 scratch training entry.
+- The new script reuses `train_cnn_cifar10.py` but forces `--weights none`.
+- Updated README, learning notes, and development map.
+- Smoke tested the scratch entry with a tiny CIFAR-10 subset.
+
+### Learned
+- The existing CNN script already supported `--weights none`, but a dedicated scratch entry makes the experiment intent clearer and reduces command mistakes.
+- The new wrapper correctly records `weights: none` and `image_size: 32` in the config JSON.
+- Passing `--weights imagenet` to the scratch wrapper is blocked on purpose.
+
+### Problems / Mismatches
+- The repository still documents `train_cifar10_experiment.py`, but the file is not present in the current working tree.
+
+### Next
+- Before adding more model variants, resolve whether `train_cifar10_experiment.py` should be restored or removed from docs.

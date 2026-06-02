@@ -345,3 +345,22 @@ ResNet18 from scratch vs ViT from scratch
 
 这依然属于 `research infrastructure`，但它对周会和论文写作都很重要，
 因为它决定了实验结果能不能被稳定、清楚地讲出来。
+
+## Explicit Scratch ResNet18 Entry
+
+为了让 CNN 对照实验更清楚，现在额外加入一个显式入口：
+
+```text
+train_resnet18_scratch_cifar10.py
+```
+
+它的意义不是新增一套训练逻辑，而是把“ResNet18 不加载预训练权重”变成一个不会误用的命令入口。
+
+为什么这一步有用：
+
+- `train_cnn_cifar10.py --weights none` 已经能做到 scratch 训练，但容易忘参数。
+- 单独入口让实验命名更清楚：scratch baseline 就是 scratch baseline。
+- 后续比较 `ResNet18 scratch`、`ResNet18 ImageNet pretrained`、`ViT baseline` 时，命令层面更不容易混淆。
+- 两台电脑协作时，Codex 看到文件名就能理解这个实验分支的意图。
+
+这个改动属于 `experiment hygiene`，目标是减少实验入口的歧义。
