@@ -479,6 +479,49 @@ train_cifar10_experiment.py
 英文可以记一句：
 `Use one experiment runner, register multiple model variants.`
 
+现在这个统一入口内部已经进一步整理成了“注册表模式”：
+
+- 训练主循环只有一份
+- 每个模型只需要提供：
+  - 如何构建 model
+  - 如何构建 dataloader
+  - 默认超参数是什么
+  - 元信息是什么，比如 `architecture`、`variant`
+
+这意味着后面如果你新增模型，不应该先想“我要不要复制一个新的训练脚本”，
+而应该先想：
+
+```text
+我能不能把它注册进统一入口
+```
+
+这种结构特别适合论文实验，因为：
+
+- 所有模型共享同一套训练控制逻辑
+- 所有模型共享同一套结果输出格式
+- 结构差异和训练流程差异不会混在一起
+
+## Single Training Entry
+
+现在项目已经进一步收口成：
+
+- 只有一个正式训练脚本：`train_cifar10_experiment.py`
+- 训练工具放在 `experiment_utils.py`
+- 数据构建放在 `cifar10_data.py`
+- 模型注册和默认配置放在 `model_registry.py`
+
+也就是说，后面你要扩展项目时，优先不要再写：
+
+- `train_xxx.py`
+- `train_model_y.py`
+
+而应该优先做：
+
+1. 写模型文件
+2. 在注册表里接入
+
+这样更容易长期维护，也更适合 clean ablation。
+
 ## Model-Aware Reporting Layer
 
 `generate_comparison_report.py` 现在不再主要依赖 run name 猜模型，而是优先读取

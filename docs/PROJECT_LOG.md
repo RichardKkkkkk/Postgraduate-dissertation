@@ -96,3 +96,51 @@ README 和 `docs/DEVELOPMENT_MAP.md` 中提到了统一入口 `train_cifar10_exp
 
 ### Next
 - Before adding more model variants, resolve whether `train_cifar10_experiment.py` should be restored or removed from docs.
+
+## 2026-06-06 Unified Runner Cleanup
+
+### Changed
+- Restored `train_cifar10_experiment.py` in the working tree.
+- Refactored the unified runner into a registry-style structure.
+- Kept one shared training loop and moved model-specific differences into explicit registration blocks.
+- Updated README, learning notes, and development map to explain the new extension pattern.
+
+### Learned
+- The unified runner is now real rather than only documented.
+- Adding a new model should now mean:
+  - add the model file
+  - register it in `train_cifar10_experiment.py`
+- This is cleaner than continuing to create one training `main` per model variant.
+
+### Problems / Mismatches
+- `results/reports/unified_model_compare/` is currently untracked because reports are still allowed through `.gitignore`.
+- Some older historical references in README still mention older entry-point ideas; a later docs pass can simplify those if needed.
+
+### Next
+- Use the unified runner for the next clean baseline experiments.
+- Run `vit_baseline` vs `vit_rope` as the first structure-focused comparison.
+- If RoPE shows useful signal, extend the model design rather than creating another training script.
+
+## 2026-06-06 Single Training Entry Refactor
+
+### Changed
+- Removed the old dedicated training scripts.
+- Extracted shared training logic into `experiment_utils.py`.
+- Extracted CIFAR-10 dataloader logic into `cifar10_data.py`.
+- Extracted model registration and defaults into `model_registry.py`.
+- Kept `train_cifar10_experiment.py` as the only formal training entrypoint.
+- Rewrote README so it documents the new one-runner structure clearly.
+
+### Learned
+- A single training script is much cleaner for later ablations.
+- New models now fit the project structure as:
+  - new model file
+  - new registration entry
+- This separates model design from training protocol more cleanly.
+
+### Problems / Mismatches
+- `results/reports/unified_model_compare/` is still untracked and should stay out of normal code commits unless the user explicitly wants to version report artifacts.
+
+### Next
+- Run a clean `vit_baseline` vs `vit_rope` comparison with the new single-entry structure.
+- Decide whether the next research step is `2D RoPE` or another lightweight image bias based on that result.

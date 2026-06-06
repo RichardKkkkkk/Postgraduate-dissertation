@@ -306,6 +306,48 @@ ResNet18 from scratch vs ViT from scratch
 这属于很典型的 `research infrastructure` 优化：
 它不会直接提升分数，但会显著降低后续做 ablation 的混乱度。
 
+## Registry-Style Extension Rule
+
+统一入口现在进一步收成了“注册表模式”。
+
+这一步的核心思想是：
+
+- 把训练主循环固定下来
+- 把模型差异压缩到一个明确的注册区块里
+
+这样后面每次新增模型时，你不需要再决定：
+
+- 要不要复制一个新的训练脚本
+- 要不要复制一份 early stopping 逻辑
+- 要不要重新写一份结果保存逻辑
+
+你只需要决定：
+
+1. 这个模型文件叫什么
+2. 它的 model builder 是什么
+3. 它是否需要专门的 dataloader
+4. 它的默认超参数和元信息是什么
+
+这会让后续 `2D RoPE`、`RoPE + locality bias`、甚至别的 ViT 变体，
+都能作为“注册一个新分支”来接入，而不是继续扩散训练入口。
+
+## One Runner Architecture
+
+项目现在已经从“多个训练脚本并存”收成了更干净的结构：
+
+- `train_cifar10_experiment.py` 作为唯一正式训练入口
+- `experiment_utils.py` 承担共享训练循环与评估保存逻辑
+- `cifar10_data.py` 承担数据构建逻辑
+- `model_registry.py` 承担模型注册与默认配置逻辑
+
+这一步的意义是：
+
+- 训练协议只维护一份
+- 实验入口只维护一份
+- 模型差异被限制在注册表层
+
+这能让后续的研究重点更集中在“结构改动本身”，而不是继续花时间维护分散的训练脚本。
+
 ## Reporting For Unified Models
 
 随着统一实验入口已经支持：
