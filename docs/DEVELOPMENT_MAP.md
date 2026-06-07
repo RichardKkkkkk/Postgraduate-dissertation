@@ -267,8 +267,9 @@ ResNet18 from scratch vs ViT from scratch
 
 1. run clean `ViT baseline` vs `ViT + RoPE`
 2. confirm the implementation is stable and compare curves / macro metrics
-3. decide whether RoPE is worth extending into a 2D image-aware version
-4. only after that consider adding one lightweight image bias, such as locality
+3. extend the current RoPE branch into a light `2D RoPE`
+4. compare `vit_baseline` / `vit_rope` / `vit_rope_2d`
+5. only after that consider adding one lightweight image bias, such as locality
    or relative position ideas
 
 这样做的好处是，论文叙事会非常清楚：
@@ -340,6 +341,16 @@ ResNet18 from scratch vs ViT from scratch
 - `cifar10_data.py` 承担数据构建逻辑
 - `model_registry.py` 承担模型注册与默认配置逻辑
 
+目前这个统一结构已经可以自然承接下面这条研究主线：
+
+- `vit_baseline`
+- `vit_rope`
+- `vit_rope_2d`
+- `resnet18_scratch`
+
+这里 `resnet18_scratch` 是当前主要 CNN 对照，
+`resnet18_imagenet` 继续保留，但暂时不作为近期主实验表的一部分。
+
 这一步的意义是：
 
 - 训练协议只维护一份
@@ -354,6 +365,7 @@ ResNet18 from scratch vs ViT from scratch
 
 - `vit_baseline`
 - `vit_rope`
+- `vit_rope_2d`
 - `resnet18_scratch`
 - `resnet18_imagenet`
 
@@ -365,6 +377,7 @@ ResNet18 from scratch vs ViT from scratch
 这会直接影响组会叙事质量，因为你真正想讲的是：
 
 - baseline vs rope
+- rope vs 2D rope
 - vit vs cnn
 - scratch vs pretrained
 

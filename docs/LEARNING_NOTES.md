@@ -436,6 +436,43 @@ cos / sin cache: [1, 1, 64, 32]
 - `RoPE learning baseline`
 - 还不是 `2D image-aware RoPE`
 
+## 2D RoPE Intuition
+
+这次新增的 `vit_rope_2d.py` 不是完整新架构，而是在当前小 ViT 上做一个更贴近图像网格的轻量扩展。
+
+可以先记成一句话：
+
+`2D RoPE = rotate Q and K by row and column positions separately.`
+
+核心逻辑是：
+
+- patch 仍然来自同一个 `H x W` 网格
+- 不再只给每个 patch 一个一维序列位置
+- 而是给每个 patch 一个二维位置：`(row, col)`
+- `Q` 和 `K` 的每个 head 维度被拆成两半
+- 前一半通道用 `row position` 做旋转
+- 后一半通道用 `col position` 做旋转
+- `cls token` 继续不参与旋转
+- `V` 仍然不旋转
+
+这样做的直觉是：
+
+- 1D RoPE 更像“按序列顺序编码”
+- 2D RoPE 更像“按图像网格坐标编码”
+- 对图像任务来说，这样的设计更容易保留横向和纵向空间关系
+
+这版实现故意保持边界很干净：
+
+- 没有 window attention
+- 没有 shifted window
+- 没有层级下采样
+- 没有 Swin 式大改结构
+
+所以它更适合被理解成：
+
+- `2D-aware RoPE baseline`
+- 而不是一个完整的新 backbone
+
 ## Early Stopping
 
 现在 `train_cifar10.py` 和 `train_cnn_cifar10.py` 都已经支持 early stopping。
@@ -466,6 +503,7 @@ train_cifar10_experiment.py
 
 - `vit_baseline`
 - `vit_rope`
+- `vit_rope_2d`
 - `resnet18_scratch`
 - `resnet18_imagenet`
 
@@ -475,6 +513,18 @@ train_cifar10_experiment.py
 - 结果文件结构保持一致
 - 后面加新模型时，更自然的做法是“往统一入口注册一个新模型”
 - 不需要每来一个变体就复制一份新的 `main` 训练脚本
+
+当前近期主实验线建议收紧为：
+
+- `vit_baseline`
+- `vit_rope`
+- `resnet18_scratch`
+
+然后在第二轮结构比较里再加入：
+
+- `vit_rope_2d`
+
+`resnet18_imagenet` 现在仍然保留在统一入口里，但更适合作为可选参考，而不是近期主结论的一部分。
 
 英文可以记一句：
 `Use one experiment runner, register multiple model variants.`

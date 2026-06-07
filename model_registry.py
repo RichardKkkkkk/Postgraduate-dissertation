@@ -8,6 +8,7 @@ from torchvision import models
 from cifar10_data import build_resnet_dataloaders, build_vit_dataloaders
 from vit import ViT
 from vit_rope import ViTRoPE
+from vit_rope_2d import ViTRoPE2D
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,12 @@ def build_vit_rope_model(args):
     model_config = build_vit_model_config(args)
     model_config["rope_base"] = args.rope_base
     return ViTRoPE(**model_config), model_config
+
+
+def build_vit_rope_2d_model(args):
+    model_config = build_vit_model_config(args)
+    model_config["rope_base"] = args.rope_base
+    return ViTRoPE2D(**model_config), model_config
 
 
 def build_vit_family_dataloaders(args):
@@ -164,6 +171,19 @@ register_experiment(
         build_model=build_vit_rope_model,
         build_dataloaders=build_vit_family_dataloaders,
         extra_summary_fields={"position_encoding": "rope"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_rope_2d",
+        architecture="vit",
+        variant="rope_2d",
+        plot_title_prefix="CIFAR-10 ViT RoPE 2D",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_rope_2d_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "rope_2d"},
     )
 )
 

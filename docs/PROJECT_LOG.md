@@ -144,3 +144,35 @@ README 和 `docs/DEVELOPMENT_MAP.md` 中提到了统一入口 `train_cifar10_exp
 ### Next
 - Run a clean `vit_baseline` vs `vit_rope` comparison with the new single-entry structure.
 - Decide whether the next research step is `2D RoPE` or another lightweight image bias based on that result.
+
+## 2026-06-07 2D RoPE Registration
+
+### Changed
+- Added a new model file: `vit_rope_2d.py`.
+- Implemented a lightweight `2D-aware RoPE` variant on top of the current small ViT.
+- Registered `vit_rope_2d` in `model_registry.py` so it can be trained from the unified runner.
+- Updated README, learning notes, and development map so the current main experiment line is documented clearly.
+- Smoke tested `vit.py`, `vit_rope_2d.py`, and the unified runner with `--model vit_rope_2d`.
+
+### Learned
+- The first clean 2D version does not need a full Swin-style rewrite.
+- A simple and explainable design is enough for the next ablation step:
+  - keep the same patch grid
+  - keep `cls token` outside rotation
+  - split each attention head into row-rotated and col-rotated halves
+- This keeps the baseline boundary clean and makes the next comparison easy to explain.
+
+### Problems / Mismatches
+- `results/reports/unified_model_compare/` is still untracked and should stay out of normal code commits.
+- `resnet18_imagenet` still exists in the runner, but it should currently be treated as optional reference only, not a main control line.
+
+### Next
+- Run the first clean baseline trio:
+  - `vit_baseline`
+  - `vit_rope`
+  - `resnet18_scratch`
+- Then run the second-round structure comparison:
+  - `vit_baseline`
+  - `vit_rope`
+  - `vit_rope_2d`
+- After that, decide whether to continue toward locality bias or small-sample evaluation.

@@ -46,8 +46,23 @@ python train_cifar10_experiment.py --model vit_baseline
 
 - `vit_baseline`：原始 ViT，使用 learned absolute positional embedding
 - `vit_rope`：基础 1D sequence-style RoPE 版本
+- `vit_rope_2d`：轻量 2D-aware RoPE 版本，按 `(row, col)` 分别对 `Q/K` 旋转
 - `resnet18_scratch`：不加载预训练权重的 ResNet18
-- `resnet18_imagenet`：加载 ImageNet 预训练权重的 ResNet18
+- `resnet18_imagenet`：加载 ImageNet 预训练权重的 ResNet18（当前保留为可选参考，不是近期主实验线）
+
+## 当前主实验线
+
+近期默认只保留这 3 条线做正式比较：
+
+- `vit_baseline`
+- `vit_rope`
+- `resnet18_scratch`
+
+下一步结构实验再加入：
+
+- `vit_rope_2d`
+
+也就是说，当前 `resnet18_imagenet` 不删除，但暂时不放进主实验表，避免把 `ImageNet pretraining` 变成干扰变量。
 
 ## 后续新增模型怎么接入
 
@@ -110,6 +125,9 @@ python train_cifar10_experiment.py --model vit_baseline
 
 - `--rope-base`
 
+说明：
+- `--rope-base` 同时适用于 `vit_rope` 和 `vit_rope_2d`
+
 ### ResNet18 参数
 
 - `--image-size`
@@ -168,6 +186,12 @@ python train_cifar10_experiment.py --model vit_baseline --epochs 20 --run-name v
 python train_cifar10_experiment.py --model vit_rope --epochs 20 --run-name vit_rope
 ```
 
+运行 ViT + 2D RoPE：
+
+```bash
+python train_cifar10_experiment.py --model vit_rope_2d --epochs 20 --run-name vit_rope_2d
+```
+
 运行 ResNet18 scratch：
 
 ```bash
@@ -179,6 +203,10 @@ python train_cifar10_experiment.py --model resnet18_scratch --epochs 20 --run-na
 ```bash
 python train_cifar10_experiment.py --model resnet18_imagenet --epochs 20 --run-name cnn_imagenet
 ```
+
+说明：
+- 当前正式 baseline 对比优先跑 `vit_baseline`、`vit_rope`、`resnet18_scratch`
+- `resnet18_imagenet` 先作为参考，不参与近期主结论
 
 运行一个快速 smoke test：
 
@@ -222,6 +250,12 @@ python train_cifar10_experiment.py --model vit_baseline --epochs 30 --early-stop
 python generate_comparison_report.py --run vit_baseline --run vit_rope --report-name vit_baseline_vs_rope
 ```
 
+第二轮结构对比可以用：
+
+```bash
+python generate_comparison_report.py --run vit_baseline --run vit_rope --run vit_rope_2d --report-name vit_rope_family_compare
+```
+
 当前报告层会优先利用这些结构化字段：
 
 - `model_name`
@@ -233,6 +267,7 @@ python generate_comparison_report.py --run vit_baseline --run vit_rope --report-
 适合展示的对比包括：
 
 - `ViT Baseline vs ViT RoPE`
+- `ViT Baseline vs ViT RoPE vs ViT RoPE 2D`
 - `ViT vs CNN`
 - `ResNet18 scratch vs ResNet18 ImageNet pretrained`
 
@@ -258,6 +293,7 @@ results/reports/<report_name>/
 - [cifar10_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/cifar10_data.py:1)：CIFAR-10 dataloader 构建逻辑
 - [vit.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit.py:1)：原始 ViT baseline
 - [vit_rope.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_rope.py:1)：基础 RoPE 版本
+- [vit_rope_2d.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_rope_2d.py:1)：轻量 2D-aware RoPE 版本
 - [generate_comparison_report.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/generate_comparison_report.py:1)：对比报告与 PPT 生成
 - [docs/LEARNING_NOTES.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/LEARNING_NOTES.md:1)：学习笔记
 - [docs/DEVELOPMENT_MAP.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/DEVELOPMENT_MAP.md:1)：研究路线图
