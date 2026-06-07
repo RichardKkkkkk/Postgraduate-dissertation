@@ -48,6 +48,12 @@ python train_cifar10_experiment.py --model vit_baseline
 python run_seed_sweep.py --seeds 42 43 44
 ```
 
+如果你已经跑完多个 seed，现在还可以再做一次汇总：
+
+```bash
+python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main
+```
+
 ## 当前支持的模型
 
 - `vit_baseline`：原始 ViT，使用 learned absolute positional embedding
@@ -163,6 +169,31 @@ python run_seed_sweep.py --seeds 42 43 44
 - `--early-stopping-min-delta 0.001`
 - 默认每个 seed 只生成图表/CSV/overview，不额外导出 PPT
 
+### 多 seed 汇总脚本参数
+
+`summarize_seed_sweep.py` 的作用是：
+
+- 读取多个 seed 的 `summary.json`
+- 计算每个模型的 `mean/std/min/max`
+- 生成跨 seed 的汇总 CSV
+- 生成带误差条的对比图
+- 生成一个简短的 overview markdown
+
+常用参数：
+
+- `--seeds`
+- `--models`
+- `--run-prefix`
+- `--report-name`
+- `--reference-model`
+- `--metrics`
+
+默认值：
+
+- `--models vit_baseline vit_rope vit_rope_2d`
+- `--reference-model vit_baseline`
+- `--metrics best_val_acc test_acc macro_f1`
+
 ### ResNet18 参数
 
 - `--image-size`
@@ -267,6 +298,12 @@ python run_seed_sweep.py --seeds 42 43 44 --epochs 20 --run-prefix cifar10_main
 python run_seed_sweep.py --seeds 42 43 44 --models vit_baseline vit_rope vit_rope_2d resnet18_scratch --epochs 20 --run-prefix cifar10_main
 ```
 
+把已经跑完的多个 seed 汇总成 `mean/std`：
+
+```bash
+python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main
+```
+
 ## 输出内容
 
 训练完成后会保存：
@@ -305,6 +342,19 @@ python generate_comparison_report.py --run vit_baseline --run vit_rope --run vit
 
 如果是多 seed 批量运行，`run_seed_sweep.py` 会自动为每个 seed 调一次这个报告脚本，所以你通常不需要手动重复生成。
 
+如果你已经跑完多个 seed，推荐再补一步：
+
+```bash
+python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main --reference-model vit_baseline
+```
+
+这样会额外生成：
+
+- `aggregate_summary.csv`
+- `per_seed_metrics.csv`
+- `delta_vs_reference.csv`
+- 跨 seed 的 `mean/std` 图
+
 当前报告层会优先利用这些结构化字段：
 
 - `model_name`
@@ -338,6 +388,7 @@ results/reports/<report_name>/
 
 - [train_cifar10_experiment.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/train_cifar10_experiment.py:1)：唯一训练入口
 - [run_seed_sweep.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/run_seed_sweep.py:1)：多 seed 批量运行与每个 seed 自动报告入口
+- [summarize_seed_sweep.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/summarize_seed_sweep.py:1)：跨 seed 汇总 `mean/std`、delta 和误差条图
 - [model_registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/model_registry.py:1)：模型注册表，定义每个模型怎么接入统一训练入口
 - [experiment_utils.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/experiment_utils.py:1)：共享训练、评估、保存结果工具
 - [cifar10_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/cifar10_data.py:1)：CIFAR-10 dataloader 构建逻辑

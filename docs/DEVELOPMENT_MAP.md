@@ -360,6 +360,16 @@ ResNet18 from scratch vs ViT from scratch
 
 而不是立刻继续堆更多训练 trick。
 
+这一步很重要，因为论文后面真正需要引用的通常不是：
+
+- 单个 seed 的最好截图
+
+而是：
+
+- multi-seed mean/std
+- whether the ranking is stable
+- whether gains are larger than random fluctuation
+
 这一步的意义是：
 
 - 训练协议只维护一份

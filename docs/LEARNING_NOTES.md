@@ -583,6 +583,53 @@ train_cifar10_experiment.py
 
 `Single-seed results show signal, multi-seed results show stability.`
 
+## Why Add A Seed Summary Layer
+
+有了 `run_seed_sweep.py` 之后，你已经能拿到：
+
+- one report per seed
+- one set of curves per seed
+
+但这还不够回答论文里更关键的问题：
+
+`Across seeds, is the improvement stable on average?`
+
+这就是 `summarize_seed_sweep.py` 的作用。
+
+它读的输入不是每个 epoch 的曲线，而是每个 run 已经保存好的：
+
+- `results/metrics/<run_name>_summary.json`
+
+然后提取出几个最重要的 selected-checkpoint 指标：
+
+- `best_val_acc`
+- `selected_model.test_acc`
+- `selected_model.test_macro_f1`
+- `selected_model.epoch`
+
+再做聚合：
+
+- `mean`
+- `std`
+- `min`
+- `max`
+
+输出层分成两类：
+
+1. per-seed table
+   作用：保留每个 seed 的原始结果，方便排查异常 seed
+2. aggregate table
+   作用：直接回答“平均表现”和“波动大小”
+
+你可以把它理解成：
+
+- `run_seed_sweep.py` = produce raw repeated experiments
+- `summarize_seed_sweep.py` = compress repeated experiments into evidence
+
+英文可以记一句：
+
+`Per-seed reports show behavior, aggregated summaries show reliability.`
+
 ## Single Training Entry
 
 现在项目已经进一步收口成：

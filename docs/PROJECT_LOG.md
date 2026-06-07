@@ -198,3 +198,25 @@ README 和 `docs/DEVELOPMENT_MAP.md` 中提到了统一入口 `train_cifar10_exp
 - Run several seeds for `vit_baseline`, `vit_rope`, and `vit_rope_2d`.
 - Inspect whether `vit_rope_2d` stays ahead consistently.
 - Only after that start parameter tuning.
+
+## 2026-06-07 Seed Summary Layer
+
+### Changed
+- Added `summarize_seed_sweep.py`.
+- The new script reads multiple run summaries and aggregates them into `mean/std/min/max`.
+- It also writes per-seed CSV, delta-vs-reference CSV, overview markdown, and cross-seed plots.
+- Updated README, learning notes, and development map for the new summary workflow.
+
+### Learned
+- Per-seed comparison reports are useful, but they are still one level too raw for later thesis writing.
+- A separate summary layer makes it much easier to answer:
+  - is `vit_rope_2d` better on average
+  - how large is the variance
+  - is the gain stable enough to justify parameter tuning
+
+### Problems / Mismatches
+- The new summary artifacts also live under `results/reports/` and should remain outside normal code commits.
+
+### Next
+- Run `summarize_seed_sweep.py` on the current `cifar10_main` results.
+- Use the mean/std table to decide whether tuning should focus on `vit_rope_2d`.
