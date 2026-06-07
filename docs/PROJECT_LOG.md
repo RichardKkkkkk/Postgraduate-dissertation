@@ -176,3 +176,25 @@ README 和 `docs/DEVELOPMENT_MAP.md` 中提到了统一入口 `train_cifar10_exp
   - `vit_rope`
   - `vit_rope_2d`
 - After that, decide whether to continue toward locality bias or small-sample evaluation.
+
+## 2026-06-07 Multi-Seed Sweep Helper
+
+### Changed
+- Added `run_seed_sweep.py` to automate multi-seed experiments.
+- The new script loops through seeds and model names, then calls the unified training runner.
+- After each seed finishes, it automatically calls `generate_comparison_report.py`.
+- Updated the report display mapping so `vit_rope_2d` shows up cleanly in slides and summaries.
+- Updated README, learning notes, and development map for the new multi-seed workflow.
+
+### Learned
+- The next useful methodological step is no longer “add more models first”.
+- It is better to test whether the current `vit_baseline -> vit_rope -> vit_rope_2d` ranking is stable across multiple random seeds.
+- Per-seed reports are a good intermediate layer before later computing mean/std summaries.
+
+### Problems / Mismatches
+- Multi-seed runs will generate more ignored result artifacts under `results/` and `checkpoints/`; these should stay out of git.
+
+### Next
+- Run several seeds for `vit_baseline`, `vit_rope`, and `vit_rope_2d`.
+- Inspect whether `vit_rope_2d` stays ahead consistently.
+- Only after that start parameter tuning.

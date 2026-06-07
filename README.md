@@ -42,6 +42,12 @@ python train_cifar10_experiment.py --model vit_baseline
 - 不再维护多个独立训练脚本
 - 新模型后续都通过“注册到统一入口”的方式接入
 
+如果你要做多 seed 对比，现在还额外提供了一个批量脚本：
+
+```bash
+python run_seed_sweep.py --seeds 42 43 44
+```
+
 ## 当前支持的模型
 
 - `vit_baseline`：原始 ViT，使用 learned absolute positional embedding
@@ -127,6 +133,35 @@ python train_cifar10_experiment.py --model vit_baseline
 
 说明：
 - `--rope-base` 同时适用于 `vit_rope` 和 `vit_rope_2d`
+
+### 多 seed 批量脚本参数
+
+`run_seed_sweep.py` 默认会：
+
+- 跑 `vit_baseline`
+- 跑 `vit_rope`
+- 跑 `vit_rope_2d`
+- 每个 seed 自动生成一个对比报告目录
+
+常用参数：
+
+- `--seeds`
+- `--models`
+- `--run-prefix`
+- `--report-prefix`
+- `--skip-existing`
+- `--skip-reports`
+- `--with-ppt`
+
+默认值：
+
+- `--models vit_baseline vit_rope vit_rope_2d`
+- `--epochs 20`
+- `--val-ratio 0.1`
+- `--early-stopping-patience 5`
+- `--early-stopping-metric val_acc`
+- `--early-stopping-min-delta 0.001`
+- 默认每个 seed 只生成图表/CSV/overview，不额外导出 PPT
 
 ### ResNet18 参数
 
@@ -220,6 +255,18 @@ python train_cifar10_experiment.py --model vit_rope --epochs 1 --train-subset 12
 python train_cifar10_experiment.py --model vit_baseline --epochs 30 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name vit_baseline_es
 ```
 
+运行一个多 seed sweep：
+
+```bash
+python run_seed_sweep.py --seeds 42 43 44 --epochs 20 --run-prefix cifar10_main
+```
+
+如果你也想把 `ResNet18 scratch` 放进每个 seed 的报告：
+
+```bash
+python run_seed_sweep.py --seeds 42 43 44 --models vit_baseline vit_rope vit_rope_2d resnet18_scratch --epochs 20 --run-prefix cifar10_main
+```
+
 ## 输出内容
 
 训练完成后会保存：
@@ -256,6 +303,8 @@ python generate_comparison_report.py --run vit_baseline --run vit_rope --report-
 python generate_comparison_report.py --run vit_baseline --run vit_rope --run vit_rope_2d --report-name vit_rope_family_compare
 ```
 
+如果是多 seed 批量运行，`run_seed_sweep.py` 会自动为每个 seed 调一次这个报告脚本，所以你通常不需要手动重复生成。
+
 当前报告层会优先利用这些结构化字段：
 
 - `model_name`
@@ -288,6 +337,7 @@ results/reports/<report_name>/
 ## 文件结构
 
 - [train_cifar10_experiment.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/train_cifar10_experiment.py:1)：唯一训练入口
+- [run_seed_sweep.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/run_seed_sweep.py:1)：多 seed 批量运行与每个 seed 自动报告入口
 - [model_registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/model_registry.py:1)：模型注册表，定义每个模型怎么接入统一训练入口
 - [experiment_utils.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/experiment_utils.py:1)：共享训练、评估、保存结果工具
 - [cifar10_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/cifar10_data.py:1)：CIFAR-10 dataloader 构建逻辑

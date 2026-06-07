@@ -551,6 +551,38 @@ train_cifar10_experiment.py
 - 所有模型共享同一套结果输出格式
 - 结构差异和训练流程差异不会混在一起
 
+## Why Run Multiple Seeds
+
+单次 `seed=42` 的结果可以帮助你判断方向，但还不够支持更强的论文结论。
+
+现在更合理的说法是：
+
+- 单次结果说明 `2D RoPE` 有正信号
+- 多 seed 结果才能说明这个信号是不是稳定
+
+为什么要这样做：
+
+- 神经网络训练本身有随机性
+- train / validation split 会随 seed 改变
+- 参数初始化和 dataloader shuffle 也会改变
+
+所以如果只看一个 seed，很容易把偶然波动误认为结构提升。
+
+当前项目里新增的 `run_seed_sweep.py` 做的事情是：
+
+- 对同一组模型循环多个 `seed`
+- 自动生成形如 `model_seed42` 的 run name
+- 每个 seed 结束后自动生成一个对应的 comparison report
+
+这样你后面看结果时，可以先回答两个层次的问题：
+
+1. 每个 seed 内部，`vit_baseline`、`vit_rope`、`vit_rope_2d` 谁更好
+2. 跨多个 seed，这个排序是否稳定
+
+英文可以记一句：
+
+`Single-seed results show signal, multi-seed results show stability.`
+
 ## Single Training Entry
 
 现在项目已经进一步收口成：

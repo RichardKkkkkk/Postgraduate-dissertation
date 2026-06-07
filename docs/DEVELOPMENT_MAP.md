@@ -269,7 +269,8 @@ ResNet18 from scratch vs ViT from scratch
 2. confirm the implementation is stable and compare curves / macro metrics
 3. extend the current RoPE branch into a light `2D RoPE`
 4. compare `vit_baseline` / `vit_rope` / `vit_rope_2d`
-5. only after that consider adding one lightweight image bias, such as locality
+5. repeat the comparison across multiple seeds
+6. only after that consider adding one lightweight image bias, such as locality
    or relative position ideas
 
 这样做的好处是，论文叙事会非常清楚：
@@ -350,6 +351,14 @@ ResNet18 from scratch vs ViT from scratch
 
 这里 `resnet18_scratch` 是当前主要 CNN 对照，
 `resnet18_imagenet` 继续保留，但暂时不作为近期主实验表的一部分。
+
+在当前阶段，真正应该优先自动化的是：
+
+- multiple seeds
+- one report per seed
+- then summary/mean-std analysis
+
+而不是立刻继续堆更多训练 trick。
 
 这一步的意义是：
 

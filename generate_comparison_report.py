@@ -77,6 +77,7 @@ FONT_FAMILY = "Aptos"
 MODEL_DISPLAY_NAMES = {
     "vit_baseline": "ViT Baseline",
     "vit_rope": "ViT RoPE",
+    "vit_rope_2d": "ViT RoPE 2D",
     "resnet18_scratch": "ResNet18 Scratch",
     "resnet18_imagenet": "ResNet18 ImageNet",
     "vit": "ViT",
@@ -90,6 +91,7 @@ MODEL_FAMILY_DISPLAY = {
 MODEL_VARIANT_DISPLAY = {
     "baseline": "Baseline",
     "rope": "RoPE",
+    "rope_2d": "RoPE 2D",
     "scratch": "Scratch",
     "imagenet": "ImageNet",
     "pretrained": "Pretrained",
@@ -97,6 +99,7 @@ MODEL_VARIANT_DISPLAY = {
 POSITION_ENCODING_DISPLAY = {
     "absolute": "Absolute",
     "rope": "RoPE",
+    "rope_2d": "RoPE 2D",
     "none": "None",
 }
 INITIALIZATION_DISPLAY = {
