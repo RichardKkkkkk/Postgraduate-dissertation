@@ -692,3 +692,34 @@ train_cifar10_experiment.py
 
 这样后面如果再新增模型，不需要第一时间去改 PPT 排版代码，
 而是先把元信息识别和分析 payload 补上。
+
+## Seed Summary Evidence vs Per-Seed Evidence
+
+这次把报告层又明确分成了两种“证据粒度”：
+
+1. per-seed comparison deck
+   作用：
+   - 看单个 seed 下不同模型的训练曲线和最终结果
+   - 排查异常 seed
+   - 看某一次 run 有没有训练崩掉
+
+2. aggregate seed-summary deck
+   作用：
+   - 直接展示 `mean/std`
+   - 回答“平均性能是否更好”
+   - 回答“提升是否稳定”
+
+可以把它记成一句话：
+
+`Per-seed decks explain behavior, aggregate decks explain reliability.`
+
+这也是为什么 `cifar10_main_seed_summary` 更适合组会主结论：
+
+- 它不是在讲某一次幸运 run
+- 而是在讲 3 个 seed 上的平均表现和波动范围
+- 所以结论更像 research evidence，而不是 training log
+
+现在脚本职责也重新收口成两层：
+
+- `summarize_seed_sweep.py` 只负责把多 seed 结果压缩成汇总 artifact
+- `generate_comparison_report.py` 统一负责把单次 run 或 aggregate summary 变成 PPT

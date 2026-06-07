@@ -220,3 +220,52 @@ README 和 `docs/DEVELOPMENT_MAP.md` 中提到了统一入口 `train_cifar10_exp
 ### Next
 - Run `summarize_seed_sweep.py` on the current `cifar10_main` results.
 - Use the mean/std table to decide whether tuning should focus on `vit_rope_2d`.
+
+## 2026-06-07 Seed Summary PPT Export
+
+### Changed
+- Extended `summarize_seed_sweep.py` so the seed-summary layer can now export a presentation deck directly.
+- Added a PPT structure that matches weekly lab reporting better:
+  - title
+  - summary highlights
+  - aggregate table
+  - delta vs baseline table
+  - metric pages with aggregate bars and per-seed lines
+  - conclusion
+- Generated a real deck from `cifar10_main_seed_summary` instead of reusing a single-seed comparison deck.
+
+### Learned
+- `generate_comparison_report.py` and `summarize_seed_sweep.py` serve different reporting layers:
+  - `generate_comparison_report.py` is for comparing concrete runs
+  - `summarize_seed_sweep.py` is for showing mean/std evidence across multiple seeds
+- For group meetings, the 3-seed aggregate deck is usually the better default because it tells the stability story instead of over-emphasizing one run.
+
+### Problems / Mismatches
+- It was easy to confuse the per-run report script with the multi-seed summary script because only the former used to export PPT.
+- Generated PPT and exported slide images live under `results/reports/` and should still stay out of normal code commits.
+
+### Next
+- Keep using `cifar10_main_seed_summary` as the main weekly meeting deck for the current three-seed ViT comparison.
+- Add future model families into the same summary workflow rather than creating separate ad hoc slide scripts.
+
+## 2026-06-08 Report Entry Unification
+
+### Changed
+- Rolled back the direct PPT export that had been added to `summarize_seed_sweep.py`.
+- Added a new seed-summary input mode to `generate_comparison_report.py`.
+- The report script can now read an existing `summary_manifest.json` and render the weekly meeting PPT from that aggregate summary.
+- Updated README and learning notes so the script responsibilities are clear again.
+
+### Learned
+- The cleaner design is:
+  - `summarize_seed_sweep.py` = produce summary artifacts
+  - `generate_comparison_report.py` = render meeting materials
+- This keeps a single PPT entry point while still preserving a separate analysis layer.
+
+### Problems / Mismatches
+- The first implementation worked, but it blurred the boundary between “compute evidence” and “render report”.
+- That made it harder to remember which script should be used to generate the final deck.
+
+### Next
+- Use `generate_comparison_report.py --summary-report <report_name>` for aggregate multi-seed decks.
+- Keep `summarize_seed_sweep.py` focused on reproducible summary outputs only.

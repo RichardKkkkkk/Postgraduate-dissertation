@@ -355,6 +355,17 @@ python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main --refe
 - `delta_vs_reference.csv`
 - 跨 seed 的 `mean/std` 图
 
+如果你要基于这个 multi-seed summary 再生成组会 PPT，统一走报告脚本：
+
+```bash
+python generate_comparison_report.py --summary-report cifar10_main_seed_summary --title "CIFAR-10 Main Seed Summary"
+```
+
+现在职责是分开的：
+
+- `summarize_seed_sweep.py` 负责生成汇总结果
+- `generate_comparison_report.py` 负责把 run 或 summary 结果排版成 PPT
+
 当前报告层会优先利用这些结构化字段：
 
 - `model_name`

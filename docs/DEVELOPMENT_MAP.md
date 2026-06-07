@@ -438,3 +438,31 @@ train_resnet18_scratch_cifar10.py
 - 两台电脑协作时，Codex 看到文件名就能理解这个实验分支的意图。
 
 这个改动属于 `experiment hygiene`，目标是减少实验入口的歧义。
+
+## Single PPT Entry For Aggregate Reports
+
+报告层现在也需要一个和训练层类似的“单一正式入口”思路。
+
+用户这次明确提出的工程判断是合理的：
+
+- `summarize_seed_sweep.py` 本质上是分析/汇总脚本
+- 它应该输出稳定、可复用的 summary artifacts
+- 最终 PPT 最好统一由 `generate_comparison_report.py` 来生成
+
+这样分层更清楚：
+
+1. analysis layer
+   - read many run summaries
+   - aggregate mean/std
+   - write CSV / markdown / manifest / figures
+
+2. report layer
+   - read run artifacts or summary artifacts
+   - choose slide narrative
+   - render the meeting deck
+
+这个方向的重要性在于：
+
+- 你以后只需要记住一个“出 PPT 的脚本”
+- 后续新增 `multi-seed`、`family compare`、`baseline vs rope` 等场景时，汇报入口不会继续分裂
+- 工程上也更接近 thesis workflow：先产出证据，再产出叙事材料

@@ -391,6 +391,7 @@ def main():
         "figures": metric_figures,
         "headline_insights": insights,
     }
+
     with manifest_json.open("w", encoding="utf-8") as handle:
         json.dump(manifest, handle, indent=2)
 

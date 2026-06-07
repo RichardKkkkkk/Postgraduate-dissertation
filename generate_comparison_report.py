@@ -158,12 +158,24 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Generate a comparison report and meeting-ready PPT for experiment runs."
     )
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
         "--run",
         dest="runs",
         action="append",
-        required=True,
         help="Run spec in the form run_name or run_name=Display Label. Repeatable.",
+    )
+    input_group.add_argument(
+        "--summary-report",
+        type=str,
+        default=None,
+        help="Existing seed-summary report folder name under results/reports/.",
+    )
+    input_group.add_argument(
+        "--summary-manifest",
+        type=Path,
+        default=None,
+        help="Path to a seed-summary summary_manifest.json file.",
     )
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
     parser.add_argument("--report-name", type=str, default=None)
@@ -200,6 +212,11 @@ def load_json(path: Path):
         return json.load(handle)
 
 
+def load_csv_dict_rows(path: Path):
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
 def load_history(path: Path):
     rows = []
     with path.open("r", encoding="utf-8", newline="") as handle:
@@ -227,6 +244,18 @@ def flatten_dict(data, prefix=""):
         else:
             flat[full_key] = value
     return flat
+
+
+def parse_summary_value(value):
+    if value is None or value == "":
+        return value
+    try:
+        numeric = float(value)
+    except ValueError:
+        return value
+    if numeric.is_integer():
+        return int(numeric)
+    return numeric
 
 
 def extract_command_model_name(command: str):
@@ -982,6 +1011,130 @@ def save_summary_outputs(
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
     return summary_csv_path, config_csv_path, overview_path, presentation_summary_path, manifest_path
+
+
+def resolve_summary_manifest_path(results_dir: Path, summary_report: str | None, summary_manifest: Path | None):
+    if summary_manifest:
+        path = summary_manifest if summary_manifest.is_absolute() else Path.cwd() / summary_manifest
+        if path.is_dir():
+            path = path / "summary_manifest.json"
+    elif summary_report:
+        path = results_dir / "reports" / summary_report / "summary_manifest.json"
+    else:
+        raise ValueError("Either --summary-report or --summary-manifest must be provided.")
+
+    if not path.exists():
+        raise FileNotFoundError(f"Seed-summary manifest not found: {path}")
+    return path.resolve()
+
+
+def resolve_summary_artifact_path(project_root: Path, value):
+    if not value:
+        return None
+    path = Path(str(value))
+    candidates = [path] if path.is_absolute() else [project_root / path]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    raise FileNotFoundError(f"Referenced summary artifact not found: {value}")
+
+
+def detect_seed_summary_scenario(model_names):
+    families = set()
+    variants = set()
+    for model_name in model_names:
+        if model_name.startswith("vit"):
+            families.add("vit")
+        elif model_name.startswith("resnet18"):
+            families.add("resnet18")
+        if "_" in model_name:
+            variants.add(model_name.split("_", 1)[1])
+
+    if families == {"vit"} and {"baseline", "rope"}.issubset(variants):
+        return "baseline_vs_rope"
+    if families == {"resnet18"} and "scratch" in variants and ("imagenet" in variants or "pretrained" in variants):
+        return "scratch_vs_pretrained"
+    if "vit" in families and "resnet18" in families:
+        return "vit_vs_cnn"
+    return "generic_multi_run"
+
+
+def build_seed_summary_conclusion_lines(summary_rows, reference_model, metrics):
+    if not summary_rows or not metrics:
+        return []
+
+    metric_priority = ["test_acc", "macro_f1", "best_val_acc"]
+    primary_metric = next((metric for metric in metric_priority if metric in metrics), metrics[0])
+    conclusions = []
+    best_row = max(summary_rows, key=lambda item: item[f"{primary_metric}_mean"])
+    conclusions.append(
+        f"Current aggregate winner: {best_row['model_label']} leads on {metric_display_name(primary_metric)} "
+        f"with {format_metric_value(primary_metric, best_row[f'{primary_metric}_mean'])}."
+    )
+
+    reference_row = next((row for row in summary_rows if row["model"] == reference_model), None)
+    if reference_row is not None:
+        for row in summary_rows:
+            if row["model"] == reference_model:
+                continue
+            delta = row[f"{primary_metric}_mean"] - reference_row[f"{primary_metric}_mean"]
+            conclusions.append(
+                f"Relative to {reference_row['model_label']}, {row['model_label']} changes "
+                f"{metric_display_name(primary_metric)} by {format_delta(primary_metric, delta)}."
+            )
+
+    conclusions.append(
+        "This deck is based on multi-seed aggregate statistics, so the meeting takeaway should emphasize average behavior and variance rather than a single lucky run."
+    )
+    return conclusions[:4]
+
+
+def save_seed_summary_report_outputs(
+    report_dir: Path,
+    title: str,
+    scenario: str,
+    source_manifest_path: Path,
+    source_manifest: dict,
+    headline_insights,
+    conclusion_lines,
+):
+    presentation_summary_path = report_dir / "presentation_summary.json"
+    presentation_summary = {
+        "title": title,
+        "scenario": scenario,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "source_manifest": str(source_manifest_path),
+        "headline_insights": headline_insights,
+        "conclusion_lines": conclusion_lines,
+        "report_type": "seed_summary",
+        "summary_report_name": source_manifest.get("report_name"),
+        "metrics": source_manifest.get("metrics", []),
+        "models": source_manifest.get("models", []),
+        "seeds": source_manifest.get("seeds", []),
+        "reference_model": source_manifest.get("reference_model"),
+    }
+    presentation_summary_path.write_text(
+        json.dumps(presentation_summary, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    manifest_path = report_dir / "report_manifest.json"
+    manifest = {
+        "report_dir": str(report_dir),
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "report_type": "seed_summary",
+        "scenario": scenario,
+        "title": title,
+        "source_summary_manifest": str(source_manifest_path),
+        "summary_report_name": source_manifest.get("report_name"),
+        "metrics": source_manifest.get("metrics", []),
+        "models": source_manifest.get("models", []),
+        "seeds": source_manifest.get("seeds", []),
+        "reference_model": source_manifest.get("reference_model"),
+        "presentation_summary_json": str(presentation_summary_path),
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    return presentation_summary_path, manifest_path
 
 
 def setup_plot_style():
@@ -2047,6 +2200,388 @@ def export_ppt(report_dir: Path, context: ComparisonContext):
     return ppt_path
 
 
+def export_seed_summary_ppt(
+    report_dir: Path,
+    report_name: str,
+    title: str,
+    scenario: str,
+    seed_summary: dict,
+):
+    try:
+        from pptx import Presentation
+        from pptx.dml.color import RGBColor
+        from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
+        from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+        from pptx.util import Inches, Pt
+    except ImportError as exc:
+        raise RuntimeError(
+            "python-pptx is required for PPT export. Install it or use --skip-ppt."
+        ) from exc
+
+    def rgb(color):
+        return RGBColor(*color)
+
+    def format_percent(value):
+        return f"{float(value) * 100.0:.2f}%"
+
+    summary_rows = seed_summary["summary_rows"]
+    delta_rows = seed_summary["delta_rows"]
+    metric_figures = seed_summary["metric_figures"]
+    insights = seed_summary["headline_insights"]
+    conclusions = seed_summary["conclusion_lines"]
+    models = seed_summary["models"]
+    seeds = seed_summary["seeds"]
+    reference_model = seed_summary["reference_model"]
+    metrics = seed_summary["metrics"]
+
+    prs = Presentation()
+    prs.slide_width = Inches(SLIDE_WIDTH_INCHES)
+    prs.slide_height = Inches(SLIDE_HEIGHT_INCHES)
+
+    def apply_slide_background(slide, color):
+        fill = slide.background.fill
+        fill.solid()
+        fill.fore_color.rgb = rgb(color)
+
+    def add_textbox(
+        slide,
+        left,
+        top,
+        width,
+        height,
+        text,
+        font_size,
+        color=COLOR_TEXT,
+        bold=False,
+        align=PP_ALIGN.LEFT,
+        font_name=FONT_FAMILY,
+    ):
+        textbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        text_frame = textbox.text_frame
+        text_frame.clear()
+        paragraph = text_frame.paragraphs[0]
+        paragraph.text = text
+        paragraph.alignment = align
+        paragraph.space_after = 0
+        paragraph.space_before = 0
+        paragraph.line_spacing = 1.1
+        run = paragraph.runs[0]
+        run.font.name = font_name
+        run.font.size = Pt(font_size)
+        run.font.bold = bold
+        run.font.color.rgb = rgb(color)
+        return textbox
+
+    def add_bullet_box(slide, left, top, width, height, bullets, font_size=16, color=COLOR_TEXT):
+        textbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        text_frame = textbox.text_frame
+        text_frame.clear()
+        text_frame.word_wrap = True
+        for index, bullet in enumerate(bullets):
+            paragraph = text_frame.paragraphs[0] if index == 0 else text_frame.add_paragraph()
+            paragraph.text = bullet
+            paragraph.level = 0
+            paragraph.space_after = Pt(6)
+            paragraph.line_spacing = 1.12
+            for run in paragraph.runs:
+                run.font.name = FONT_FAMILY
+                run.font.size = Pt(font_size)
+                run.font.color.rgb = rgb(color)
+        return textbox
+
+    def add_card(slide, left, top, width, height, title_text, body_lines, accent=COLOR_BLUE):
+        shape = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
+            Inches(left),
+            Inches(top),
+            Inches(width),
+            Inches(height),
+        )
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = rgb(COLOR_CARD)
+        shape.line.color.rgb = rgb(COLOR_BORDER)
+        shape.line.width = Pt(1.0)
+        accent_bar = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.RECTANGLE,
+            Inches(left),
+            Inches(top),
+            Inches(0.15),
+            Inches(height),
+        )
+        accent_bar.fill.solid()
+        accent_bar.fill.fore_color.rgb = rgb(accent)
+        accent_bar.line.fill.background()
+        add_textbox(slide, left + 0.28, top + 0.18, width - 0.42, 0.36, title_text, 18, bold=True)
+        add_bullet_box(slide, left + 0.28, top + 0.62, width - 0.42, height - 0.78, body_lines, font_size=11)
+
+    def add_slide_header(slide, title_text, subtitle_text="", section_label="Seed Summary"):
+        pill = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
+            Inches(0.55),
+            Inches(0.32),
+            Inches(1.8),
+            Inches(0.34),
+        )
+        pill.fill.solid()
+        pill.fill.fore_color.rgb = rgb(COLOR_HEADER_FILL)
+        pill.line.fill.background()
+        add_textbox(slide, 0.72, 0.38, 1.45, 0.2, section_label, 10, color=COLOR_BLUE, bold=True)
+        add_textbox(slide, 0.55, 0.72, 9.2, 0.45, title_text, 24, bold=True)
+        if subtitle_text:
+            add_textbox(slide, 0.56, 1.14, 11.9, 0.28, subtitle_text, 11, color=COLOR_MUTED)
+        rule = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.RECTANGLE,
+            Inches(0.55),
+            Inches(1.42),
+            Inches(12.2),
+            Inches(0.02),
+        )
+        rule.fill.solid()
+        rule.fill.fore_color.rgb = rgb(COLOR_BORDER)
+        rule.line.fill.background()
+
+    def add_footer(slide, left_text, right_text=""):
+        add_textbox(slide, 0.55, 7.05, 7.6, 0.2, left_text, 9, color=COLOR_MUTED)
+        if right_text:
+            add_textbox(slide, 9.0, 7.05, 3.75, 0.2, right_text, 9, color=COLOR_MUTED, align=PP_ALIGN.RIGHT)
+
+    def style_table(table, font_size):
+        for row_index, row in enumerate(table.rows):
+            for cell in row.cells:
+                cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+                cell.margin_left = Inches(0.08)
+                cell.margin_right = Inches(0.08)
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = rgb(COLOR_CARD if row_index % 2 == 1 else COLOR_BG)
+                if row_index == 0:
+                    cell.fill.fore_color.rgb = rgb(COLOR_HEADER_FILL)
+                cell.text_frame.word_wrap = True
+                for paragraph in cell.text_frame.paragraphs:
+                    paragraph.alignment = PP_ALIGN.LEFT
+                    for run in paragraph.runs:
+                        run.font.name = FONT_FAMILY
+                        run.font.size = Pt(font_size)
+                        run.font.bold = row_index == 0
+                        run.font.color.rgb = rgb(COLOR_TEXT)
+
+    def set_table_widths(table, widths):
+        for index, width in enumerate(widths):
+            table.columns[index].width = Inches(width)
+
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    apply_slide_background(slide, COLOR_NAVY)
+    add_textbox(slide, 0.72, 0.88, 11.6, 0.76, title, 28, color=(255, 255, 255), bold=True)
+    add_textbox(
+        slide,
+        0.74,
+        1.82,
+        10.9,
+        0.35,
+        "Aggregate multi-seed comparison deck generated from summary artifacts.",
+        14,
+        color=(226, 232, 240),
+    )
+    add_card(
+        slide,
+        0.72,
+        3.95,
+        6.3,
+        2.25,
+        "Report scope",
+        [
+            f"Scenario: {format_comparison_scenario(scenario)}",
+            f"Seeds: {', '.join(str(seed) for seed in seeds)}",
+            f"Models: {', '.join(MODEL_DISPLAY_NAMES.get(model, model) for model in models)}",
+            f"Reference: {MODEL_DISPLAY_NAMES.get(reference_model, reference_model)}",
+        ],
+        accent=COLOR_CYAN,
+    )
+    add_footer(slide, f"Generated from {seed_summary['source_report_name']}", f"Report name: {report_name}")
+
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    apply_slide_background(slide, COLOR_BG)
+    add_slide_header(
+        slide,
+        "Seed-Summary Highlights",
+        "Use this page to lead with the average-performance story before opening per-metric evidence.",
+        section_label="Overview",
+    )
+    add_bullet_box(slide, 0.78, 1.85, 6.65, 3.55, insights, font_size=16)
+    best_model = max(summary_rows, key=lambda item: item["test_acc_mean"])
+    add_card(
+        slide,
+        7.75,
+        1.95,
+        4.1,
+        2.45,
+        "Best aggregate model",
+        [
+            best_model["model_label"],
+            f"Mean test acc: {format_percent(best_model['test_acc_mean'])}",
+            f"Std: {format_percent(best_model['test_acc_std'])}",
+        ],
+        accent=COLOR_GOOD,
+    )
+    add_footer(slide, "This page frames the meeting around cross-seed reliability instead of a single run.")
+
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    apply_slide_background(slide, COLOR_BG)
+    add_slide_header(
+        slide,
+        "Aggregate Metrics Table",
+        "Mean/std, min/max, and selected-epoch summary across seeds.",
+        section_label="Aggregate Table",
+    )
+    headers = ["Model", "Seeds", "Best Val Acc", "Test Acc", "Macro F1", "Best Epoch"]
+    rows = []
+    for row in summary_rows:
+        rows.append(
+            [
+                row["model_label"],
+                str(row["num_seeds"]),
+                f"{format_percent(row['best_val_acc_mean'])} +- {format_percent(row['best_val_acc_std'])}",
+                f"{format_percent(row['test_acc_mean'])} +- {format_percent(row['test_acc_std'])}",
+                f"{format_percent(row['macro_f1_mean'])} +- {format_percent(row['macro_f1_std'])}",
+                f"{float(row['best_epoch_mean']):.2f} +- {float(row['best_epoch_std']):.2f}",
+            ]
+        )
+    table = slide.shapes.add_table(len(rows) + 1, len(headers), Inches(0.55), Inches(1.72), Inches(12.2), Inches(4.95)).table
+    for col, header in enumerate(headers):
+        table.cell(0, col).text = header
+    for r, row_values in enumerate(rows, start=1):
+        for c, value in enumerate(row_values):
+            table.cell(r, c).text = value
+    set_table_widths(table, [2.2, 0.9, 2.2, 2.2, 2.2, 1.8])
+    style_table(table, 11)
+    add_footer(slide, "The aggregate table is the source-of-truth slide for mean/std discussion.")
+
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    apply_slide_background(slide, COLOR_BG)
+    add_slide_header(
+        slide,
+        "Delta Vs Reference",
+        "Aggregate deltas are measured against the selected baseline reference model.",
+        section_label="Delta Table",
+    )
+    headers = ["Model", "Best Val Acc Delta", "Test Acc Delta", "Macro F1 Delta"]
+    rows = []
+    for row in delta_rows:
+        rows.append(
+            [
+                row["model_label"],
+                format_delta("best_val_acc", row[f"best_val_acc_delta_vs_{reference_model}"]),
+                format_delta("test_acc", row[f"test_acc_delta_vs_{reference_model}"]),
+                format_delta("macro_f1", row[f"macro_f1_delta_vs_{reference_model}"]),
+            ]
+        )
+    table = slide.shapes.add_table(len(rows) + 1, len(headers), Inches(0.8), Inches(1.95), Inches(11.6), Inches(3.4)).table
+    for col, header in enumerate(headers):
+        table.cell(0, col).text = header
+    for r, row_values in enumerate(rows, start=1):
+        for c, value in enumerate(row_values):
+            table.cell(r, c).text = value
+    set_table_widths(table, [2.6, 2.9, 2.9, 2.9])
+    style_table(table, 12)
+    add_footer(slide, "Positive delta means improvement over the chosen reference model.")
+
+    for metric in metrics:
+        mean_std_key = f"{metric}_mean_std"
+        by_seed_key = f"{metric}_by_seed"
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        apply_slide_background(slide, COLOR_BG)
+        add_slide_header(
+            slide,
+            metric_display_name(metric),
+            "Aggregate mean/std bars are paired with per-seed trajectories for the same metric.",
+            section_label="Metric View",
+        )
+        if mean_std_key in metric_figures:
+            slide.shapes.add_picture(str(metric_figures[mean_std_key]), Inches(0.55), Inches(1.82), width=Inches(5.85))
+        if by_seed_key in metric_figures:
+            slide.shapes.add_picture(str(metric_figures[by_seed_key]), Inches(6.85), Inches(1.82), width=Inches(5.55))
+        add_footer(slide, f"{metric_display_name(metric)} is shown both as aggregate error bars and seed-by-seed lines.")
+
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    apply_slide_background(slide, COLOR_BG)
+    add_slide_header(
+        slide,
+        "Conclusion",
+        "Short wrap-up slide for weekly meetings based on multi-seed evidence.",
+        section_label="Close",
+    )
+    add_bullet_box(slide, 0.82, 1.95, 7.2, 3.5, conclusions, font_size=16)
+    add_card(
+        slide,
+        8.5,
+        2.05,
+        3.7,
+        2.25,
+        "Recommended next use",
+        [
+            "Use this deck for the 3-seed mean/std story.",
+            "Use per-seed decks only for debugging or variance discussion.",
+            "Keep future model families in the same summary-report pipeline.",
+        ],
+        accent=COLOR_GOOD,
+    )
+    add_footer(slide, "This deck is rendered by generate_comparison_report.py from seed-summary artifacts.")
+
+    ppt_path = report_dir / f"{report_name}.pptx"
+    prs.save(ppt_path)
+    return ppt_path
+
+
+def build_seed_summary_report_data(args, project_root: Path):
+    manifest_path = resolve_summary_manifest_path(args.results_dir, args.summary_report, args.summary_manifest)
+    source_manifest = load_json(manifest_path)
+    source_report_name = str(source_manifest.get("report_name") or manifest_path.parent.name)
+    report_name = args.report_name or source_report_name
+    report_dir = manifest_path.parent if report_name == source_report_name else args.results_dir / "reports" / report_name
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    aggregate_csv_path = resolve_summary_artifact_path(project_root, source_manifest.get("aggregate_csv"))
+    delta_csv_path = resolve_summary_artifact_path(project_root, source_manifest.get("delta_csv"))
+    summary_rows = [
+        {key: parse_summary_value(value) for key, value in row.items()}
+        for row in load_csv_dict_rows(aggregate_csv_path)
+    ]
+    delta_rows = [
+        {key: parse_summary_value(value) for key, value in row.items()}
+        for row in load_csv_dict_rows(delta_csv_path)
+    ]
+
+    metric_figures = {}
+    for key, value in (source_manifest.get("figures") or {}).items():
+        metric_figures[key] = resolve_summary_artifact_path(project_root, value)
+
+    metrics = list(source_manifest.get("metrics", []))
+    models = list(source_manifest.get("models", []))
+    scenario = detect_seed_summary_scenario(models)
+    title = args.title or source_manifest.get("title") or f"Seed Summary: {report_name.replace('_', ' ').title()}"
+    headline_insights = list(source_manifest.get("headline_insights", []))
+    reference_model = str(source_manifest.get("reference_model", models[0] if models else "unknown"))
+    conclusion_lines = build_seed_summary_conclusion_lines(summary_rows, reference_model, metrics)
+
+    return {
+        "manifest_path": manifest_path,
+        "source_manifest": source_manifest,
+        "source_report_name": source_report_name,
+        "report_name": report_name,
+        "report_dir": report_dir,
+        "title": title,
+        "scenario": scenario,
+        "summary_rows": summary_rows,
+        "delta_rows": delta_rows,
+        "metric_figures": metric_figures,
+        "headline_insights": headline_insights,
+        "conclusion_lines": conclusion_lines,
+        "metrics": metrics,
+        "models": models,
+        "seeds": list(source_manifest.get("seeds", [])),
+        "reference_model": reference_model,
+    }
+
+
 def build_report_context(args, run_specs, project_root: Path):
     report_name = args.report_name or make_default_report_name(run_specs)
     runs = [
@@ -2090,68 +2625,98 @@ def build_report_context(args, run_specs, project_root: Path):
 def main():
     args = parse_args()
     project_root = Path.cwd()
-    run_specs = [parse_run_spec(spec) for spec in args.runs]
-    context = build_report_context(args, run_specs, project_root)
-    report_dir, figures_dir = ensure_report_dirs(args.results_dir, context.report_name)
+    if args.runs:
+        run_specs = [parse_run_spec(spec) for spec in args.runs]
+        context = build_report_context(args, run_specs, project_root)
+        report_dir, figures_dir = ensure_report_dirs(args.results_dir, context.report_name)
 
-    for metric in context.metrics:
-        context.metric_figure_paths[metric] = plot_metric(figures_dir, context.runs, metric)
+        for metric in context.metrics:
+            context.metric_figure_paths[metric] = plot_metric(figures_dir, context.runs, metric)
 
-    if context.macro_metric_keys:
-        context.macro_figure_payload = plot_macro_metrics(
-            figures_dir, context.runs, context.macro_metric_keys
+        if context.macro_metric_keys:
+            context.macro_figure_payload = plot_macro_metrics(
+                figures_dir, context.runs, context.macro_metric_keys
+            )
+
+        per_class_metric_keys = determine_available_per_class_metric_keys(context.runs)
+        for metric_name in per_class_metric_keys:
+            figure_path, class_names = plot_per_class_metric(figures_dir, context.runs, metric_name)
+            context.per_class_figure_payloads.append(
+                {
+                    "metric": metric_name,
+                    "path": figure_path,
+                    "summary": summarize_per_class_metric(context.runs, metric_name, class_names),
+                }
+            )
+
+        context.headline_insights = build_headline_insights(
+            context.runs, context.summary_rows, context.metrics, context.scenario
+        )
+        context.conclusion_lines = build_conclusion_lines(
+            context.runs,
+            context.summary_rows,
+            context.metrics,
+            per_class_metric_keys,
+            context.scenario,
         )
 
-    per_class_metric_keys = determine_available_per_class_metric_keys(context.runs)
-    for metric_name in per_class_metric_keys:
-        figure_path, class_names = plot_per_class_metric(figures_dir, context.runs, metric_name)
-        context.per_class_figure_payloads.append(
-            {
-                "metric": metric_name,
-                "path": figure_path,
-                "summary": summarize_per_class_metric(context.runs, metric_name, class_names),
-            }
+        summary_csv_path, config_csv_path, overview_path, presentation_summary_path, manifest_path = save_summary_outputs(
+            report_dir=report_dir,
+            title=context.title,
+            scenario=context.scenario,
+            runs=context.runs,
+            metrics=context.metrics,
+            selected_metric_keys=context.selected_metric_keys,
+            summary_rows=context.summary_rows,
+            varying_keys=context.all_varying_keys,
+            headline_insights=context.headline_insights,
+            conclusion_lines=context.conclusion_lines,
         )
 
-    context.headline_insights = build_headline_insights(
-        context.runs, context.summary_rows, context.metrics, context.scenario
-    )
-    context.conclusion_lines = build_conclusion_lines(
-        context.runs,
-        context.summary_rows,
-        context.metrics,
-        per_class_metric_keys,
-        context.scenario,
+        print(f"Report directory: {report_dir}")
+        print(f"Summary CSV: {summary_csv_path}")
+        print(f"Config CSV: {config_csv_path}")
+        print(f"Overview Markdown: {overview_path}")
+        print(f"Presentation Summary JSON: {presentation_summary_path}")
+        print(f"Manifest JSON: {manifest_path}")
+        for metric, path in context.metric_figure_paths.items():
+            print(f"Figure ({metric}): {path}")
+        if context.macro_figure_payload:
+            print(f"Macro Figure: {context.macro_figure_payload['path']}")
+        for payload in context.per_class_figure_payloads:
+            print(f"Per-class Figure ({payload['metric']}): {payload['path']}")
+
+        if not args.skip_ppt:
+            ppt_path = export_ppt(report_dir=report_dir, context=context)
+            print(f"PPTX: {ppt_path}")
+        return
+
+    seed_summary = build_seed_summary_report_data(args, project_root)
+    presentation_summary_path, manifest_path = save_seed_summary_report_outputs(
+        report_dir=seed_summary["report_dir"],
+        title=seed_summary["title"],
+        scenario=seed_summary["scenario"],
+        source_manifest_path=seed_summary["manifest_path"],
+        source_manifest=seed_summary["source_manifest"],
+        headline_insights=seed_summary["headline_insights"],
+        conclusion_lines=seed_summary["conclusion_lines"],
     )
 
-    summary_csv_path, config_csv_path, overview_path, presentation_summary_path, manifest_path = save_summary_outputs(
-        report_dir=report_dir,
-        title=context.title,
-        scenario=context.scenario,
-        runs=context.runs,
-        metrics=context.metrics,
-        selected_metric_keys=context.selected_metric_keys,
-        summary_rows=context.summary_rows,
-        varying_keys=context.all_varying_keys,
-        headline_insights=context.headline_insights,
-        conclusion_lines=context.conclusion_lines,
-    )
-
-    print(f"Report directory: {report_dir}")
-    print(f"Summary CSV: {summary_csv_path}")
-    print(f"Config CSV: {config_csv_path}")
-    print(f"Overview Markdown: {overview_path}")
+    print(f"Report directory: {seed_summary['report_dir']}")
+    print(f"Source summary manifest: {seed_summary['manifest_path']}")
     print(f"Presentation Summary JSON: {presentation_summary_path}")
     print(f"Manifest JSON: {manifest_path}")
-    for metric, path in context.metric_figure_paths.items():
-        print(f"Figure ({metric}): {path}")
-    if context.macro_figure_payload:
-        print(f"Macro Figure: {context.macro_figure_payload['path']}")
-    for payload in context.per_class_figure_payloads:
-        print(f"Per-class Figure ({payload['metric']}): {payload['path']}")
+    for key, path in seed_summary["metric_figures"].items():
+        print(f"Figure ({key}): {path}")
 
     if not args.skip_ppt:
-        ppt_path = export_ppt(report_dir=report_dir, context=context)
+        ppt_path = export_seed_summary_ppt(
+            report_dir=seed_summary["report_dir"],
+            report_name=seed_summary["report_name"],
+            title=seed_summary["title"],
+            scenario=seed_summary["scenario"],
+            seed_summary=seed_summary,
+        )
         print(f"PPTX: {ppt_path}")
 
 
