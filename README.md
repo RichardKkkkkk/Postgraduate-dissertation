@@ -54,6 +54,12 @@ python run_seed_sweep.py --seeds 42 43 44
 python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main
 ```
 
+如果你想单独做一页“哪些类别提升了”的分析，现在还可以生成 per-class 报告：
+
+```bash
+python analyze_per_class_report.py
+```
+
 ## 当前支持的模型
 
 - `vit_baseline`：原始 ViT，使用 learned absolute positional embedding
@@ -194,6 +200,28 @@ python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main
 - `--reference-model vit_baseline`
 - `--metrics best_val_acc test_acc macro_f1`
 
+### Per-class 分析脚本参数
+
+`analyze_per_class_report.py` 的作用是：
+
+- 读取多个 run 的 `summary.json`
+- 对比 `per_class_accuracy`
+- 对比 `per_class_f1`
+- 生成 grouped bar chart
+- 生成相对 reference run 的 delta 图
+- 生成一页 overview markdown
+
+常用参数：
+
+- `--run`
+- `--report-name`
+- `--reference-run`
+
+默认行为：
+
+- 默认比较 `vit_baseline`、`vit_rope`、`vit_rope_2d`
+- 默认把第一个 run 当作 reference
+
 ### ResNet18 参数
 
 - `--image-size`
@@ -304,6 +332,12 @@ python run_seed_sweep.py --seeds 42 43 44 --models vit_baseline vit_rope vit_rop
 python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main
 ```
 
+生成一份可以直接放进组会的 per-class 对比：
+
+```bash
+python analyze_per_class_report.py --run vit_baseline=\"ViT Baseline\" --run vit_rope=\"ViT RoPE\" --run vit_rope_2d=\"ViT RoPE 2D\" --report-name vit_position_per_class
+```
+
 ## 输出内容
 
 训练完成后会保存：
@@ -355,6 +389,14 @@ python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main --refe
 - `delta_vs_reference.csv`
 - 跨 seed 的 `mean/std` 图
 
+如果你要补“分析页”，`analyze_per_class_report.py` 会额外生成：
+
+- `per_class_accuracy_comparison.csv`
+- `per_class_f1_comparison.csv`
+- `per_class_accuracy_grouped.png`
+- `per_class_f1_grouped.png`
+- `per_class_accuracy_delta_vs_reference.png`
+
 如果你要基于这个 multi-seed summary 再生成组会 PPT，统一走报告脚本：
 
 ```bash
@@ -400,6 +442,7 @@ results/reports/<report_name>/
 - [train_cifar10_experiment.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/train_cifar10_experiment.py:1)：唯一训练入口
 - [run_seed_sweep.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/run_seed_sweep.py:1)：多 seed 批量运行与每个 seed 自动报告入口
 - [summarize_seed_sweep.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/summarize_seed_sweep.py:1)：跨 seed 汇总 `mean/std`、delta 和误差条图
+- [analyze_per_class_report.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/analyze_per_class_report.py:1)：生成 per-class 对比表、delta 图和汇报结论
 - [model_registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/model_registry.py:1)：模型注册表，定义每个模型怎么接入统一训练入口
 - [experiment_utils.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/experiment_utils.py:1)：共享训练、评估、保存结果工具
 - [cifar10_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/cifar10_data.py:1)：CIFAR-10 dataloader 构建逻辑

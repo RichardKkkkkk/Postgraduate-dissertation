@@ -370,6 +370,16 @@ ResNet18 from scratch vs ViT from scratch
 - whether the ranking is stable
 - whether gains are larger than random fluctuation
 
+在组会和论文写作层面，还应该补一层：
+
+- per-class analysis
+
+因为这会把“模型更好”拆成更有解释力的问题：
+
+- 是整体平均都在涨
+- 还是某些类别涨得特别多
+- 哪些类别依旧是当前结构的短板
+
 这一步的意义是：
 
 - 训练协议只维护一份

@@ -630,6 +630,45 @@ train_cifar10_experiment.py
 
 `Per-seed reports show behavior, aggregated summaries show reliability.`
 
+## Why Add A Per-Class Analysis Layer
+
+平均 `test_acc` 很重要，但它只能回答：
+
+- overall 有没有变好
+
+它回答不了：
+
+- 到底是哪些类别变好了
+- 提升是不是集中在某几类
+- 有没有某些类别反而下降
+
+所以现在额外补了一层：
+
+- `analyze_per_class_report.py`
+
+它直接读取每个 run 的 `summary.json`，重点使用：
+
+- `selected_model.test_per_class_accuracy`
+- `selected_model.test_per_class_f1`
+
+然后输出三类东西：
+
+1. per-class table
+   每一行是一个 CIFAR-10 类别
+2. grouped comparison plot
+   同一类别下比较 baseline / rope / rope_2d
+3. delta vs reference plot
+   直接看相对 baseline 的类别提升和下降
+
+这层分析最适合回答这种研究问题：
+
+- `2D RoPE` 的收益是不是更偏向某些空间结构明显的类别
+- 它还没解决哪些难类，比如 `cat / dog`
+
+英文可以记一句：
+
+`Aggregate metrics show overall gains, per-class metrics show where the gains come from.`
+
 ## Single Training Entry
 
 现在项目已经进一步收口成：

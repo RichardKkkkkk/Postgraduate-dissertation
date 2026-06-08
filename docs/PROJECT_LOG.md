@@ -221,6 +221,26 @@ README 和 `docs/DEVELOPMENT_MAP.md` 中提到了统一入口 `train_cifar10_exp
 - Run `summarize_seed_sweep.py` on the current `cifar10_main` results.
 - Use the mean/std table to decide whether tuning should focus on `vit_rope_2d`.
 
+## 2026-06-08 Per-Class Comparison Layer
+
+### Changed
+- Added `analyze_per_class_report.py`.
+- The new script reads saved run summaries and compares per-class accuracy / per-class F1.
+- It exports per-class CSV tables, grouped comparison plots, a delta-vs-reference plot, and an overview markdown file.
+- Updated README, learning notes, and development map for the new meeting-analysis workflow.
+
+### Learned
+- Multi-seed averages are useful for deciding whether a direction is stable.
+- Per-class analysis is useful for deciding what kind of improvement the structure is actually giving.
+- This creates a better bridge from raw experiment results to meeting slides and thesis narrative.
+
+### Problems / Mismatches
+- The new report artifacts also live under `results/reports/` and should remain outside normal code commits.
+
+### Next
+- Run the per-class report on `vit_baseline`, `vit_rope`, and `vit_rope_2d`.
+- Use the resulting class-level gains and weak-class analysis in the next group meeting.
+
 ## 2026-06-07 Seed Summary PPT Export
 
 ### Changed
