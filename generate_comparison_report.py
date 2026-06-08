@@ -177,6 +177,18 @@ def parse_args():
         default=None,
         help="Path to a seed-summary summary_manifest.json file.",
     )
+    parser.add_argument(
+        "--per-class-report",
+        type=str,
+        default=None,
+        help="Optional per-class comparison report folder name under results/reports/ to append as extra slides.",
+    )
+    parser.add_argument(
+        "--per-class-manifest",
+        type=Path,
+        default=None,
+        help="Optional path to a per-class comparison report_manifest.json file.",
+    )
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
     parser.add_argument("--report-name", type=str, default=None)
     parser.add_argument("--title", type=str, default=None)
@@ -1028,6 +1040,21 @@ def resolve_summary_manifest_path(results_dir: Path, summary_report: str | None,
     return path.resolve()
 
 
+def resolve_report_manifest_path(results_dir: Path, report_name: str | None, manifest_path: Path | None):
+    if manifest_path:
+        path = manifest_path if manifest_path.is_absolute() else Path.cwd() / manifest_path
+        if path.is_dir():
+            path = path / "report_manifest.json"
+    elif report_name:
+        path = results_dir / "reports" / report_name / "report_manifest.json"
+    else:
+        return None
+
+    if not path.exists():
+        raise FileNotFoundError(f"Report manifest not found: {path}")
+    return path.resolve()
+
+
 def resolve_summary_artifact_path(project_root: Path, value):
     if not value:
         return None
@@ -1037,6 +1064,35 @@ def resolve_summary_artifact_path(project_root: Path, value):
         if candidate.exists():
             return candidate.resolve()
     raise FileNotFoundError(f"Referenced summary artifact not found: {value}")
+
+
+def format_class_triplet(items):
+    return ", ".join(f"{name} ({value})" for name, value in items)
+
+
+def mean_column(rows, key):
+    values = [float(row[key]) for row in rows if row.get(key) not in (None, "")]
+    return sum(values) / len(values) if values else float("-inf")
+
+
+def top_class_deltas(rows, delta_key, reverse=True, top_k=3):
+    values = []
+    for row in rows:
+        if delta_key not in row:
+            continue
+        values.append((float(row[delta_key]), row["class_name"]))
+    values.sort(reverse=reverse)
+    return [(name, f"{value * 100.0:+.2f} pp") for value, name in values[:top_k]]
+
+
+def lowest_class_values(rows, value_key, top_k=3):
+    values = []
+    for row in rows:
+        if value_key not in row:
+            continue
+        values.append((float(row[value_key]), row["class_name"]))
+    values.sort()
+    return [(name, f"{value * 100.0:.2f}%") for value, name in values[:top_k]]
 
 
 def detect_seed_summary_scenario(model_names):
@@ -1097,6 +1153,7 @@ def save_seed_summary_report_outputs(
     source_manifest: dict,
     headline_insights,
     conclusion_lines,
+    per_class_manifest_path: Path | None = None,
 ):
     presentation_summary_path = report_dir / "presentation_summary.json"
     presentation_summary = {
@@ -1112,6 +1169,7 @@ def save_seed_summary_report_outputs(
         "models": source_manifest.get("models", []),
         "seeds": source_manifest.get("seeds", []),
         "reference_model": source_manifest.get("reference_model"),
+        "per_class_report_manifest": str(per_class_manifest_path) if per_class_manifest_path else None,
     }
     presentation_summary_path.write_text(
         json.dumps(presentation_summary, indent=2, ensure_ascii=False),
@@ -1131,10 +1189,103 @@ def save_seed_summary_report_outputs(
         "models": source_manifest.get("models", []),
         "seeds": source_manifest.get("seeds", []),
         "reference_model": source_manifest.get("reference_model"),
+        "per_class_report_manifest": str(per_class_manifest_path) if per_class_manifest_path else None,
         "presentation_summary_json": str(presentation_summary_path),
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
     return presentation_summary_path, manifest_path
+
+
+def load_per_class_report_data(args, project_root: Path):
+    manifest_path = resolve_report_manifest_path(args.results_dir, args.per_class_report, args.per_class_manifest)
+    if manifest_path is None:
+        return None
+
+    manifest = load_json(manifest_path)
+    figures = {}
+    for key, value in (manifest.get("figures") or {}).items():
+        figures[key] = resolve_summary_artifact_path(project_root, value)
+
+    accuracy_csv_path = resolve_summary_artifact_path(project_root, manifest.get("accuracy_csv"))
+    f1_csv_path = resolve_summary_artifact_path(project_root, manifest.get("f1_csv"))
+    accuracy_rows = [
+        {key: parse_summary_value(value) for key, value in row.items()}
+        for row in load_csv_dict_rows(accuracy_csv_path)
+    ]
+    f1_rows = [
+        {key: parse_summary_value(value) for key, value in row.items()}
+        for row in load_csv_dict_rows(f1_csv_path)
+    ]
+
+    runs = manifest.get("runs", [])
+    reference_run = str(manifest.get("reference_run", runs[0]["run_name"] if runs else "reference"))
+    run_labels = {item["run_name"]: item.get("label", item["run_name"]) for item in runs}
+
+    value_run_names = [
+        item["run_name"]
+        for item in runs
+        if accuracy_rows and f"{item['run_name']}_value" in accuracy_rows[0]
+    ]
+    if not value_run_names:
+        return None
+
+    best_accuracy_run = max(value_run_names, key=lambda run_name: mean_column(accuracy_rows, f"{run_name}_value"))
+    best_f1_run = max(value_run_names, key=lambda run_name: mean_column(f1_rows, f"{run_name}_value"))
+    focus_run = next((run_name for run_name in value_run_names if run_name != reference_run), best_accuracy_run)
+    focus_accuracy_run = best_accuracy_run if best_accuracy_run != reference_run else focus_run
+    focus_f1_run = best_f1_run if best_f1_run != reference_run else focus_run
+
+    accuracy_delta_key = f"{focus_accuracy_run}_delta_vs_{reference_run}"
+    f1_delta_key = f"{focus_f1_run}_delta_vs_{reference_run}"
+
+    slides = []
+    if "per_class_accuracy_grouped" in figures:
+        slides.append(
+            {
+                "title": "Per-Class Analysis | Accuracy",
+                "subtitle": "Classwise test accuracy grouped across compared models.",
+                "path": figures["per_class_accuracy_grouped"],
+                "summary": [
+                    f"Best mean class accuracy in this comparison: {run_labels.get(best_accuracy_run, best_accuracy_run)}.",
+                    f"Top gains vs {run_labels.get(reference_run, reference_run)}: {format_class_triplet(top_class_deltas(accuracy_rows, accuracy_delta_key, reverse=True))}.",
+                    f"Weakest classes in {run_labels.get(focus_accuracy_run, focus_accuracy_run)}: {format_class_triplet(lowest_class_values(accuracy_rows, f'{focus_accuracy_run}_value'))}.",
+                ],
+            }
+        )
+
+    if "per_class_accuracy_delta_vs_reference" in figures:
+        slides.append(
+            {
+                "title": "Per-Class Analysis | Accuracy Delta",
+                "subtitle": f"Accuracy delta is measured against {run_labels.get(reference_run, reference_run)}.",
+                "path": figures["per_class_accuracy_delta_vs_reference"],
+                "summary": [
+                    f"Largest positive deltas for {run_labels.get(focus_accuracy_run, focus_accuracy_run)}: {format_class_triplet(top_class_deltas(accuracy_rows, accuracy_delta_key, reverse=True))}.",
+                    f"Largest negative deltas: {format_class_triplet(top_class_deltas(accuracy_rows, accuracy_delta_key, reverse=False))}.",
+                    "Use this page to show that class-level gains are directional rather than uniform across all categories.",
+                ],
+            }
+        )
+
+    if "per_class_f1_grouped" in figures:
+        slides.append(
+            {
+                "title": "Per-Class Analysis | F1",
+                "subtitle": "Classwise F1 grouped across compared models.",
+                "path": figures["per_class_f1_grouped"],
+                "summary": [
+                    f"Best mean class F1 in this comparison: {run_labels.get(best_f1_run, best_f1_run)}.",
+                    f"Top F1 gains vs {run_labels.get(reference_run, reference_run)}: {format_class_triplet(top_class_deltas(f1_rows, f1_delta_key, reverse=True))}.",
+                    f"Weakest F1 classes in {run_labels.get(focus_f1_run, focus_f1_run)}: {format_class_triplet(lowest_class_values(f1_rows, f'{focus_f1_run}_value'))}.",
+                ],
+            }
+        )
+
+    return {
+        "manifest_path": manifest_path,
+        "manifest": manifest,
+        "slides": slides,
+    }
 
 
 def setup_plot_style():
@@ -2233,6 +2384,7 @@ def export_seed_summary_ppt(
     seeds = seed_summary["seeds"]
     reference_model = seed_summary["reference_model"]
     metrics = seed_summary["metrics"]
+    supplementary_per_class_slides = seed_summary.get("supplementary_per_class_slides", [])
 
     prs = Presentation()
     prs.slide_width = Inches(SLIDE_WIDTH_INCHES)
@@ -2501,6 +2653,19 @@ def export_seed_summary_ppt(
             slide.shapes.add_picture(str(metric_figures[by_seed_key]), Inches(6.85), Inches(1.82), width=Inches(5.55))
         add_footer(slide, f"{metric_display_name(metric)} is shown both as aggregate error bars and seed-by-seed lines.")
 
+    for payload in supplementary_per_class_slides:
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        apply_slide_background(slide, COLOR_BG)
+        add_slide_header(
+            slide,
+            payload["title"],
+            payload["subtitle"],
+            section_label="Per-Class",
+        )
+        slide.shapes.add_picture(str(payload["path"]), Inches(0.62), Inches(1.85), width=Inches(7.55))
+        add_card(slide, 8.45, 1.98, 3.8, 3.45, "Key readout", payload["summary"], accent=COLOR_CYAN)
+        add_footer(slide, "These slides complement the aggregate summary with class-level evidence.")
+
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     apply_slide_background(slide, COLOR_BG)
     add_slide_header(
@@ -2534,6 +2699,7 @@ def export_seed_summary_ppt(
 def build_seed_summary_report_data(args, project_root: Path):
     manifest_path = resolve_summary_manifest_path(args.results_dir, args.summary_report, args.summary_manifest)
     source_manifest = load_json(manifest_path)
+    per_class_report = load_per_class_report_data(args, project_root)
     source_report_name = str(source_manifest.get("report_name") or manifest_path.parent.name)
     report_name = args.report_name or source_report_name
     report_dir = manifest_path.parent if report_name == source_report_name else args.results_dir / "reports" / report_name
@@ -2579,6 +2745,8 @@ def build_seed_summary_report_data(args, project_root: Path):
         "models": models,
         "seeds": list(source_manifest.get("seeds", [])),
         "reference_model": reference_model,
+        "per_class_report_manifest": str(per_class_report["manifest_path"]) if per_class_report else None,
+        "supplementary_per_class_slides": per_class_report["slides"] if per_class_report else [],
     }
 
 
@@ -2700,6 +2868,7 @@ def main():
         source_manifest=seed_summary["source_manifest"],
         headline_insights=seed_summary["headline_insights"],
         conclusion_lines=seed_summary["conclusion_lines"],
+        per_class_manifest_path=Path(seed_summary["per_class_report_manifest"]) if seed_summary.get("per_class_report_manifest") else None,
     )
 
     print(f"Report directory: {seed_summary['report_dir']}")

@@ -289,3 +289,21 @@ README 和 `docs/DEVELOPMENT_MAP.md` 中提到了统一入口 `train_cifar10_exp
 ### Next
 - Use `generate_comparison_report.py --summary-report <report_name>` for aggregate multi-seed decks.
 - Keep `summarize_seed_sweep.py` focused on reproducible summary outputs only.
+
+## 2026-06-08 Per-Class Supplement In Seed-Summary PPT
+
+### Changed
+- Extended `generate_comparison_report.py` again so the seed-summary PPT mode can optionally append a separate per-class comparison report.
+- Added `--per-class-report` and `--per-class-manifest` to let the report layer read an existing per-class report manifest instead of hardcoding figure paths.
+- Appended the three current `vit_position_per_class` figures into the `cifar10_main_seed_summary` deck as extra analysis slides.
+
+### Learned
+- Class-level comparison figures are better treated as a supplementary evidence pack, not merged back into the seed-summary computation script.
+- The clean structure is now:
+  - summary script produces aggregate evidence
+  - per-class script produces classwise evidence
+  - report script decides which evidence packs appear in the final PPT
+
+### Next
+- Keep aggregate performance and class-level evidence as separate report artifacts, then combine them only at PPT generation time.
+- Reuse the same `--per-class-report` hook when later adding CNN or pretrained comparisons.

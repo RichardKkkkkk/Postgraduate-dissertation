@@ -403,6 +403,12 @@ python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main --refe
 python generate_comparison_report.py --summary-report cifar10_main_seed_summary --title "CIFAR-10 Main Seed Summary"
 ```
 
+如果你还想把单独做好的 `per-class` 对比图也一起接进这份 PPT，可以再补一个参数：
+
+```bash
+python generate_comparison_report.py --summary-report cifar10_main_seed_summary --per-class-report vit_position_per_class --title "CIFAR-10 Main Seed Summary"
+```
+
 现在职责是分开的：
 
 - `summarize_seed_sweep.py` 负责生成汇总结果

@@ -476,3 +476,12 @@ train_resnet18_scratch_cifar10.py
 - 你以后只需要记住一个“出 PPT 的脚本”
 - 后续新增 `multi-seed`、`family compare`、`baseline vs rope` 等场景时，汇报入口不会继续分裂
 - 工程上也更接近 thesis workflow：先产出证据，再产出叙事材料
+
+同样的设计原则也适用于 `per-class` 这类补充分析页：
+
+- 不把 class-level 图强塞回 summary computation
+- 保持它们作为独立 report artifact
+- 在最终 PPT 生成阶段按需附加
+
+这样后面如果要给 `ViT vs CNN`、`scratch vs pretrained` 做类级别补充，
+仍然可以复用同一个 PPT 汇总入口，而不是再分叉出新的导出脚本。

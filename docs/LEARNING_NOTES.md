@@ -762,3 +762,12 @@ train_cifar10_experiment.py
 
 - `summarize_seed_sweep.py` 只负责把多 seed 结果压缩成汇总 artifact
 - `generate_comparison_report.py` 统一负责把单次 run 或 aggregate summary 变成 PPT
+
+如果后面还有单独做的补充图层，例如：
+
+- per-class grouped accuracy
+- per-class grouped F1
+- per-class delta vs baseline
+
+更好的做法也不是把这些图重新塞回 summary script，
+而是让 report script 在最终导出 PPT 时“选择性拼接”这些补充证据页。
