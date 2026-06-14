@@ -6,7 +6,9 @@ import torch.nn as nn
 from torchvision import models
 
 from cifar10_data import build_resnet_dataloaders, build_vit_dataloaders
+from synthetic_orientation_data import build_synthetic_orientation_dataloaders
 from vit import ViT
+from vit_axis_sinusoidal import ViTColSinusoidal, ViTRowSinusoidal
 from vit_rope import ViTRoPE
 from vit_rope_2d import ViTRoPE2D
 
@@ -24,6 +26,19 @@ class ExperimentSpec:
 
 
 EXPERIMENT_REGISTRY: dict[str, ExperimentSpec] = {}
+SUPPORTED_DATASETS = ("cifar10", "synthetic_orientation")
+DATASET_NUM_CLASSES = {
+    "cifar10": 10,
+    "synthetic_orientation": 2,
+}
+DATASET_DEFAULT_IMAGE_SIZE = {
+    "cifar10": 32,
+    "synthetic_orientation": 32,
+}
+DATASET_DISPLAY_NAMES = {
+    "cifar10": "CIFAR-10",
+    "synthetic_orientation": "Synthetic Orientation",
+}
 
 
 def register_experiment(spec: ExperimentSpec):
@@ -32,12 +47,24 @@ def register_experiment(spec: ExperimentSpec):
     EXPERIMENT_REGISTRY[spec.model_name] = spec
 
 
+def get_dataset_num_classes(dataset_name):
+    return DATASET_NUM_CLASSES[dataset_name]
+
+
+def get_dataset_image_size(args):
+    return args.image_size or DATASET_DEFAULT_IMAGE_SIZE[args.dataset]
+
+
+def get_dataset_display_name(dataset_name):
+    return DATASET_DISPLAY_NAMES[dataset_name]
+
+
 def build_vit_model_config(args):
     return {
-        "img_size": 32,
+        "img_size": get_dataset_image_size(args),
         "patch_size": 4,
         "in_channels": 3,
-        "num_classes": 10,
+        "num_classes": get_dataset_num_classes(args.dataset),
         "embed_dim": 128,
         "num_blocks": 4,
         "num_heads": 4,
@@ -66,74 +93,124 @@ def build_vit_rope_2d_model(args):
     return ViTRoPE2D(**model_config), model_config
 
 
+def build_vit_row_sinusoidal_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTRowSinusoidal(**model_config), model_config
+
+
+def build_vit_col_sinusoidal_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTColSinusoidal(**model_config), model_config
+
+
 def build_vit_family_dataloaders(args):
-    return build_vit_dataloaders(
-        data_dir=args.data_dir,
-        batch_size=args.batch_size,
-        train_subset=args.train_subset,
-        val_subset=args.val_subset,
-        test_subset=args.test_subset,
-        num_workers=args.num_workers,
-        seed=args.seed,
-        val_ratio=args.val_ratio,
-    )
+    if args.dataset == "cifar10":
+        return build_vit_dataloaders(
+            data_dir=args.data_dir,
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+        )
+    if args.dataset == "synthetic_orientation":
+        return build_synthetic_orientation_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=get_dataset_image_size(args),
+            line_width=args.synthetic_line_width,
+            noise_std=args.synthetic_noise_std,
+            max_stripes=args.synthetic_max_stripes,
+        )
+    raise ValueError(f"Unsupported dataset for ViT family: {args.dataset}")
 
 
-def build_resnet18_model(weights_name):
+def build_resnet18_model(weights_name, num_classes=10):
     if weights_name == "imagenet":
         weights = models.ResNet18_Weights.DEFAULT
     else:
         weights = None
 
     model = models.resnet18(weights=weights)
-    model.fc = nn.Linear(model.fc.in_features, 10)
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
     return model
 
 
 def build_resnet18_scratch_model(args):
-    image_size = args.image_size or 32
-    model = build_resnet18_model("none")
+    image_size = get_dataset_image_size(args)
+    num_classes = get_dataset_num_classes(args.dataset)
+    model = build_resnet18_model("none", num_classes=num_classes)
     model_config = {
         "architecture": "resnet18",
         "variant": "scratch",
         "weights": "none",
         "image_size": image_size,
-        "num_classes": 10,
+        "num_classes": num_classes,
     }
     return model, model_config
 
 
 def build_resnet18_imagenet_model(args):
     image_size = args.image_size or 224
-    model = build_resnet18_model("imagenet")
+    num_classes = get_dataset_num_classes(args.dataset)
+    model = build_resnet18_model("imagenet", num_classes=num_classes)
     model_config = {
         "architecture": "resnet18",
         "variant": "imagenet",
         "weights": "imagenet",
         "image_size": image_size,
-        "num_classes": 10,
+        "num_classes": num_classes,
     }
     return model, model_config
 
 
 def build_resnet18_scratch_dataloaders(args):
-    image_size = args.image_size or 32
-    return build_resnet_dataloaders(
-        data_dir=args.data_dir,
-        batch_size=args.batch_size,
-        train_subset=args.train_subset,
-        val_subset=args.val_subset,
-        test_subset=args.test_subset,
-        num_workers=args.num_workers,
-        seed=args.seed,
-        val_ratio=args.val_ratio,
-        image_size=image_size,
-        use_imagenet_norm=False,
-    )
+    image_size = get_dataset_image_size(args)
+    if args.dataset == "cifar10":
+        return build_resnet_dataloaders(
+            data_dir=args.data_dir,
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+            image_size=image_size,
+            use_imagenet_norm=False,
+        )
+    if args.dataset == "synthetic_orientation":
+        return build_synthetic_orientation_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=image_size,
+            line_width=args.synthetic_line_width,
+            noise_std=args.synthetic_noise_std,
+            max_stripes=args.synthetic_max_stripes,
+        )
+    raise ValueError(f"Unsupported dataset for ResNet18 scratch: {args.dataset}")
 
 
 def build_resnet18_imagenet_dataloaders(args):
     image_size = args.image_size or 224
+    if args.dataset != "cifar10":
+        raise ValueError("resnet18_imagenet currently supports only the cifar10 dataset.")
     return build_resnet_dataloaders(
         data_dir=args.data_dir,
         batch_size=args.batch_size,
@@ -153,7 +230,7 @@ register_experiment(
         model_name="vit_baseline",
         architecture="vit",
         variant="baseline",
-        plot_title_prefix="CIFAR-10 ViT Baseline",
+        plot_title_prefix="ViT Baseline",
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_baseline_model,
         build_dataloaders=build_vit_family_dataloaders,
@@ -166,7 +243,7 @@ register_experiment(
         model_name="vit_rope",
         architecture="vit",
         variant="rope",
-        plot_title_prefix="CIFAR-10 ViT RoPE",
+        plot_title_prefix="ViT RoPE",
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_rope_model,
         build_dataloaders=build_vit_family_dataloaders,
@@ -176,10 +253,36 @@ register_experiment(
 
 register_experiment(
     ExperimentSpec(
+        model_name="vit_row_sinusoidal",
+        architecture="vit",
+        variant="row_sinusoidal",
+        plot_title_prefix="ViT Row-wise Sinusoidal",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_row_sinusoidal_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "row_sinusoidal"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_col_sinusoidal",
+        architecture="vit",
+        variant="col_sinusoidal",
+        plot_title_prefix="ViT Column-wise Sinusoidal",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_col_sinusoidal_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "col_sinusoidal"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
         model_name="vit_rope_2d",
         architecture="vit",
         variant="rope_2d",
-        plot_title_prefix="CIFAR-10 ViT RoPE 2D",
+        plot_title_prefix="ViT RoPE 2D",
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_rope_2d_model,
         build_dataloaders=build_vit_family_dataloaders,
@@ -192,7 +295,7 @@ register_experiment(
         model_name="resnet18_scratch",
         architecture="resnet18",
         variant="scratch",
-        plot_title_prefix="CIFAR-10 ResNet18",
+        plot_title_prefix="ResNet18 Scratch",
         defaults={"batch_size": 64, "lr": 1e-4, "weight_decay": 0.01},
         build_model=build_resnet18_scratch_model,
         build_dataloaders=build_resnet18_scratch_dataloaders,
@@ -205,7 +308,7 @@ register_experiment(
         model_name="resnet18_imagenet",
         architecture="resnet18",
         variant="imagenet",
-        plot_title_prefix="CIFAR-10 ResNet18",
+        plot_title_prefix="ResNet18 ImageNet",
         defaults={"batch_size": 64, "lr": 1e-4, "weight_decay": 0.01},
         build_model=build_resnet18_imagenet_model,
         build_dataloaders=build_resnet18_imagenet_dataloaders,

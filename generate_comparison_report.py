@@ -78,6 +78,8 @@ MODEL_DISPLAY_NAMES = {
     "vit_baseline": "ViT Baseline",
     "vit_rope": "ViT RoPE",
     "vit_rope_2d": "ViT RoPE 2D",
+    "vit_row_sinusoidal": "ViT Row-wise Sinusoidal",
+    "vit_col_sinusoidal": "ViT Column-wise Sinusoidal",
     "resnet18_scratch": "ResNet18 Scratch",
     "resnet18_imagenet": "ResNet18 ImageNet",
     "vit": "ViT",
@@ -92,6 +94,8 @@ MODEL_VARIANT_DISPLAY = {
     "baseline": "Baseline",
     "rope": "RoPE",
     "rope_2d": "RoPE 2D",
+    "row_sinusoidal": "Row-wise Sinusoidal",
+    "col_sinusoidal": "Column-wise Sinusoidal",
     "scratch": "Scratch",
     "imagenet": "ImageNet",
     "pretrained": "Pretrained",
@@ -100,6 +104,8 @@ POSITION_ENCODING_DISPLAY = {
     "absolute": "Absolute",
     "rope": "RoPE",
     "rope_2d": "RoPE 2D",
+    "row_sinusoidal": "Row-wise Sinusoidal",
+    "col_sinusoidal": "Column-wise Sinusoidal",
     "none": "None",
 }
 INITIALIZATION_DISPLAY = {

@@ -264,15 +264,21 @@ def save_metrics_csv(history, path):
 
 def save_config_json(args, model_config, train_size, val_size, test_size, device, path):
     path.parent.mkdir(parents=True, exist_ok=True)
+    dataset_image_size = (
+        args.image_size
+        or model_config.get("img_size")
+        or model_config.get("image_size")
+    )
     config = {
         "command": " ".join(sys.argv),
         "device": str(device),
         "dataset": {
-            "name": "CIFAR-10",
+            "name": getattr(args, "dataset", "cifar10"),
             "train_size": train_size,
             "val_size": val_size,
             "test_size": test_size,
             "data_dir": str(args.data_dir),
+            "image_size": dataset_image_size,
         },
         "training": {
             "epochs": args.epochs,
@@ -288,6 +294,14 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
             "early_stopping_patience": args.early_stopping_patience,
             "early_stopping_min_delta": args.early_stopping_min_delta,
             "early_stopping_metric": args.early_stopping_metric,
+        },
+        "synthetic_dataset": {
+            "train_size": getattr(args, "synthetic_train_size", None),
+            "val_size": getattr(args, "synthetic_val_size", None),
+            "test_size": getattr(args, "synthetic_test_size", None),
+            "line_width": getattr(args, "synthetic_line_width", None),
+            "noise_std": getattr(args, "synthetic_noise_std", None),
+            "max_stripes": getattr(args, "synthetic_max_stripes", None),
         },
         "model": model_config,
         "outputs": {

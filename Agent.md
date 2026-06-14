@@ -17,6 +17,8 @@ repository documents as the shared memory between Codex sessions.
   - the supported CLI parameters
   - which parameters are model-specific
   - the default values the user should expect
+- When adding a new model variant or dataset path, also update README so the
+  runnable commands for that branch are explicit.
 - Use the conda environment `vit_research` for project development.
 - Do not create a `.venv` for this project.
 - Remind the user when the current changes form a reasonable commit checkpoint, suggest a clear commit message, but do not commit unless explicitly asked.
@@ -29,6 +31,8 @@ repository documents as the shared memory between Codex sessions.
 - Use `docs/LEARNING_NOTES.md` for explanations of PyTorch syntax, tensor shapes, and implementation details.
 - If local code and docs disagree, call out the mismatch before continuing. Update the log with the mismatch and the chosen resolution.
 - Before ending a session with meaningful work, update `docs/PROJECT_LOG.md` with the latest status and next action.
+- If a meaningful experiment result is produced, record at least the model
+  name, dataset, seed, and the purpose of the run in `docs/PROJECT_LOG.md`.
 - When switching machines, remind the user to `git status`, commit useful changes, push on the current machine, then pull on the other machine.
 - Do not rely on chat history as the only project memory; important context must live in tracked docs.
 

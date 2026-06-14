@@ -25,7 +25,9 @@ from experiment_utils import (
 )
 from model_registry import (
     EXPERIMENT_REGISTRY,
+    SUPPORTED_DATASETS,
     build_selected_experiment,
+    get_dataset_display_name,
     resolve_experiment,
 )
 
@@ -36,9 +38,10 @@ def make_run_name(model_name):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Unified CIFAR-10 experiment runner.")
+    parser = argparse.ArgumentParser(description="Unified vision experiment runner.")
     parser.add_argument("--model", choices=tuple(EXPERIMENT_REGISTRY.keys()), required=True)
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
+    parser.add_argument("--dataset", choices=SUPPORTED_DATASETS, default="cifar10")
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
     parser.add_argument("--run-name", type=str, default=None)
@@ -53,6 +56,12 @@ def parse_args():
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--image-size", type=int, default=None)
+    parser.add_argument("--synthetic-train-size", type=int, default=2400)
+    parser.add_argument("--synthetic-val-size", type=int, default=600)
+    parser.add_argument("--synthetic-test-size", type=int, default=600)
+    parser.add_argument("--synthetic-line-width", type=int, default=3)
+    parser.add_argument("--synthetic-noise-std", type=float, default=0.08)
+    parser.add_argument("--synthetic-max-stripes", type=int, default=4)
     parser.add_argument("--embedding-dropout", type=float, default=0.0)
     parser.add_argument("--attention-dropout", type=float, default=0.0)
     parser.add_argument("--projection-dropout", type=float, default=0.0)
@@ -72,6 +81,7 @@ def parse_args():
 def print_run_header(args, spec, device):
     print(f"Using device: {device}")
     print(f"Run name: {args.run_name}")
+    print(f"Dataset: {get_dataset_display_name(args.dataset)} ({args.dataset})")
     print(f"Model: {args.model}")
     print(f"Architecture: {spec.architecture}")
     print(f"Variant: {spec.variant}")
@@ -195,7 +205,7 @@ def save_run_outputs(
         history=history,
         figure_dir=figure_dir,
         run_name=args.run_name,
-        title_prefix=spec.plot_title_prefix,
+        title_prefix=f"{get_dataset_display_name(args.dataset)} {spec.plot_title_prefix}",
     )
     save_confusion_matrix_csv(
         confusion_matrix=selected_test_metrics["confusion_matrix"],

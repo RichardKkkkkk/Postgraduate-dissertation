@@ -1,20 +1,40 @@
-# ViT Learning
+# ViT Research Playground
 
-这个项目用于逐步复现和研究 Vision Transformer，并围绕“如何让 Transformer 更适合图像”搭建一个可持续扩展的实验平台。
+这个仓库现在是一个面向论文实验的轻量研究平台，目标不是只“跑通一个 ViT”，而是持续比较不同的图像位置编码和结构偏置。
 
-当前项目已经具备：
+当前主线已经收敛成：
 
-- 原始 `ViT baseline`
-- 基础 `ViT + RoPE`
-- `ResNet18 scratch`
-- `ResNet18 ImageNet pretrained`
-- `train / validation / test`
-- validation-based early stopping
-- confusion matrix / macro precision / macro recall / macro F1
-- 自动保存 metrics / config / summary / checkpoint
-- 对比报告和 PPT 生成脚本
+- 一个统一训练入口：`train_cifar10_experiment.py`
+- 一个统一模型注册表：`model_registry.py`
+- 一个统一结果输出格式：`metrics / config / summary / curves / checkpoint`
+- 两类数据集：
+  - `cifar10`
+  - `synthetic_orientation`
 
-## 环境
+一句英文可以这样记：
+
+`Use one runner, register many model variants.`
+
+## Current Mainline
+
+本周主线不是继续扩展 `RoPE`，而是转向老师要求的方向性实验：
+
+- `vit_baseline`
+- `vit_row_sinusoidal`
+- `vit_col_sinusoidal`
+
+研究问题是：
+
+- row-wise positional prior 是否更适合 horizontal structure
+- column-wise positional prior 是否更适合 vertical structure
+
+因此接下来主要看：
+
+- `epoch-based loss curves`
+- `epoch-based accuracy curves`
+- synthetic horizontal vs vertical 数据上的对比
+
+## Environment
 
 统一使用 conda 环境：
 
@@ -22,15 +42,15 @@
 conda activate vit_research
 ```
 
-新机器安装依赖：
+安装依赖：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 唯一训练入口
+## Single Training Entry
 
-现在项目只保留一个正式训练入口：
+项目现在只保留一个正式训练入口：
 
 ```bash
 python train_cifar10_experiment.py --model vit_baseline
@@ -38,82 +58,141 @@ python train_cifar10_experiment.py --model vit_baseline
 
 也就是说：
 
-- 所有正式实验都从 `train_cifar10_experiment.py` 进入
-- 不再维护多个独立训练脚本
-- 新模型后续都通过“注册到统一入口”的方式接入
+- 训练逻辑只维护一份
+- early stopping 只维护一份
+- metrics / summary / checkpoint 保存逻辑只维护一份
+- 新模型不要再新建一个 `train_xxx.py`
 
-如果你要做多 seed 对比，现在还额外提供了一个批量脚本：
+后续新增模型的推荐方式：
 
-```bash
-python run_seed_sweep.py --seeds 42 43 44
-```
+1. 新建模型文件
+2. 在 [model_registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/model_registry.py:1) 注册
+3. 复用统一训练入口
 
-如果你已经跑完多个 seed，现在还可以再做一次汇总：
-
-```bash
-python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main
-```
-
-如果你想单独做一页“哪些类别提升了”的分析，现在还可以生成 per-class 报告：
-
-```bash
-python analyze_per_class_report.py
-```
-
-## 当前支持的模型
-
-- `vit_baseline`：原始 ViT，使用 learned absolute positional embedding
-- `vit_rope`：基础 1D sequence-style RoPE 版本
-- `vit_rope_2d`：轻量 2D-aware RoPE 版本，按 `(row, col)` 分别对 `Q/K` 旋转
-- `resnet18_scratch`：不加载预训练权重的 ResNet18
-- `resnet18_imagenet`：加载 ImageNet 预训练权重的 ResNet18（当前保留为可选参考，不是近期主实验线）
-
-## 当前主实验线
-
-近期默认只保留这 3 条线做正式比较：
+## Supported Models
 
 - `vit_baseline`
+  Vanilla ViT with learned absolute positional embedding.
 - `vit_rope`
-- `resnet18_scratch`
-
-下一步结构实验再加入：
-
+  Basic 1D RoPE ViT.
 - `vit_rope_2d`
+  Lightweight 2D-aware RoPE ViT.
+- `vit_row_sinusoidal`
+  Additive row-wise sinusoidal positional embedding.
+- `vit_col_sinusoidal`
+  Additive column-wise sinusoidal positional embedding.
+- `resnet18_scratch`
+  CNN baseline without pretrained weights.
+- `resnet18_imagenet`
+  Optional reference model with ImageNet pretrained weights.
 
-也就是说，当前 `resnet18_imagenet` 不删除，但暂时不放进主实验表，避免把 `ImageNet pretraining` 变成干扰变量。
+## Supported Datasets
 
-## 后续新增模型怎么接入
+### `cifar10`
 
-后续如果要加新模型，推荐流程是：
+默认自然图像分类基线，支持：
 
-1. 先新建模型文件  
-   例如：
-   - `vit_rope_2d.py`
-   - `vit_local_bias.py`
-   - `vit_rope_local.py`
+- `train / validation / test`
+- validation-based early stopping
+- confusion matrix
+- macro precision / recall / F1
 
-2. 再把它注册进统一入口  
-   当前相关模块是：
-   - [model_registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/model_registry.py:1)
-   - [train_cifar10_experiment.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/train_cifar10_experiment.py:1)
+### `synthetic_orientation`
 
-一句话记法：
+这是本周新增的方向性数据集，先用来快速验证老师提出的假设。
 
-```text
-新模型 = 新模型文件 + 在统一入口注册
+类别是：
+
+- `horizontal`
+- `vertical`
+
+数据特征：
+
+- `horizontal` 类图像包含横向条纹
+- `vertical` 类图像包含纵向条纹
+- 每张图会加少量随机噪声
+- 训练 / 验证 / 测试 split 由固定 seed 生成
+
+一句英文可以这样理解：
+
+`The synthetic dataset is a controlled testbed for directional positional bias.`
+
+## Most Useful Commands
+
+### 1. CIFAR-10 baseline
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline --dataset cifar10 --epochs 20 --run-name vit_baseline_cifar10
 ```
 
-英文可以记一句：
+### 2. Synthetic row-wise experiment
 
-`Use one experiment runner, register multiple model variants.`
+```bash
+python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset synthetic_orientation --epochs 20 --seed 42 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_synth_seed42
+```
 
-## 训练参数
+### 3. Synthetic column-wise experiment
 
-### 通用参数
+```bash
+python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset synthetic_orientation --epochs 20 --seed 42 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name col_synth_seed42
+```
 
-所有模型都支持：
+### 4. Synthetic baseline experiment
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline --dataset synthetic_orientation --epochs 20 --seed 42 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name baseline_synth_seed42
+```
+
+### 5. Fast smoke test
+
+```bash
+python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset synthetic_orientation --epochs 1 --train-subset 64 --val-subset 32 --test-subset 32 --num-workers 0 --run-name smoke_row
+```
+
+### 6. ResNet18 scratch baseline
+
+```bash
+python train_cifar10_experiment.py --model resnet18_scratch --dataset cifar10 --epochs 20 --run-name resnet18_scratch_cifar10
+```
+
+## Comparison / Report Commands
+
+单次 run 对比：
+
+```bash
+python generate_comparison_report.py --run baseline_synth_seed42 --run row_synth_seed42 --run col_synth_seed42 --report-name synthetic_orientation_compare
+```
+
+如果你想把重点放在 epoch 曲线上，这个脚本会复用每个 run 的 `metrics.csv`，按 epoch 画出 loss / accuracy 对比图。
+
+## Saved Outputs
+
+每次训练完成后会保存：
+
+- `results/metrics/<run_name>_metrics.csv`
+- `results/metrics/<run_name>_config.json`
+- `results/metrics/<run_name>_summary.json`
+- `results/metrics/<run_name>_test_confusion_matrix.csv`
+- `results/figures/<run_name>_loss.png`
+- `results/figures/<run_name>_accuracy.png`
+- `results/figures/<run_name>_test_confusion_matrix.png`
+- `checkpoints/<run_name>_best.pt`
+
+其中最重要的原则是：
+
+- `validation` 用于选择模型
+- `test` 只用于最终报告
+
+英文一句话：
+
+`Validation is for selection, test is for final reporting.`
+
+## CLI Parameters
+
+### Common parameters
 
 - `--model`
+- `--dataset`
 - `--data-dir`
 - `--results-dir`
 - `--checkpoint-dir`
@@ -132,348 +211,110 @@ python analyze_per_class_report.py
 - `--early-stopping-min-delta`
 - `--early-stopping-metric`
 
-### ViT 系列参数
+### ViT-specific parameters
 
 - `--embedding-dropout`
 - `--attention-dropout`
 - `--projection-dropout`
 - `--mlp-dropout`
 
-### RoPE 专属参数
+### RoPE-specific parameter
 
 - `--rope-base`
 
-说明：
-- `--rope-base` 同时适用于 `vit_rope` 和 `vit_rope_2d`
+### Synthetic dataset parameters
 
-### 多 seed 批量脚本参数
+- `--synthetic-train-size`
+- `--synthetic-val-size`
+- `--synthetic-test-size`
+- `--synthetic-line-width`
+- `--synthetic-noise-std`
+- `--synthetic-max-stripes`
 
-`run_seed_sweep.py` 默认会：
-
-- 跑 `vit_baseline`
-- 跑 `vit_rope`
-- 跑 `vit_rope_2d`
-- 每个 seed 自动生成一个对比报告目录
-
-常用参数：
-
-- `--seeds`
-- `--models`
-- `--run-prefix`
-- `--report-prefix`
-- `--skip-existing`
-- `--skip-reports`
-- `--with-ppt`
-
-默认值：
-
-- `--models vit_baseline vit_rope vit_rope_2d`
-- `--epochs 20`
-- `--val-ratio 0.1`
-- `--early-stopping-patience 5`
-- `--early-stopping-metric val_acc`
-- `--early-stopping-min-delta 0.001`
-- 默认每个 seed 只生成图表/CSV/overview，不额外导出 PPT
-
-### 多 seed 汇总脚本参数
-
-`summarize_seed_sweep.py` 的作用是：
-
-- 读取多个 seed 的 `summary.json`
-- 计算每个模型的 `mean/std/min/max`
-- 生成跨 seed 的汇总 CSV
-- 生成带误差条的对比图
-- 生成一个简短的 overview markdown
-
-常用参数：
-
-- `--seeds`
-- `--models`
-- `--run-prefix`
-- `--report-name`
-- `--reference-model`
-- `--metrics`
-
-默认值：
-
-- `--models vit_baseline vit_rope vit_rope_2d`
-- `--reference-model vit_baseline`
-- `--metrics best_val_acc test_acc macro_f1`
-
-### Per-class 分析脚本参数
-
-`analyze_per_class_report.py` 的作用是：
-
-- 读取多个 run 的 `summary.json`
-- 对比 `per_class_accuracy`
-- 对比 `per_class_f1`
-- 生成 grouped bar chart
-- 生成相对 reference run 的 delta 图
-- 生成一页 overview markdown
-
-常用参数：
-
-- `--run`
-- `--report-name`
-- `--reference-run`
-
-默认行为：
-
-- 默认比较 `vit_baseline`、`vit_rope`、`vit_rope_2d`
-- 默认把第一个 run 当作 reference
-
-### ResNet18 参数
+### ResNet-specific parameter
 
 - `--image-size`
 
-## 默认值
-
-### 通用默认值
-
-- `--epochs 5`
-- `--val-ratio 0.1`
-- `--num-workers 2`
-- `--seed 42`
-- `--early-stopping-metric val_acc`
-- `--early-stopping-min-delta 0.0`
-- `--early-stopping-patience` 默认不开启，需要手动指定
-
-### ViT 默认值
-
-- `--batch-size 128`
-- `--lr 3e-4`
-- `--weight-decay 0.05`
-- `--embedding-dropout 0.0`
-- `--attention-dropout 0.0`
-- `--projection-dropout 0.0`
-- `--mlp-dropout 0.0`
-
-### RoPE 默认值
-
-- `--rope-base 10000.0`
-
-### ResNet18 默认值
-
-- `resnet18_scratch`：
-  - `--batch-size 64`
-  - `--lr 1e-4`
-  - `--weight-decay 0.01`
-  - `--image-size 32`
-
-- `resnet18_imagenet`：
-  - `--batch-size 64`
-  - `--lr 1e-4`
-  - `--weight-decay 0.01`
-  - `--image-size 224`
-
-## 常用命令模板
-
-运行 ViT baseline：
-
-```bash
-python train_cifar10_experiment.py --model vit_baseline --epochs 20 --run-name vit_baseline
-```
-
-运行 ViT + RoPE：
-
-```bash
-python train_cifar10_experiment.py --model vit_rope --epochs 20 --run-name vit_rope
-```
-
-运行 ViT + 2D RoPE：
-
-```bash
-python train_cifar10_experiment.py --model vit_rope_2d --epochs 20 --run-name vit_rope_2d
-```
-
-运行 ResNet18 scratch：
-
-```bash
-python train_cifar10_experiment.py --model resnet18_scratch --epochs 20 --run-name cnn_scratch
-```
-
-运行 ResNet18 ImageNet pretrained：
-
-```bash
-python train_cifar10_experiment.py --model resnet18_imagenet --epochs 20 --run-name cnn_imagenet
-```
-
-说明：
-- 当前正式 baseline 对比优先跑 `vit_baseline`、`vit_rope`、`resnet18_scratch`
-- `resnet18_imagenet` 先作为参考，不参与近期主结论
-
-运行一个快速 smoke test：
-
-```bash
-python train_cifar10_experiment.py --model vit_rope --epochs 1 --train-subset 128 --val-subset 64 --test-subset 64 --num-workers 0 --run-name smoke_vit_rope
-```
-
-运行带 early stopping 的实验：
-
-```bash
-python train_cifar10_experiment.py --model vit_baseline --epochs 30 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name vit_baseline_es
-```
-
-运行一个多 seed sweep：
-
-```bash
-python run_seed_sweep.py --seeds 42 43 44 --epochs 20 --run-prefix cifar10_main
-```
-
-如果你也想把 `ResNet18 scratch` 放进每个 seed 的报告：
-
-```bash
-python run_seed_sweep.py --seeds 42 43 44 --models vit_baseline vit_rope vit_rope_2d resnet18_scratch --epochs 20 --run-prefix cifar10_main
-```
-
-把已经跑完的多个 seed 汇总成 `mean/std`：
-
-```bash
-python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main
-```
-
-生成一份可以直接放进组会的 per-class 对比：
-
-```bash
-python analyze_per_class_report.py --run vit_baseline=\"ViT Baseline\" --run vit_rope=\"ViT RoPE\" --run vit_rope_2d=\"ViT RoPE 2D\" --report-name vit_position_per_class
-```
-
-## 输出内容
-
-训练完成后会保存：
-
-- `results/metrics/<run_name>_metrics.csv`
-- `results/metrics/<run_name>_config.json`
-- `results/metrics/<run_name>_summary.json`
-- `results/metrics/<run_name>_test_confusion_matrix.csv`
-- `results/figures/<run_name>_loss.png`
-- `results/figures/<run_name>_accuracy.png`
-- `results/figures/<run_name>_test_confusion_matrix.png`
-- `checkpoints/<run_name>_best.pt`
-
-其中：
-
-- best checkpoint 由 validation 指标选择
-- `test` 只用于最终报告，不用于模型选择
-
-英文可以记一句：
-
-`Validation is for selection, test is for final reporting.`
-
-## 对比报告
-
-使用：
-
-```bash
-python generate_comparison_report.py --run vit_baseline --run vit_rope --report-name vit_baseline_vs_rope
-```
-
-第二轮结构对比可以用：
-
-```bash
-python generate_comparison_report.py --run vit_baseline --run vit_rope --run vit_rope_2d --report-name vit_rope_family_compare
-```
-
-如果是多 seed 批量运行，`run_seed_sweep.py` 会自动为每个 seed 调一次这个报告脚本，所以你通常不需要手动重复生成。
-
-如果你已经跑完多个 seed，推荐再补一步：
-
-```bash
-python summarize_seed_sweep.py --seeds 42 43 44 --run-prefix cifar10_main --reference-model vit_baseline
-```
-
-这样会额外生成：
-
-- `aggregate_summary.csv`
-- `per_seed_metrics.csv`
-- `delta_vs_reference.csv`
-- 跨 seed 的 `mean/std` 图
-
-如果你要补“分析页”，`analyze_per_class_report.py` 会额外生成：
-
-- `per_class_accuracy_comparison.csv`
-- `per_class_f1_comparison.csv`
-- `per_class_accuracy_grouped.png`
-- `per_class_f1_grouped.png`
-- `per_class_accuracy_delta_vs_reference.png`
-
-如果你要基于这个 multi-seed summary 再生成组会 PPT，统一走报告脚本：
-
-```bash
-python generate_comparison_report.py --summary-report cifar10_main_seed_summary --title "CIFAR-10 Main Seed Summary"
-```
-
-如果你还想把单独做好的 `per-class` 对比图也一起接进这份 PPT，可以再补一个参数：
-
-```bash
-python generate_comparison_report.py --summary-report cifar10_main_seed_summary --per-class-report vit_position_per_class --title "CIFAR-10 Main Seed Summary"
-```
-
-现在职责是分开的：
-
-- `summarize_seed_sweep.py` 负责生成汇总结果
-- `generate_comparison_report.py` 负责把 run 或 summary 结果排版成 PPT
-
-当前报告层会优先利用这些结构化字段：
-
-- `model_name`
-- `model_family`
-- `model_variant`
-- `position_encoding`
-- pretraining / initialization status
-
-适合展示的对比包括：
-
-- `ViT Baseline vs ViT RoPE`
-- `ViT Baseline vs ViT RoPE vs ViT RoPE 2D`
-- `ViT vs CNN`
-- `ResNet18 scratch vs ResNet18 ImageNet pretrained`
-
-输出目录：
-
-```text
-results/reports/<report_name>/
-```
-
-主要文件：
-
-- `comparison_summary.csv`
-- `config_comparison.csv`
-- `overview.md`
-- `presentation_summary.json`
-- `<report_name>.pptx`
-
-## 文件结构
-
-- [train_cifar10_experiment.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/train_cifar10_experiment.py:1)：唯一训练入口
-- [run_seed_sweep.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/run_seed_sweep.py:1)：多 seed 批量运行与每个 seed 自动报告入口
-- [summarize_seed_sweep.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/summarize_seed_sweep.py:1)：跨 seed 汇总 `mean/std`、delta 和误差条图
-- [analyze_per_class_report.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/analyze_per_class_report.py:1)：生成 per-class 对比表、delta 图和汇报结论
-- [model_registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/model_registry.py:1)：模型注册表，定义每个模型怎么接入统一训练入口
-- [experiment_utils.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/experiment_utils.py:1)：共享训练、评估、保存结果工具
-- [cifar10_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/cifar10_data.py:1)：CIFAR-10 dataloader 构建逻辑
-- [vit.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit.py:1)：原始 ViT baseline
-- [vit_rope.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_rope.py:1)：基础 RoPE 版本
-- [vit_rope_2d.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_rope_2d.py:1)：轻量 2D-aware RoPE 版本
-- [generate_comparison_report.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/generate_comparison_report.py:1)：对比报告与 PPT 生成
-- [docs/LEARNING_NOTES.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/LEARNING_NOTES.md:1)：学习笔记
-- [docs/DEVELOPMENT_MAP.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/DEVELOPMENT_MAP.md:1)：研究路线图
-- [docs/PROJECT_LOG.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/PROJECT_LOG.md:1)：跨设备协作日志
-
-## Git 提醒
-
-不要提交这些目录：
+## Default Values
+
+### Shared defaults
+
+- `epochs = 5`
+- `val_ratio = 0.1`
+- `num_workers = 2`
+- `seed = 42`
+- `early_stopping_metric = val_acc`
+- `early_stopping_min_delta = 0.0`
+- `early_stopping_patience = disabled by default`
+
+### ViT defaults
+
+- `batch_size = 128`
+- `lr = 3e-4`
+- `weight_decay = 0.05`
+- all dropout values default to `0.0`
+
+### ResNet18 defaults
+
+- `batch_size = 64`
+- `lr = 1e-4`
+- `weight_decay = 0.01`
+
+### Synthetic dataset defaults
+
+- `synthetic_train_size = 2400`
+- `synthetic_val_size = 600`
+- `synthetic_test_size = 600`
+- `synthetic_line_width = 3`
+- `synthetic_noise_std = 0.08`
+- `synthetic_max_stripes = 4`
+
+## Project Structure
+
+- [train_cifar10_experiment.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/train_cifar10_experiment.py:1)
+  Unified training entry.
+- [model_registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/model_registry.py:1)
+  Model registration and dataset routing.
+- [experiment_utils.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/experiment_utils.py:1)
+  Shared training / evaluation / saving utilities.
+- [cifar10_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/cifar10_data.py:1)
+  CIFAR-10 loaders.
+- [synthetic_orientation_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/synthetic_orientation_data.py:1)
+  Synthetic horizontal / vertical dataset.
+- [vit.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit.py:1)
+  Baseline ViT.
+- [vit_rope.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_rope.py:1)
+  1D RoPE ViT.
+- [vit_rope_2d.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_rope_2d.py:1)
+  2D-aware RoPE ViT.
+- [vit_axis_sinusoidal.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_axis_sinusoidal.py:1)
+  Row-wise / column-wise sinusoidal ViT.
+- [generate_comparison_report.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/generate_comparison_report.py:1)
+  Comparison plots and PPT/report generation.
+- [docs/LEARNING_NOTES.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/LEARNING_NOTES.md:1)
+  Implementation explanations.
+- [docs/DEVELOPMENT_MAP.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/DEVELOPMENT_MAP.md:1)
+  Research roadmap.
+- [docs/PROJECT_LOG.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/PROJECT_LOG.md:1)
+  Cross-device progress log.
+
+## Git Reminder
+
+这些目录通常不要提交：
 
 ```text
 data/
 checkpoints/
 results/metrics/
 results/figures/
+results/reports/
 ```
 
-如果你在两台电脑间切换，推荐顺序是：
+切机器前建议顺序：
 
 1. `git status`
-2. 提交当前有价值的代码和文档改动
+2. 提交本次有价值的代码和文档
 3. `git push`
 4. 到另一台机器 `git pull`
+
+如果只是跑实验，不要把临时结果目录一起 `git add`。
