@@ -5,7 +5,7 @@
 当前主线已经收敛成：
 
 - 一个统一训练入口：`train_cifar10_experiment.py`
-- 一个统一模型注册表：`model_registry.py`
+- 一个统一模型注册表：`models/registry.py`
 - 一个统一结果输出格式：`metrics / config / summary / curves / checkpoint`
 - 两类数据集：
   - `cifar10`
@@ -67,7 +67,7 @@ python train_cifar10_experiment.py --model vit_baseline
 后续新增模型的推荐方式：
 
 1. 新建模型文件
-2. 在 [model_registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/model_registry.py:1) 注册
+2. 在 [models/registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/models/registry.py:1) 注册
 3. 复用统一训练入口
 
 ## Supported Models
@@ -347,26 +347,39 @@ python generate_comparison_report.py --run baseline_cadb_seed42 --run row_cadb_s
 
 ## Project Structure
 
+当前建议按职责理解目录：
+
+- 根目录：
+  只保留训练入口、报告脚本、环境文件和项目说明
+- `models/`：
+  放所有模型实现和模型注册表
+- `datasets/`：
+  放所有 dataset loader 和 split 逻辑
+- `docs/`：
+  放研究路线、学习笔记、跨设备日志
+- `results/` / `checkpoints/` / `data/`：
+  放实验产物和数据，不作为代码层结构
+
 - [train_cifar10_experiment.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/train_cifar10_experiment.py:1)
   Unified training entry.
-- [model_registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/model_registry.py:1)
-  Model registration and dataset routing.
 - [experiment_utils.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/experiment_utils.py:1)
   Shared training / evaluation / saving utilities.
-- [cifar10_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/cifar10_data.py:1)
-  CIFAR-10 loaders.
-- [synthetic_orientation_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/synthetic_orientation_data.py:1)
-  Synthetic horizontal / vertical dataset.
-- [cadb_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/cadb_data.py:1)
-  CADB orientation subset loader and deterministic split logic.
-- [vit.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit.py:1)
+- [models/registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/models/registry.py:1)
+  Model registration and dataset routing.
+- [models/vit.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/models/vit.py:1)
   Baseline ViT.
-- [vit_rope.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_rope.py:1)
+- [models/vit_rope.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/models/vit_rope.py:1)
   1D RoPE ViT.
-- [vit_rope_2d.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_rope_2d.py:1)
+- [models/vit_rope_2d.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/models/vit_rope_2d.py:1)
   2D-aware RoPE ViT.
-- [vit_axis_sinusoidal.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_axis_sinusoidal.py:1)
+- [models/vit_axis_sinusoidal.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/models/vit_axis_sinusoidal.py:1)
   Row-wise / column-wise sinusoidal ViT.
+- [datasets/cifar10_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/datasets/cifar10_data.py:1)
+  CIFAR-10 loaders.
+- [datasets/synthetic_orientation_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/datasets/synthetic_orientation_data.py:1)
+  Synthetic horizontal / vertical dataset.
+- [datasets/cadb_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/datasets/cadb_data.py:1)
+  CADB orientation subset loader and deterministic split logic.
 - [generate_comparison_report.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/generate_comparison_report.py:1)
   Comparison plots and PPT/report generation.
 - [docs/LEARNING_NOTES.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/LEARNING_NOTES.md:1)

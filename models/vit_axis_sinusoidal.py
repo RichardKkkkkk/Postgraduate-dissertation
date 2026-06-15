@@ -3,7 +3,7 @@ import math
 import torch
 import torch.nn as nn
 
-from vit import Block, PatchEmbedding
+from .vit import Block, PatchEmbedding
 
 
 def build_sinusoidal_embedding(positions, embed_dim):

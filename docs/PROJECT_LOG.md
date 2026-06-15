@@ -100,3 +100,33 @@
   - `vit_row_sinusoidal`
   - `vit_col_sinusoidal`
 - Compare epoch curves first, then final summary metrics.
+
+## 2026-06-15 Directory Cleanup
+
+### Changed
+- Moved model implementation files into `models/`:
+  - `vit.py`
+  - `vit_rope.py`
+  - `vit_rope_2d.py`
+  - `vit_axis_sinusoidal.py`
+  - `registry.py`
+- Moved dataset loaders into `datasets/`:
+  - `cifar10_data.py`
+  - `synthetic_orientation_data.py`
+  - `cadb_data.py`
+- Updated imports in the unified runner and seed-sweep scripts.
+- Removed the obsolete `train_resnet18_scratch_cifar10.py` wrapper.
+- Updated README, learning notes, and agent instructions for the new layout.
+- Added `tmp_*/` to `.gitignore` so smoke artifacts stop cluttering the worktree.
+
+### Learned
+- The project has now reached the point where root-level flat files hurt extensibility more than they help.
+- Keeping entry scripts in the root but moving implementations into `models/` and `datasets/` is a good balance between cleanliness and ease of use.
+
+### Problems / Mismatches
+- There are still many historical experiment artifacts under `results/reports/`; they are not code-structure problems, but they still make `git status` noisy.
+- `docs/DEVELOPMENT_MAP.md` currently has local user changes and was intentionally left untouched in this cleanup.
+
+### Next
+- Verify the reorganized imports with model smoke tests.
+- Continue using `train_cifar10_experiment.py` as the only formal training entry.

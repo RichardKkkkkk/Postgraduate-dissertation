@@ -5,7 +5,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from cifar10_data import get_class_names
+from datasets.cifar10_data import get_class_names
 from experiment_utils import (
     EARLY_STOPPING_METRICS,
     evaluate,
@@ -23,7 +23,7 @@ from experiment_utils import (
     set_seed,
     train_one_epoch,
 )
-from model_registry import (
+from models.registry import (
     EXPERIMENT_REGISTRY,
     SUPPORTED_DATASETS,
     build_selected_experiment,

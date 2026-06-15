@@ -101,6 +101,40 @@
 5. 看 row / col 谁在对应方向数据上更快收敛或更高准确率
 6. 如果有清晰信号，再进入真实数据集阶段
 
+## 2026-06-14 CADB Pilot Layer
+
+现在这条“真实数据集阶段”不再只是想法，已经有了可执行的最小实现：
+
+- `cadb_orientation`
+
+这一步的研究定位不是“完整使用 CADB 的全部标注任务”，而是：
+
+- 先抽出 `horizontal`
+- 再抽出 `vertical`
+- 做一个 clean binary pilot
+
+这样更贴近老师这周要验证的方向性问题。
+
+### Why this is a good next step
+
+- synthetic 结果已经说明代码逻辑通了
+- synthetic 太容易时，很难看出模型差异
+- CADB 作为真实图像数据，更适合观察方向性位置先验是否仍然有效
+
+### Boundary of this stage
+
+这一阶段暂时不做：
+
+- composition score regression
+- 全 13 类 composition pattern classification
+- 多标签复杂任务建模
+
+先做最小问题：
+
+`horizontal vs vertical`
+
+如果这一步有信号，后面再决定是否把 CADB 扩到更多 composition classes。
+
 ## What Is Temporarily De-prioritized
 
 当前暂时不是重点的事情：
@@ -112,3 +146,26 @@
 - 完整 Swin 结构改写
 
 这些东西不是不能做，而是现在做会分散论文主线。
+## 2026-06-15 Codebase Structure Cleanup
+
+随着模型分支和数据集分支都开始增加，工程结构本身也变成了一个需要主动控制的变量。
+
+这次整理的原则是：
+
+- 根目录保留“入口”
+- `models/` 保留“模型实现”
+- `datasets/` 保留“数据读取与 split 逻辑”
+
+这样做的目的不是重构出很复杂的框架，而是让后续新增内容有固定落点。
+
+例如后面如果继续扩展：
+
+- 新 ViT 变体
+- 新 positional encoding
+- 新真实数据集
+
+就不需要继续把实现文件直接堆在根目录。
+
+一句英文可以这样记：
+
+`Keep entry scripts flat, but group implementations by responsibility.`

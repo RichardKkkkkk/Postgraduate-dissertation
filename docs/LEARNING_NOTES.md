@@ -232,8 +232,8 @@ CADB 不是像 CIFAR-10 那样自带官方 `train / test`。
 
 变的是：
 
-- `model_registry.py` 多了一条数据集路由
-- `cadb_data.py` 负责把 CADB 解析成标准 `DataLoader`
+- `models/registry.py` 多了一条数据集路由
+- `datasets/cadb_data.py` 负责把 CADB 解析成标准 `DataLoader`
 
 也就是说，训练层看到的仍然只是：
 

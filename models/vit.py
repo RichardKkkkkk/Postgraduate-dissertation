@@ -49,7 +49,7 @@ class MultiHeadSelfAttention(nn.Module):
 
         q, k, v = qkv[0], qkv[1], qkv[2]  # [B, num_heads, N, head_dim]
 
-        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = (q @ k.transpose(-2,-1)) * self.scale
         attn = attn.softmax(dim=-1)
         attn = self.attn_dropout(attn)
 

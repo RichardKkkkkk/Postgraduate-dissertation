@@ -46,6 +46,6 @@ repository documents as the shared memory between Codex sessions.
 
 ## Test commands
 
-- Run `python vit.py` after changing the model.
+- Run `python -m models.vit` after changing the model.
 - Run a short smoke test before long training.
 - For docs-only changes, no training smoke test is required; verify the changed docs and `git status`.

@@ -3,7 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from model_registry import EXPERIMENT_REGISTRY
+from models.registry import EXPERIMENT_REGISTRY
 
 
 DEFAULT_MODELS = ["vit_baseline", "vit_rope", "vit_rope_2d"]

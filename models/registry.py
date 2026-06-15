@@ -5,13 +5,13 @@ from typing import Any, Callable
 import torch.nn as nn
 from torchvision import models
 
-from cadb_data import build_cadb_orientation_dataloaders
-from cifar10_data import build_resnet_dataloaders, build_vit_dataloaders
-from synthetic_orientation_data import build_synthetic_orientation_dataloaders
-from vit import ViT
-from vit_axis_sinusoidal import ViTColSinusoidal, ViTRowSinusoidal
-from vit_rope import ViTRoPE
-from vit_rope_2d import ViTRoPE2D
+from datasets.cadb_data import build_cadb_orientation_dataloaders
+from datasets.cifar10_data import build_resnet_dataloaders, build_vit_dataloaders
+from datasets.synthetic_orientation_data import build_synthetic_orientation_dataloaders
+from .vit import ViT
+from .vit_axis_sinusoidal import ViTColSinusoidal, ViTRowSinusoidal
+from .vit_rope import ViTRoPE
+from .vit_rope_2d import ViTRoPE2D
 
 
 @dataclass(frozen=True)
