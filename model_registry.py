@@ -5,6 +5,7 @@ from typing import Any, Callable
 import torch.nn as nn
 from torchvision import models
 
+from cadb_data import build_cadb_orientation_dataloaders
 from cifar10_data import build_resnet_dataloaders, build_vit_dataloaders
 from synthetic_orientation_data import build_synthetic_orientation_dataloaders
 from vit import ViT
@@ -26,18 +27,21 @@ class ExperimentSpec:
 
 
 EXPERIMENT_REGISTRY: dict[str, ExperimentSpec] = {}
-SUPPORTED_DATASETS = ("cifar10", "synthetic_orientation")
+SUPPORTED_DATASETS = ("cifar10", "synthetic_orientation", "cadb_orientation")
 DATASET_NUM_CLASSES = {
     "cifar10": 10,
     "synthetic_orientation": 2,
+    "cadb_orientation": 2,
 }
 DATASET_DEFAULT_IMAGE_SIZE = {
     "cifar10": 32,
     "synthetic_orientation": 32,
+    "cadb_orientation": 96,
 }
 DATASET_DISPLAY_NAMES = {
     "cifar10": "CIFAR-10",
     "synthetic_orientation": "Synthetic Orientation",
+    "cadb_orientation": "CADB Orientation",
 }
 
 
@@ -131,6 +135,21 @@ def build_vit_family_dataloaders(args):
             noise_std=args.synthetic_noise_std,
             max_stripes=args.synthetic_max_stripes,
         )
+    if args.dataset == "cadb_orientation":
+        return build_cadb_orientation_dataloaders(
+            cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+            test_ratio=args.cadb_test_ratio,
+            image_size=get_dataset_image_size(args),
+            label_mode=args.cadb_label_mode,
+            use_imagenet_norm=True,
+        )
     raise ValueError(f"Unsupported dataset for ViT family: {args.dataset}")
 
 
@@ -204,13 +223,43 @@ def build_resnet18_scratch_dataloaders(args):
             noise_std=args.synthetic_noise_std,
             max_stripes=args.synthetic_max_stripes,
         )
+    if args.dataset == "cadb_orientation":
+        return build_cadb_orientation_dataloaders(
+            cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+            test_ratio=args.cadb_test_ratio,
+            image_size=image_size,
+            label_mode=args.cadb_label_mode,
+            use_imagenet_norm=False,
+        )
     raise ValueError(f"Unsupported dataset for ResNet18 scratch: {args.dataset}")
 
 
 def build_resnet18_imagenet_dataloaders(args):
     image_size = args.image_size or 224
+    if args.dataset == "cadb_orientation":
+        return build_cadb_orientation_dataloaders(
+            cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+            test_ratio=args.cadb_test_ratio,
+            image_size=image_size,
+            label_mode=args.cadb_label_mode,
+            use_imagenet_norm=True,
+        )
     if args.dataset != "cifar10":
-        raise ValueError("resnet18_imagenet currently supports only the cifar10 dataset.")
+        raise ValueError("resnet18_imagenet currently supports only the cifar10 and cadb_orientation datasets.")
     return build_resnet_dataloaders(
         data_dir=args.data_dir,
         batch_size=args.batch_size,

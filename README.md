@@ -10,6 +10,7 @@
 - 两类数据集：
   - `cifar10`
   - `synthetic_orientation`
+  - `cadb_orientation`
 
 一句英文可以这样记：
 
@@ -117,6 +118,44 @@ python train_cifar10_experiment.py --model vit_baseline
 
 `The synthetic dataset is a controlled testbed for directional positional bias.`
 
+### `cadb_orientation`
+
+这是面向老师本周任务新增的真实数据集分支，基于 CADB 做最小可用的方向性二分类实验。
+
+当前默认假设：
+
+- 使用 CADB 中的 `horizontal` 和 `vertical` composition classes
+- 默认只保留“只属于 horizontal”或“只属于 vertical”的样本
+- 同时属于两者，或两者都不属于的样本会先跳过
+- 训练入口会自己做 deterministic `train / val / test` split
+
+默认路径：
+
+```text
+data/CADB_Dataset/
+```
+
+期望结构：
+
+```text
+CADB_Dataset/
+├── composition_elements.json
+├── split.json
+├── composition_attributes.json
+└── images/
+```
+
+一句英文解释：
+
+`cadb_orientation is a binary horizontal-vs-vertical subset built from CADB annotations.`
+
+当前实现细节：
+
+- 标签优先来自 `composition_elements.json`
+- `horizontal` 和 `vertical` 看的是对应 element annotation 是否非空
+- 如果存在 `split.json`，优先使用 CADB 官方 `train/test`
+- 再从官方 `train` 里切出 `validation`
+
 ## Most Useful Commands
 
 ### 1. CIFAR-10 baseline
@@ -155,6 +194,24 @@ python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset syntheti
 python train_cifar10_experiment.py --model resnet18_scratch --dataset cifar10 --epochs 20 --run-name resnet18_scratch_cifar10
 ```
 
+### 7. CADB row-wise pilot run
+
+```bash
+python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset cadb_orientation --cadb-root data/CADB_Dataset --image-size 96 --epochs 20 --seed 42 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_cadb_seed42
+```
+
+### 8. CADB column-wise pilot run
+
+```bash
+python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset cadb_orientation --cadb-root data/CADB_Dataset --image-size 96 --epochs 20 --seed 42 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name col_cadb_seed42
+```
+
+### 9. CADB baseline pilot run
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline --dataset cadb_orientation --cadb-root data/CADB_Dataset --image-size 96 --epochs 20 --seed 42 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name baseline_cadb_seed42
+```
+
 ## Comparison / Report Commands
 
 单次 run 对比：
@@ -164,6 +221,12 @@ python generate_comparison_report.py --run baseline_synth_seed42 --run row_synth
 ```
 
 如果你想把重点放在 epoch 曲线上，这个脚本会复用每个 run 的 `metrics.csv`，按 epoch 画出 loss / accuracy 对比图。
+
+CADB 对比同理：
+
+```bash
+python generate_comparison_report.py --run baseline_cadb_seed42 --run row_cadb_seed42 --run col_cadb_seed42 --report-name cadb_orientation_compare
+```
 
 ## Saved Outputs
 
@@ -231,6 +294,12 @@ python generate_comparison_report.py --run baseline_synth_seed42 --run row_synth
 - `--synthetic-noise-std`
 - `--synthetic-max-stripes`
 
+### CADB dataset parameters
+
+- `--cadb-root`
+- `--cadb-test-ratio`
+- `--cadb-label-mode`
+
 ### ResNet-specific parameter
 
 - `--image-size`
@@ -269,6 +338,13 @@ python generate_comparison_report.py --run baseline_synth_seed42 --run row_synth
 - `synthetic_noise_std = 0.08`
 - `synthetic_max_stripes = 4`
 
+### CADB dataset defaults
+
+- `cadb_root = data/CADB_Dataset`
+- `cadb_test_ratio = 0.2`
+- `cadb_label_mode = exclusive`
+- default dataset image size = `96`
+
 ## Project Structure
 
 - [train_cifar10_experiment.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/train_cifar10_experiment.py:1)
@@ -281,6 +357,8 @@ python generate_comparison_report.py --run baseline_synth_seed42 --run row_synth
   CIFAR-10 loaders.
 - [synthetic_orientation_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/synthetic_orientation_data.py:1)
   Synthetic horizontal / vertical dataset.
+- [cadb_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/cadb_data.py:1)
+  CADB orientation subset loader and deterministic split logic.
 - [vit.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit.py:1)
   Baseline ViT.
 - [vit_rope.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/vit_rope.py:1)

@@ -303,6 +303,11 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
             "noise_std": getattr(args, "synthetic_noise_std", None),
             "max_stripes": getattr(args, "synthetic_max_stripes", None),
         },
+        "cadb_dataset": {
+            "cadb_root": str(getattr(args, "cadb_root", "") or ""),
+            "test_ratio": getattr(args, "cadb_test_ratio", None),
+            "label_mode": getattr(args, "cadb_label_mode", None),
+        },
         "model": model_config,
         "outputs": {
             "results_dir": str(args.results_dir),

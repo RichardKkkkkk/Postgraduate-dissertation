@@ -56,6 +56,13 @@ def parse_args():
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--image-size", type=int, default=None)
+    parser.add_argument("--cadb-root", type=Path, default=None)
+    parser.add_argument("--cadb-test-ratio", type=float, default=0.2)
+    parser.add_argument(
+        "--cadb-label-mode",
+        choices=("exclusive", "inclusive"),
+        default="exclusive",
+    )
     parser.add_argument("--synthetic-train-size", type=int, default=2400)
     parser.add_argument("--synthetic-val-size", type=int, default=600)
     parser.add_argument("--synthetic-test-size", type=int, default=600)

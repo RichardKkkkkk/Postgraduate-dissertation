@@ -167,3 +167,84 @@ logits: [B, num_classes]
 一句组会常用英文：
 
 `This week the focus shifts from seed stability to directional positional-bias comparison under a controlled setup.`
+
+## 2026-06-14 CADB Orientation Subset
+
+这一步新增的不是一个全新的大模型，而是真实数据集接入层：
+
+- `cadb_orientation`
+
+它的作用是把老师提到的 CADB 转成当前实验平台能直接训练的二分类子任务。
+
+### 1. 为什么不是直接整套 CADB 全上
+
+因为老师这周的问题非常聚焦：
+
+- horizontal relationships
+- vertical relationships
+
+所以当前最小可用版本只做：
+
+- `horizontal`
+- `vertical`
+
+这样实验问题更干净，也更适合先看 row-wise / col-wise positional bias。
+
+### 2. 当前 loader 默认做了什么假设
+
+当前实现优先读取 `composition_elements.json`，因为真实 CADB 里
+`horizontal / vertical` 更直接对应 composition element annotation。
+
+然后默认：
+
+- 保留只属于 `horizontal` 的图像
+- 保留只属于 `vertical` 的图像
+- 跳过同时属于两者的样本
+- 跳过两者都不属于的样本
+
+这就是 `exclusive` label mode。
+
+英文可以这样记：
+
+`Exclusive mode keeps only clean horizontal-only or vertical-only samples.`
+
+### 3. 为什么要自己切 split
+
+CADB 不是像 CIFAR-10 那样自带官方 `train / test`。
+
+修正后发现，真实 CADB 实际上带有 `split.json`。
+
+所以现在 loader 里会优先：
+
+1. 读取官方 `train / test`
+2. 再从官方 `train` 里切一个 `validation`
+
+如果某份数据没有 `split.json`，才会退回到全数据上自己切分。
+
+这样做的好处是：
+
+- horizontal / vertical 两类在三个 split 里都更平衡
+- seed 固定后，比较可重复
+
+### 4. 这层代码和训练主循环的关系
+
+你现在的统一训练入口根本没变。
+
+变的是：
+
+- `model_registry.py` 多了一条数据集路由
+- `cadb_data.py` 负责把 CADB 解析成标准 `DataLoader`
+
+也就是说，训练层看到的仍然只是：
+
+```text
+train_loader, val_loader, test_loader
+```
+
+所以对主训练循环来说：
+
+- CIFAR-10
+- synthetic orientation
+- CADB orientation
+
+都已经被统一成同一接口了。
