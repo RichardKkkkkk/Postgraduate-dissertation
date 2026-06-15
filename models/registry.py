@@ -148,6 +148,7 @@ def build_vit_family_dataloaders(args):
             test_ratio=args.cadb_test_ratio,
             image_size=get_dataset_image_size(args),
             label_mode=args.cadb_label_mode,
+            balance_mode=args.cadb_balance_mode,
             use_imagenet_norm=True,
         )
     raise ValueError(f"Unsupported dataset for ViT family: {args.dataset}")
@@ -236,6 +237,7 @@ def build_resnet18_scratch_dataloaders(args):
             test_ratio=args.cadb_test_ratio,
             image_size=image_size,
             label_mode=args.cadb_label_mode,
+            balance_mode=args.cadb_balance_mode,
             use_imagenet_norm=False,
         )
     raise ValueError(f"Unsupported dataset for ResNet18 scratch: {args.dataset}")
@@ -256,6 +258,7 @@ def build_resnet18_imagenet_dataloaders(args):
             test_ratio=args.cadb_test_ratio,
             image_size=image_size,
             label_mode=args.cadb_label_mode,
+            balance_mode=args.cadb_balance_mode,
             use_imagenet_norm=True,
         )
     if args.dataset != "cifar10":

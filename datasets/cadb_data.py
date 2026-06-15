@@ -335,6 +335,28 @@ def split_train_val_from_indices(labels, train_pool_indices, val_ratio, seed):
     return train_indices, val_indices
 
 
+def balance_indices_by_class(indices, labels, seed):
+    label_to_indices = {}
+    for index in indices:
+        label_to_indices.setdefault(labels[index], []).append(index)
+
+    if not label_to_indices:
+        return []
+
+    min_count = min(len(label_indices) for label_indices in label_to_indices.values())
+    generator = torch.Generator().manual_seed(seed)
+    balanced_indices = []
+
+    for label_indices in label_to_indices.values():
+        shuffled = torch.tensor(label_indices)[
+            torch.randperm(len(label_indices), generator=generator)
+        ].tolist()
+        balanced_indices.extend(shuffled[:min_count])
+
+    balanced_indices.sort()
+    return balanced_indices
+
+
 class CADBOrientationDataset(Dataset):
     classes = ["horizontal", "vertical"]
 
@@ -364,6 +386,7 @@ def build_cadb_orientation_dataloaders(
     test_ratio,
     image_size=96,
     label_mode="exclusive",
+    balance_mode="none",
     use_imagenet_norm=True,
 ):
     mean = IMAGENET_MEAN if use_imagenet_norm else (0.5, 0.5, 0.5)
@@ -397,6 +420,15 @@ def build_cadb_orientation_dataloaders(
             test_ratio=test_ratio,
             seed=seed,
         )
+
+    if balance_mode == "train_only":
+        train_indices = balance_indices_by_class(train_indices, labels, seed)
+    elif balance_mode == "all_splits":
+        train_indices = balance_indices_by_class(train_indices, labels, seed)
+        val_indices = balance_indices_by_class(val_indices, labels, seed)
+        test_indices = balance_indices_by_class(test_indices, labels, seed)
+    elif balance_mode != "none":
+        raise ValueError(f"Unsupported CADB balance mode: {balance_mode}")
 
     samples = [(image_path, label) for image_path, label, _ in samples_with_split]
     full_dataset = CADBOrientationDataset(samples=samples, transform=transform)

@@ -30,6 +30,7 @@ from models.registry import (
     get_dataset_display_name,
     resolve_experiment,
 )
+from result_paths import build_run_artifact_paths
 
 
 def make_run_name(model_name):
@@ -62,6 +63,11 @@ def parse_args():
         "--cadb-label-mode",
         choices=("exclusive", "inclusive"),
         default="exclusive",
+    )
+    parser.add_argument(
+        "--cadb-balance-mode",
+        choices=("none", "train_only", "all_splits"),
+        default="none",
     )
     parser.add_argument("--synthetic-train-size", type=int, default=2400)
     parser.add_argument("--synthetic-val-size", type=int, default=600)
@@ -96,6 +102,12 @@ def print_run_header(args, spec, device):
     print(f"Batch size: {args.batch_size}")
     print(f"Learning rate: {args.lr}")
     print(f"Weight decay: {args.weight_decay}")
+    if args.dataset == "cadb_orientation":
+        print(
+            "CADB options: "
+            f"label_mode={args.cadb_label_mode}, "
+            f"balance_mode={args.cadb_balance_mode}"
+        )
     if args.early_stopping_patience is not None:
         print(
             "Early stopping: "
@@ -198,15 +210,20 @@ def save_run_outputs(
     test_loader,
     device,
 ):
-    metrics_dir = args.results_dir / "metrics"
-    figure_dir = args.results_dir / "figures"
-    checkpoint_dir = args.checkpoint_dir
-    metrics_path = metrics_dir / f"{args.run_name}_metrics.csv"
-    config_path = metrics_dir / f"{args.run_name}_config.json"
-    summary_path = metrics_dir / f"{args.run_name}_summary.json"
-    confusion_csv_path = metrics_dir / f"{args.run_name}_test_confusion_matrix.csv"
-    confusion_figure_path = figure_dir / f"{args.run_name}_test_confusion_matrix.png"
-    checkpoint_path = checkpoint_dir / f"{args.run_name}_best.pt"
+    artifact_paths = build_run_artifact_paths(
+        results_dir=args.results_dir,
+        checkpoint_dir=args.checkpoint_dir,
+        model_name=args.model,
+        run_name=args.run_name,
+    )
+    metrics_dir = artifact_paths["metrics_dir"]
+    figure_dir = artifact_paths["figures_dir"]
+    metrics_path = artifact_paths["metrics_path"]
+    config_path = artifact_paths["config_path"]
+    summary_path = artifact_paths["summary_path"]
+    confusion_csv_path = artifact_paths["confusion_csv_path"]
+    confusion_figure_path = artifact_paths["confusion_figure_path"]
+    checkpoint_path = artifact_paths["checkpoint_path"]
 
     loss_path, acc_path = plot_curves(
         history=history,

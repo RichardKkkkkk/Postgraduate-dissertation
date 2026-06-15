@@ -214,17 +214,35 @@ def plot_confusion_matrix(confusion_matrix, class_names, path, title):
     path.parent.mkdir(parents=True, exist_ok=True)
     matrix = torch.tensor(confusion_matrix, dtype=torch.float32)
 
-    plt.figure(figsize=(8, 6))
-    plt.imshow(matrix, cmap="Blues")
-    plt.colorbar()
-    plt.xticks(range(len(class_names)), class_names, rotation=45, ha="right")
-    plt.yticks(range(len(class_names)), class_names)
-    plt.xlabel("Predicted label")
-    plt.ylabel("True label")
-    plt.title(title)
-    plt.tight_layout()
-    plt.savefig(path, dpi=150)
-    plt.close()
+    figure, axis = plt.subplots(figsize=(8, 6))
+    heatmap = axis.imshow(matrix, cmap="Blues")
+    axis.set_xticks(range(len(class_names)))
+    axis.set_yticks(range(len(class_names)))
+    axis.set_xticklabels(class_names, rotation=45, ha="right")
+    axis.set_yticklabels(class_names)
+    axis.set_xlabel("Predicted label")
+    axis.set_ylabel("True label")
+    axis.set_title(title)
+
+    threshold = matrix.max().item() * 0.55 if matrix.numel() > 0 else 0.0
+    for row_index in range(matrix.shape[0]):
+        for column_index in range(matrix.shape[1]):
+            value = int(matrix[row_index, column_index].item())
+            text_color = "white" if value > threshold else "#0f172a"
+            axis.text(
+                column_index,
+                row_index,
+                str(value),
+                ha="center",
+                va="center",
+                color=text_color,
+                fontsize=9,
+            )
+
+    figure.colorbar(heatmap, ax=axis, fraction=0.046, pad=0.04)
+    figure.tight_layout()
+    figure.savefig(path, dpi=150)
+    plt.close(figure)
 
 
 def save_best_checkpoint(path, model, model_config, device, args, best_epoch, best_metric_value):
@@ -307,6 +325,7 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
             "cadb_root": str(getattr(args, "cadb_root", "") or ""),
             "test_ratio": getattr(args, "cadb_test_ratio", None),
             "label_mode": getattr(args, "cadb_label_mode", None),
+            "balance_mode": getattr(args, "cadb_balance_mode", None),
         },
         "model": model_config,
         "outputs": {

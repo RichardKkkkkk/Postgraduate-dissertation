@@ -130,3 +130,50 @@
 ### Next
 - Verify the reorganized imports with model smoke tests.
 - Continue using `train_cifar10_experiment.py` as the only formal training entry.
+
+## 2026-06-15 Confusion Matrix Annotation Fix
+
+### Changed
+- Updated the shared confusion-matrix plotting helper so saved run figures now include the per-cell count labels.
+- Kept the colorbar and class-axis labels, and added adaptive text color so large values remain readable.
+
+### Learned
+- The report generator already had annotation logic, but the direct training output path did not.
+- The issue was a plotting inconsistency, not a metrics or evaluation bug.
+
+### Next
+- Regenerate the current confusion-matrix PNG files from the saved CSVs so the existing CADB figures are immediately presentation-ready.
+
+## 2026-06-15 Results Directory Cleanup
+
+### Changed
+- Added a shared artifact-path helper so training outputs now save to model-scoped folders:
+  - `results/metrics/<model>/...`
+  - `results/figures/<model>/...`
+  - `checkpoints/<model>/...`
+- Updated the unified trainer, seed sweep, comparison report, and per-class report scripts to use the same lookup logic.
+- Kept backward compatibility so old flat artifacts can still be loaded by run name.
+
+### Learned
+- The real problem was not just "too many files"; it was that saving and reading logic were duplicated across scripts.
+- Centralizing path resolution makes future cleanup much safer.
+
+### Next
+- Migrate the kept experiment artifacts into the new folder structure.
+- Remove outdated early-stopping CADB outputs and temporary compatibility reports.
+
+## 2026-06-15 CADB Balance Mode
+
+### Changed
+- Added `--cadb-balance-mode` to the unified training interface.
+- Supported:
+  - `none`
+  - `train_only`
+  - `all_splits`
+- Wired the new option into both ViT and ResNet CADB dataloaders and saved it in the run config.
+
+### Learned
+- This makes it much easier to separate "performance on the original imbalanced data" from "behavior under a class-balanced directional comparison".
+
+### Next
+- Re-run `vit_baseline`, `vit_row_sinusoidal`, and `vit_col_sinusoidal` on balanced CADB and check whether the row/col bias becomes clearer.

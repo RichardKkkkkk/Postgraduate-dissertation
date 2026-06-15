@@ -232,14 +232,20 @@ python generate_comparison_report.py --run baseline_cadb_seed42 --run row_cadb_s
 
 每次训练完成后会保存：
 
-- `results/metrics/<run_name>_metrics.csv`
-- `results/metrics/<run_name>_config.json`
-- `results/metrics/<run_name>_summary.json`
-- `results/metrics/<run_name>_test_confusion_matrix.csv`
-- `results/figures/<run_name>_loss.png`
-- `results/figures/<run_name>_accuracy.png`
-- `results/figures/<run_name>_test_confusion_matrix.png`
-- `checkpoints/<run_name>_best.pt`
+- `results/metrics/<model>/<run_name>_metrics.csv`
+- `results/metrics/<model>/<run_name>_config.json`
+- `results/metrics/<model>/<run_name>_summary.json`
+- `results/metrics/<model>/<run_name>_test_confusion_matrix.csv`
+- `results/figures/<model>/<run_name>_loss.png`
+- `results/figures/<model>/<run_name>_accuracy.png`
+- `results/figures/<model>/<run_name>_test_confusion_matrix.png`
+- `checkpoints/<model>/<run_name>_best.pt`
+
+这样做的好处是：
+
+- 同一个模型的 run 会自动放进同一层目录
+- `results/metrics/` 和 `results/figures/` 不会因为 run 太多变得难找
+- 报告脚本仍然兼容旧的平铺结果
 
 其中最重要的原则是：
 
@@ -299,6 +305,7 @@ python generate_comparison_report.py --run baseline_cadb_seed42 --run row_cadb_s
 - `--cadb-root`
 - `--cadb-test-ratio`
 - `--cadb-label-mode`
+- `--cadb-balance-mode`
 
 ### ResNet-specific parameter
 
@@ -315,6 +322,15 @@ python generate_comparison_report.py --run baseline_cadb_seed42 --run row_cadb_s
 - `early_stopping_metric = val_acc`
 - `early_stopping_min_delta = 0.0`
 - `early_stopping_patience = disabled by default`
+
+### CADB balance modes
+
+- `--cadb-balance-mode none`
+  Keep the original horizontal / vertical class distribution.
+- `--cadb-balance-mode train_only`
+  Balance only the training split while keeping validation and test on the original distribution.
+- `--cadb-balance-mode all_splits`
+  Balance train / validation / test separately for the cleanest directional comparison.
 
 ### ViT defaults
 
@@ -395,9 +411,9 @@ python generate_comparison_report.py --run baseline_cadb_seed42 --run row_cadb_s
 
 ```text
 data/
-checkpoints/
-results/metrics/
-results/figures/
+checkpoints/<model>/
+results/metrics/<model>/
+results/figures/<model>/
 results/reports/
 ```
 
