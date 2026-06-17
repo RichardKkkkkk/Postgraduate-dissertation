@@ -177,3 +177,24 @@
 
 ### Next
 - Re-run `vit_baseline`, `vit_row_sinusoidal`, and `vit_col_sinusoidal` on balanced CADB and check whether the row/col bias becomes clearer.
+
+## 2026-06-17 Row Vs Col Sinusoidal PPT
+
+### Changed
+- Extended `generate_comparison_report.py` with a dedicated `row_vs_col_sinusoidal` scenario.
+- Added scenario-specific title, overview wording, and conclusion wording for `vit_row_sinusoidal` vs `vit_col_sinusoidal`.
+- Generated a focused CADB deck from:
+  - `row_cadb_seed42_noes`
+  - `col_cadb_seed42_noes`
+
+### Learned
+- This comparison is easier to present without the baseline run on the same slides.
+- The key story is now a controlled structural swap:
+  - same ViT backbone
+  - fixed sinusoidal positional embedding
+  - only the spatial axis used for positional indexing changes
+- In the current CADB run, `row-wise` finishes slightly higher on final test accuracy, while `column-wise` reaches better best validation accuracy and stronger selected test macro F1.
+
+### Next
+- Reuse the same row-vs-col report framing for later balanced CADB runs.
+- If more seeds are added, keep this axis-specific wording but move the headline to mean/std summary reporting.

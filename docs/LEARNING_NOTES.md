@@ -248,3 +248,25 @@ train_loader, val_loader, test_loader
 - CADB orientation
 
 都已经被统一成同一接口了。
+
+## Row-wise vs Column-wise Sinusoidal 是怎么改结构的
+
+`vit_row_sinusoidal` 和 `vit_col_sinusoidal` 没有改动主干 Transformer block。
+
+变动点只在 positional embedding：
+
+- `row-wise`
+  - patch 位置信息只看它属于第几行
+  - 同一行的 patch 会共享同一个 sinusoidal position code
+- `column-wise`
+  - patch 位置信息只看它属于第几列
+  - 同一列的 patch 会共享同一个 sinusoidal position code
+
+可以把它记成一句英文：
+
+`Same ViT backbone, different axis used for fixed sinusoidal indexing.`
+
+所以这类实验特别适合回答：
+
+- 横向/纵向的结构线索，是否更偏好某一种 axis-tied positional bias
+- 观察到的变化是不是来自位置编码方向，而不是来自更大的模型结构改写

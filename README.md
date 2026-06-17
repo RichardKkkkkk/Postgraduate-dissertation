@@ -228,6 +228,12 @@ CADB 对比同理：
 python generate_comparison_report.py --run baseline_cadb_seed42 --run row_cadb_seed42 --run col_cadb_seed42 --report-name cadb_orientation_compare
 ```
 
+如果你只想聚焦 `row-wise` 和 `column-wise` 的结构差异，可以直接导出一版更窄的组会 PPT：
+
+```bash
+python generate_comparison_report.py --run row_cadb_seed42_noes="ViT Row-wise" --run col_cadb_seed42_noes="ViT Column-wise" --report-name cadb_row_vs_col_noes --title "CADB Orientation: Row-wise vs Column-wise Sinusoidal ViT"
+```
+
 ## Saved Outputs
 
 每次训练完成后会保存：

@@ -588,6 +588,8 @@ def detect_comparison_scenario(runs):
     families = {run.model_family for run in runs}
     variants = {run.model_variant for run in runs}
 
+    if families == {"vit"} and variants == {"row_sinusoidal", "col_sinusoidal"}:
+        return "row_vs_col_sinusoidal"
     if families == {"vit"} and {"baseline", "rope"}.issubset(variants):
         return "baseline_vs_rope"
     if families == {"resnet18"} and "scratch" in variants and ("imagenet" in variants or "pretrained" in variants):
@@ -598,6 +600,8 @@ def detect_comparison_scenario(runs):
 
 
 def build_default_title(runs, scenario):
+    if scenario == "row_vs_col_sinusoidal":
+        return "Directional Comparison: ViT Row-wise vs ViT Column-wise"
     if scenario == "baseline_vs_rope":
         return "Weekly Comparison: ViT Baseline vs ViT RoPE"
     if scenario == "scratch_vs_pretrained":
@@ -610,6 +614,7 @@ def build_default_title(runs, scenario):
 
 def format_comparison_scenario(scenario: str):
     mapping = {
+        "row_vs_col_sinusoidal": "Row-wise vs Column-wise Sinusoidal",
         "baseline_vs_rope": "ViT Baseline vs RoPE",
         "scratch_vs_pretrained": "ResNet18 Scratch vs Pretrained",
         "vit_vs_cnn": "ViT vs CNN",
@@ -795,7 +800,22 @@ def build_headline_insights(runs, summary_rows, metrics, scenario):
         )
     ]
 
-    if scenario == "baseline_vs_rope":
+    if scenario == "row_vs_col_sinusoidal":
+        insights.insert(
+            0,
+            "This deck isolates directional positional bias: the ViT backbone is unchanged, and only the fixed sinusoidal axis used for patch positions is swapped.",
+        )
+        insights.append(
+            "Structurally, the row-wise variant gives patches in the same row the same positional code, while the column-wise variant ties patches in the same column."
+        )
+        if len(summary_rows) >= 2:
+            row_run = next((row for row in summary_rows if row["model_variant"] == "row_sinusoidal"), None)
+            col_run = next((row for row in summary_rows if row["model_variant"] == "col_sinusoidal"), None)
+            if row_run and col_run:
+                insights.append(
+                    "Row-wise finishes slightly higher on final test accuracy, while Column-wise reaches the stronger best validation accuracy and selected test macro F1."
+                )
+    elif scenario == "baseline_vs_rope":
         insights.insert(
             0,
             "This deck is framed as a ViT baseline vs RoPE comparison, so position encoding is the first story to highlight.",
@@ -861,7 +881,7 @@ def build_conclusion_lines(runs, summary_rows, metrics, per_class_metric_keys, s
             )
         )
 
-    if len(summary_rows) >= 2 and metrics:
+    if len(summary_rows) >= 2 and metrics and scenario != "row_vs_col_sinusoidal":
         reference = summary_rows[0]
         challenger = summary_rows[1]
         metric = metrics[0]
@@ -873,7 +893,21 @@ def build_conclusion_lines(runs, summary_rows, metrics, per_class_metric_keys, s
             )
         )
 
-    if scenario == "baseline_vs_rope":
+    if scenario == "row_vs_col_sinusoidal":
+        row_run = next((row for row in summary_rows if row["model_variant"] == "row_sinusoidal"), None)
+        col_run = next((row for row in summary_rows if row["model_variant"] == "col_sinusoidal"), None)
+        if row_run and col_run:
+            delta = col_run["final_test_acc"] - row_run["final_test_acc"]
+            conclusions.append(
+                f"On final test accuracy, ViT Column-wise trails ViT Row-wise by {format_delta('test_acc', delta)}, but Column-wise reaches the better best validation accuracy and selected test macro F1."
+            )
+        conclusions.append(
+            "The structural change here is narrow and controlled: learned 2D-style absolute embeddings are replaced by fixed sinusoidal embeddings defined on only one spatial axis."
+        )
+        conclusions.append(
+            "Use this comparison to discuss whether CADB orientation cues benefit more from row-tied or column-tied positional indexing, rather than from a larger model change."
+        )
+    elif scenario == "baseline_vs_rope":
         conclusions.append(
             "For baseline vs RoPE slides, keep the takeaway centered on positional encoding rather than on generic hyperparameter drift."
         )
