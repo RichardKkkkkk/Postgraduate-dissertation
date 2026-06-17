@@ -1,0 +1,39 @@
+{
+  "report_dir": "results\\reports\\cadb_orientation_compare_noes",
+  "generated_at": "2026-06-15T13:54:12",
+  "scenario": "generic_multi_run",
+  "runs": [
+    {
+      "run_name": "baseline_cadb_seed42_noes",
+      "label": "ViT Baseline"
+    },
+    {
+      "run_name": "row_cadb_seed42_noes",
+      "label": "ViT Row-wise"
+    },
+    {
+      "run_name": "col_cadb_seed42_noes",
+      "label": "ViT Column-wise"
+    }
+  ],
+  "metrics": [
+    "test_acc",
+    "val_acc",
+    "test_loss",
+    "val_loss",
+    "train_acc",
+    "train_loss"
+  ],
+  "selected_checkpoint_metrics": [
+    "test_macro_f1",
+    "val_macro_f1",
+    "test_macro_precision",
+    "test_macro_recall",
+    "val_macro_precision",
+    "val_macro_recall"
+  ],
+  "summary_csv": "results\\reports\\cadb_orientation_compare_noes\\comparison_summary.csv",
+  "config_csv": "results\\reports\\cadb_orientation_compare_noes\\config_comparison.csv",
+  "overview_md": "results\\reports\\cadb_orientation_compare_noes\\overview.md",
+  "presentation_summary_json": "results\\reports\\cadb_orientation_compare_noes\\presentation_summary.json"
+}

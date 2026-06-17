@@ -11,6 +11,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from result_paths import resolve_run_artifact_paths
 
 
 PRIORITY_METRICS = [
@@ -465,12 +466,13 @@ def extract_per_class_metrics(summary: dict):
 
 
 def load_run_artifacts(results_dir: Path, project_root: Path, run_name: str, label: str):
-    metrics_dir = results_dir / "metrics"
-    history_path = metrics_dir / f"{run_name}_metrics.csv"
-    config_path = metrics_dir / f"{run_name}_config.json"
-    summary_path = metrics_dir / f"{run_name}_summary.json"
+    artifact_paths = resolve_run_artifact_paths(results_dir, run_name)
+    history_path = artifact_paths["metrics_path"]
+    config_path = artifact_paths["config_path"]
+    summary_path = artifact_paths["summary_path"]
 
-    missing = [path.name for path in [history_path, config_path, summary_path] if not path.exists()]
+    required_paths = [history_path, config_path, summary_path]
+    missing = [name for path, name in zip(required_paths, ["metrics.csv", "config.json", "summary.json"]) if path is None]
     if missing:
         raise FileNotFoundError(
             f"Missing artifacts for run '{run_name}': {', '.join(missing)}"

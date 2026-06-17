@@ -9,9 +9,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from result_paths import resolve_run_artifact_paths
 
 
-CIFAR10_CLASSES = [
+DEFAULT_CLASS_NAMES = [
     "airplane",
     "automobile",
     "bird",
@@ -80,7 +81,9 @@ def ensure_report_dirs(results_dir: Path, report_name: str):
 
 
 def load_run_payload(results_dir: Path, run_name: str, label: str):
-    summary_path = results_dir / "metrics" / f"{run_name}_summary.json"
+    summary_path = resolve_run_artifact_paths(results_dir, run_name)["summary_path"]
+    if summary_path is None:
+        raise FileNotFoundError(f"Missing summary artifact for run '{run_name}'.")
     summary = load_json(summary_path)
     selected = summary["selected_model"]
     return {
@@ -90,7 +93,27 @@ def load_run_payload(results_dir: Path, run_name: str, label: str):
         "macro_f1": float(selected["test_macro_f1"]),
         "per_class_accuracy": [float(value) for value in selected["test_per_class_accuracy"]],
         "per_class_f1": [float(value) for value in selected["test_per_class_f1"]],
+        "confusion_csv": selected.get("test_confusion_matrix_csv"),
     }
+
+
+def load_class_names(results_dir: Path, runs):
+    confusion_csv = runs[0].get("confusion_csv")
+    if confusion_csv:
+        csv_path = Path(confusion_csv)
+        if not csv_path.is_absolute():
+            csv_path = Path.cwd() / csv_path
+        if csv_path.exists():
+            with csv_path.open("r", encoding="utf-8") as handle:
+                reader = csv.reader(handle)
+                header = next(reader, None)
+                if header and len(header) > 1:
+                    return header[1:]
+
+    num_classes = len(runs[0]["per_class_accuracy"])
+    if num_classes == len(DEFAULT_CLASS_NAMES):
+        return DEFAULT_CLASS_NAMES
+    return [f"class_{index}" for index in range(num_classes)]
 
 
 def build_metric_rows(class_names, runs, metric_key):
@@ -240,13 +263,13 @@ def write_overview(path: Path, class_names, runs, accuracy_rows, f1_rows):
 
         handle.write("## Suggested PPT Narrative\n\n")
         handle.write(
-            "- 2D RoPE improves the overall average result, but its gains are not uniform across all classes.\n"
+            "- Use this page to explain whether performance differences come from a specific class bias rather than only the overall accuracy.\n"
         )
         handle.write(
-            "- The main value of this page is to show which classes benefit most from the 2D positional design.\n"
+            "- For directional experiments, focus on whether one model is stronger on the horizontal class while another is stronger on the vertical class.\n"
         )
         handle.write(
-            "- Remaining weak classes can motivate the next step, such as longer training or another lightweight image bias.\n"
+            "- If one model collapses to a majority class, the confusion matrix and per-class F1 should make that visible immediately.\n"
         )
 
 
@@ -257,7 +280,7 @@ def main():
     report_dir, figures_dir = ensure_report_dirs(args.results_dir, report_name)
 
     runs = [load_run_payload(args.results_dir, run_name, label) for run_name, label in run_specs]
-    class_names = CIFAR10_CLASSES
+    class_names = load_class_names(args.results_dir, runs)
 
     if args.reference_run:
         reference_index = next(

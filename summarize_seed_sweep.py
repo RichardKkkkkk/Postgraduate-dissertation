@@ -11,6 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from models.registry import EXPERIMENT_REGISTRY
+from result_paths import resolve_run_artifact_paths
 
 
 DEFAULT_MODELS = ["vit_baseline", "vit_rope", "vit_rope_2d"]
@@ -117,9 +118,9 @@ def collect_run_rows(args):
     for model_name in args.models:
         for seed in args.seeds:
             run_name = build_run_name(model_name, seed, args.run_prefix)
-            summary_path = args.results_dir / "metrics" / f"{run_name}_summary.json"
-            if not summary_path.exists():
-                raise FileNotFoundError(f"Missing summary file: {summary_path}")
+            summary_path = resolve_run_artifact_paths(args.results_dir, run_name)["summary_path"]
+            if summary_path is None:
+                raise FileNotFoundError(f"Missing summary file for run: {run_name}")
             summary = load_json(summary_path)
             row = {
                 "model": model_name,

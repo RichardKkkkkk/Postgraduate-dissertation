@@ -1,3 +1,0 @@
-run_name,label,model_name,device,completed_epochs,selected_epoch,final_test_acc,best_test_acc,best_epoch_test_acc,final_test_loss,best_test_loss,best_epoch_test_loss,final_train_acc,best_train_acc,best_epoch_train_acc,final_train_loss,best_train_loss,best_epoch_train_loss
-cnn_resnet18_baseline,CNN Baseline,resnet18,cuda,20,,0.9492,0.953,18,0.21162842491045594,0.15884558233618737,4,0.99504,0.99504,20,0.014485371119882911,0.014485371119882911,20
-vit_dropout_01,ViT Dropout 0.1,vit,cuda,20,,0.734,0.734,20,0.7734267610549926,0.7682129088878632,19,0.71488,0.71488,20,0.7968039756584168,0.7968039756584168,20

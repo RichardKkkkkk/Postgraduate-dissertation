@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from models.registry import EXPERIMENT_REGISTRY
+from result_paths import resolve_run_artifact_paths
 
 
 DEFAULT_MODELS = ["vit_baseline", "vit_rope", "vit_rope_2d"]
@@ -99,8 +100,7 @@ def build_report_name(seed: int, report_prefix: str, run_prefix: str | None):
 
 
 def summary_exists(results_dir: Path, run_name: str):
-    summary_path = results_dir / "metrics" / f"{run_name}_summary.json"
-    return summary_path.exists()
+    return resolve_run_artifact_paths(results_dir, run_name)["summary_path"] is not None
 
 
 def append_optional_arg(command: list[str], flag: str, value):
