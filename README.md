@@ -9,8 +9,10 @@
 - 一个统一结果输出格式：`metrics / config / summary / curves / checkpoint`
 - 两类数据集：
   - `cifar10`
-  - `synthetic_orientation`
-  - `cadb_orientation`
+- `synthetic_orientation`
+- `synthetic_orientation_clean`
+- `synthetic_orientation_hard`
+- `cadb_orientation`
 
 一句英文可以这样记：
 
@@ -102,6 +104,21 @@ python train_cifar10_experiment.py --model vit_baseline
 
 这是本周新增的方向性数据集，先用来快速验证老师提出的假设。
 
+### `synthetic_orientation_clean`
+
+这是一个更干净的 synthetic v2 版本：
+- 仍然是 `horizontal / vertical` 二分类
+- 条纹更规整，噪声更低
+- 更适合先看 `row-wise / col-wise` positional encoding 能不能在 controlled setting 下拉开差异
+
+### `synthetic_orientation_hard`
+
+这是一个更难的 synthetic v3 版本：
+- 主方向条纹仍然决定类别
+- 会加入短的正交干扰条纹
+- 会加入局部遮挡和更强的位置变化
+- 目标是避免 baseline / row / col 太快同时饱和
+
 类别是：
 
 - `horizontal`
@@ -182,6 +199,18 @@ python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset syntheti
 python train_cifar10_experiment.py --model vit_baseline --dataset synthetic_orientation --epochs 20 --seed 42 --early-stopping-patience 5 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name baseline_synth_seed42
 ```
 
+### 5. Synthetic clean baseline experiment
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline --dataset synthetic_orientation_clean --epochs 20 --seed 42 --run-name baseline_synth_clean_seed42
+```
+
+### 6. Synthetic hard baseline experiment
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline --dataset synthetic_orientation_hard --epochs 20 --seed 42 --run-name baseline_synth_hard_seed42
+```
+
 ### 5. Fast smoke test
 
 ```bash
@@ -232,6 +261,12 @@ python generate_comparison_report.py --run baseline_cadb_seed42 --run row_cadb_s
 
 ```bash
 python generate_comparison_report.py --run row_cadb_seed42_noes="ViT Row-wise" --run col_cadb_seed42_noes="ViT Column-wise" --report-name cadb_row_vs_col_noes --title "CADB Orientation: Row-wise vs Column-wise Sinusoidal ViT"
+```
+
+`synthetic_orientation_clean` 的 v2 三模型对比也可以直接复用同一个入口：
+
+```bash
+python generate_comparison_report.py --run baseline_synth_clean_seed42="ViT Baseline" --run row_synth_clean_seed42="ViT Row-wise" --run col_synth_clean_seed42="ViT Column-wise" --report-name synth_clean_v2_compare --title "Synthetic Orientation Clean v2: Baseline vs Row-wise vs Column-wise"
 ```
 
 ## Saved Outputs
@@ -431,3 +466,41 @@ results/reports/
 4. 到另一台机器 `git pull`
 
 如果只是跑实验，不要把临时结果目录一起 `git add`。
+## CADB Scene Note
+
+`cadb_orientation` is only the earlier horizontal-vs-vertical pilot subset.
+
+If you want the full original CADB single-label branch, use:
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline --dataset cadb_scene --cadb-root data/CADB_Dataset --image-size 96 --epochs 20 --run-name vit_cadb_scene_seed42
+```
+
+涓枃璇存槑锛?
+- `cadb_scene` 瀵瑰簲 CADB 鍘熷鐨?`scene_categories.json`
+- 杩欐槸 10 绫诲崟鏍囩鍒嗙被锛屼笉鏄箣鍓嶇殑 `horizontal / vertical` 浜屽垎瀛愰泦
+- 榛樿浼樺厛浣跨敤 `split.json` 鐨?`train / test`锛屽啀浠?`train` 鍒囧嚭 `validation`
+
+## Synthetic Axis-Code Note
+
+These two datasets are designed specifically to test whether row-wise and column-wise positional encodings really produce different inductive biases.
+
+- `synthetic_row_code`
+  Every sample is built from horizontal row bands. The class label depends on which rows are active, not on whether the image is horizontal or vertical.
+- `synthetic_col_code`
+  Every sample is built from vertical column bands. The class label depends on which columns are active.
+
+涓枃璇存槑锛?
+- 杩欎袱涓?dataset 涓嶆槸鏂扮殑鈥渉orizontal vs vertical鈥濅簩鍒嗕换鍔°
+- `synthetic_row_code` 娴嬭瘯鐨勬槸锛氭ā鍨嬫槸鍚﹁兘鏇村ソ鍦板埄鐢?row position
+- `synthetic_col_code` 娴嬭瘯鐨勬槸锛氭ā鍨嬫槸鍚﹁兘鏇村ソ鍦板埄鐢?column position
+- 杩欐牱鍙互鏇撮挍瀵瑰湴楠岃瘉 row-wise / column-wise positional bias锛岃€屼笉鏄鍥惧儚璇箟鎴栫汗鐞嗙洊杩?
+
+Recommended quick commands:
+
+```bash
+python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset synthetic_row_code --epochs 20 --seed 42 --run-name row_model_on_row_code
+python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset synthetic_row_code --epochs 20 --seed 42 --run-name col_model_on_row_code
+python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset synthetic_col_code --epochs 20 --seed 42 --run-name row_model_on_col_code
+python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset synthetic_col_code --epochs 20 --seed 42 --run-name col_model_on_col_code
+```

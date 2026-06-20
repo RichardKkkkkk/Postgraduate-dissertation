@@ -5,9 +5,15 @@ from typing import Any, Callable
 import torch.nn as nn
 from torchvision import models
 
-from datasets.cadb_data import build_cadb_orientation_dataloaders
+from datasets.cadb_data import build_cadb_orientation_dataloaders, build_cadb_scene_dataloaders
 from datasets.cifar10_data import build_resnet_dataloaders, build_vit_dataloaders
-from datasets.synthetic_orientation_data import build_synthetic_orientation_dataloaders
+from datasets.synthetic_orientation_data import (
+    build_synthetic_col_code_dataloaders,
+    build_synthetic_orientation_clean_dataloaders,
+    build_synthetic_orientation_hard_dataloaders,
+    build_synthetic_orientation_dataloaders,
+    build_synthetic_row_code_dataloaders,
+)
 from .vit import ViT
 from .vit_axis_sinusoidal import ViTColSinusoidal, ViTRowSinusoidal
 from .vit_rope import ViTRoPE
@@ -27,21 +33,45 @@ class ExperimentSpec:
 
 
 EXPERIMENT_REGISTRY: dict[str, ExperimentSpec] = {}
-SUPPORTED_DATASETS = ("cifar10", "synthetic_orientation", "cadb_orientation")
+SUPPORTED_DATASETS = (
+    "cifar10",
+    "synthetic_orientation",
+    "synthetic_orientation_clean",
+    "synthetic_orientation_hard",
+    "synthetic_row_code",
+    "synthetic_col_code",
+    "cadb_orientation",
+    "cadb_scene",
+)
 DATASET_NUM_CLASSES = {
     "cifar10": 10,
     "synthetic_orientation": 2,
+    "synthetic_orientation_clean": 2,
+    "synthetic_orientation_hard": 2,
+    "synthetic_row_code": 2,
+    "synthetic_col_code": 2,
     "cadb_orientation": 2,
+    "cadb_scene": 10,
 }
 DATASET_DEFAULT_IMAGE_SIZE = {
     "cifar10": 32,
     "synthetic_orientation": 32,
+    "synthetic_orientation_clean": 32,
+    "synthetic_orientation_hard": 32,
+    "synthetic_row_code": 32,
+    "synthetic_col_code": 32,
     "cadb_orientation": 96,
+    "cadb_scene": 96,
 }
 DATASET_DISPLAY_NAMES = {
     "cifar10": "CIFAR-10",
     "synthetic_orientation": "Synthetic Orientation",
+    "synthetic_orientation_clean": "Synthetic Orientation Clean",
+    "synthetic_orientation_hard": "Synthetic Orientation Hard",
+    "synthetic_row_code": "Synthetic Row-Code",
+    "synthetic_col_code": "Synthetic Column-Code",
     "cadb_orientation": "CADB Orientation",
+    "cadb_scene": "CADB Scene Categories",
 }
 
 
@@ -135,6 +165,66 @@ def build_vit_family_dataloaders(args):
             noise_std=args.synthetic_noise_std,
             max_stripes=args.synthetic_max_stripes,
         )
+    if args.dataset == "synthetic_orientation_clean":
+        return build_synthetic_orientation_clean_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=get_dataset_image_size(args),
+            line_width=args.synthetic_line_width,
+            noise_std=args.synthetic_noise_std,
+            max_stripes=args.synthetic_max_stripes,
+        )
+    if args.dataset == "synthetic_orientation_hard":
+        return build_synthetic_orientation_hard_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=get_dataset_image_size(args),
+            line_width=args.synthetic_line_width,
+            noise_std=args.synthetic_noise_std,
+            max_stripes=args.synthetic_max_stripes,
+        )
+    if args.dataset == "synthetic_row_code":
+        return build_synthetic_row_code_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=get_dataset_image_size(args),
+            noise_std=args.synthetic_noise_std,
+        )
+    if args.dataset == "synthetic_col_code":
+        return build_synthetic_col_code_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=get_dataset_image_size(args),
+            noise_std=args.synthetic_noise_std,
+        )
     if args.dataset == "cadb_orientation":
         return build_cadb_orientation_dataloaders(
             cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
@@ -149,6 +239,20 @@ def build_vit_family_dataloaders(args):
             image_size=get_dataset_image_size(args),
             label_mode=args.cadb_label_mode,
             balance_mode=args.cadb_balance_mode,
+            use_imagenet_norm=True,
+        )
+    if args.dataset == "cadb_scene":
+        return build_cadb_scene_dataloaders(
+            cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+            test_ratio=args.cadb_test_ratio,
+            image_size=get_dataset_image_size(args),
             use_imagenet_norm=True,
         )
     raise ValueError(f"Unsupported dataset for ViT family: {args.dataset}")
@@ -224,6 +328,66 @@ def build_resnet18_scratch_dataloaders(args):
             noise_std=args.synthetic_noise_std,
             max_stripes=args.synthetic_max_stripes,
         )
+    if args.dataset == "synthetic_orientation_clean":
+        return build_synthetic_orientation_clean_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=image_size,
+            line_width=args.synthetic_line_width,
+            noise_std=args.synthetic_noise_std,
+            max_stripes=args.synthetic_max_stripes,
+        )
+    if args.dataset == "synthetic_orientation_hard":
+        return build_synthetic_orientation_hard_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=image_size,
+            line_width=args.synthetic_line_width,
+            noise_std=args.synthetic_noise_std,
+            max_stripes=args.synthetic_max_stripes,
+        )
+    if args.dataset == "synthetic_row_code":
+        return build_synthetic_row_code_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=image_size,
+            noise_std=args.synthetic_noise_std,
+        )
+    if args.dataset == "synthetic_col_code":
+        return build_synthetic_col_code_dataloaders(
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            train_size=args.synthetic_train_size,
+            val_size=args.synthetic_val_size,
+            test_size=args.synthetic_test_size,
+            image_size=image_size,
+            noise_std=args.synthetic_noise_std,
+        )
     if args.dataset == "cadb_orientation":
         return build_cadb_orientation_dataloaders(
             cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
@@ -238,6 +402,20 @@ def build_resnet18_scratch_dataloaders(args):
             image_size=image_size,
             label_mode=args.cadb_label_mode,
             balance_mode=args.cadb_balance_mode,
+            use_imagenet_norm=False,
+        )
+    if args.dataset == "cadb_scene":
+        return build_cadb_scene_dataloaders(
+            cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+            test_ratio=args.cadb_test_ratio,
+            image_size=image_size,
             use_imagenet_norm=False,
         )
     raise ValueError(f"Unsupported dataset for ResNet18 scratch: {args.dataset}")
@@ -261,8 +439,24 @@ def build_resnet18_imagenet_dataloaders(args):
             balance_mode=args.cadb_balance_mode,
             use_imagenet_norm=True,
         )
+    if args.dataset == "cadb_scene":
+        return build_cadb_scene_dataloaders(
+            cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+            test_ratio=args.cadb_test_ratio,
+            image_size=image_size,
+            use_imagenet_norm=True,
+        )
+    if args.dataset in {"synthetic_orientation", "synthetic_orientation_clean", "synthetic_orientation_hard", "synthetic_row_code", "synthetic_col_code"}:
+        raise ValueError("resnet18_imagenet currently supports only cifar10, cadb_orientation, and cadb_scene.")
     if args.dataset != "cifar10":
-        raise ValueError("resnet18_imagenet currently supports only the cifar10 and cadb_orientation datasets.")
+        raise ValueError("resnet18_imagenet currently supports only cifar10, cadb_orientation, and cadb_scene.")
     return build_resnet_dataloaders(
         data_dir=args.data_dir,
         batch_size=args.batch_size,

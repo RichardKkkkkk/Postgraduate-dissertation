@@ -178,6 +178,39 @@
 ### Next
 - Re-run `vit_baseline`, `vit_row_sinusoidal`, and `vit_col_sinusoidal` on balanced CADB and check whether the row/col bias becomes clearer.
 
+## 2026-06-17 Synthetic Orientation Clean v2
+
+### Changed
+- Added a second synthetic directional dataset branch: `synthetic_orientation_clean`.
+- Kept it separate from the original synthetic dataset so controlled ablations can compare:
+  - noisier synthetic
+  - cleaner synthetic
+- Registered the new dataset in the unified experiment runner.
+
+### Learned
+- The goal of this branch is not realism; it is to provide a cleaner sanity-check setting for row-wise vs column-wise positional bias.
+
+### Next
+- Preview a few generated samples.
+- Run `vit_baseline`, `vit_row_sinusoidal`, and `vit_col_sinusoidal` on the clean synthetic split and inspect whether the gap becomes more obvious.
+
+## 2026-06-18 Synthetic Orientation Hard v3
+
+### Changed
+- Added `synthetic_orientation_hard` as a third directional synthetic branch.
+- The new split keeps the main horizontal / vertical signal, but adds:
+  - orthogonal distractor fragments
+  - local occlusion
+  - stronger span and position variation
+
+### Learned
+- `synthetic_orientation_clean` was useful as a sanity check, but it was already too easy because all three models nearly saturated.
+- A harder controlled dataset is a better next step than immediately jumping to a noisier real-world dataset.
+
+### Next
+- Preview the generated samples.
+- Run `baseline / row / col` on the hard synthetic split and check whether the gap becomes more meaningful.
+
 ## 2026-06-17 Row Vs Col Sinusoidal PPT
 
 ### Changed
@@ -198,3 +231,75 @@
 ### Next
 - Reuse the same row-vs-col report framing for later balanced CADB runs.
 - If more seeds are added, keep this axis-specific wording but move the headline to mean/std summary reporting.
+
+## 2026-06-18 Synthetic Clean v2 PPT
+
+### Changed
+- Extended `generate_comparison_report.py` with an `axis_bias_trio` scenario for:
+  - `vit_baseline`
+  - `vit_row_sinusoidal`
+  - `vit_col_sinusoidal`
+- Added scenario-specific wording so clean synthetic v2 results can be presented as:
+  - same ViT backbone
+  - same task
+  - three positional choices
+- Generated a new deck from:
+  - `baseline_synth_clean_seed42`
+  - `row_synth_clean_seed42`
+  - `col_synth_clean_seed42`
+
+### Learned
+- `synthetic_orientation_clean` is now best treated as a sanity-check dataset, not the main evidence slide, because all three models are already close to saturation.
+- Even in that near-saturated regime, `ViT Column-wise` gives the cleanest selected-checkpoint result on test macro F1.
+
+### Next
+- Use the v2 clean deck to show the controlled sanity-check stage.
+- Use the harder synthetic v3 deck as the next place where model differences should become more meaningful.
+
+## 2026-06-18 Full CADB Scene Branch
+
+### Changed
+- Added a new dataset branch: `cadb_scene`.
+- Wired `cadb_scene` into the unified registry for:
+  - `vit_*`
+  - `resnet18_scratch`
+  - `resnet18_imagenet`
+- Implemented the loader against the original CADB files:
+  - `scene_categories.json`
+  - `split.json`
+- Kept the existing training contract:
+  - official `train/test`
+  - validation split carved from official `train`
+  - same metrics / checkpoint / plotting path as other datasets
+
+### Learned
+- "Full/original CADB" is not the same thing as the earlier `cadb_orientation` pilot subset.
+- The cleanest first original-CADB task in this repo is scene classification, because it stays single-label and fits the current experiment runner directly.
+- Composition elements and composition attributes remain useful future branches, but they would require multi-label or regression handling.
+
+### Next
+- Smoke-test `cadb_scene` through the unified runner.
+- If it trains cleanly, use it as the new default meaning of "original CADB" in future comparisons.
+
+## 2026-06-20 Synthetic Axis-Code Datasets
+
+### Changed
+- Added two new synthetic dataset branches:
+  - `synthetic_row_code`
+  - `synthetic_col_code`
+- Kept them inside the unified experiment runner instead of creating a separate script.
+- Designed both tasks so the label depends on absolute row/column activation patterns, not on scene semantics.
+- Verified the expected directional split with quick sanity runs:
+  - `vit_row_sinusoidal` reaches 100% on `synthetic_row_code`
+  - `vit_col_sinusoidal` stays near chance on `synthetic_row_code`
+  - `vit_col_sinusoidal` reaches 100% on `synthetic_col_code`
+  - `vit_row_sinusoidal` stays near chance on `synthetic_col_code`
+
+### Learned
+- The earlier horizontal-vs-vertical tasks were still too entangled with content cues.
+- A cleaner way to test positional bias is to keep the visual motif direction fixed inside each task and let the class depend on which rows or columns are active.
+- This synthetic setup is much closer to a causal probe of row-wise vs column-wise positional encoding.
+
+### Next
+- Re-run the same row/col comparison with full training settings instead of sanity subsets.
+- Decide whether this synthetic axis-code evidence should become the main motivation slide before returning to CADB or other real datasets.
