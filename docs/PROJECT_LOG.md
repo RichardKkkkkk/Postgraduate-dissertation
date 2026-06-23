@@ -303,3 +303,36 @@
 ### Next
 - Re-run the same row/col comparison with full training settings instead of sanity subsets.
 - Decide whether this synthetic axis-code evidence should become the main motivation slide before returning to CADB or other real datasets.
+
+## 2026-06-20 CADB Elements Multi-Label Task
+
+### Changed
+- Added a new dataset branch: `cadb_elements`.
+- Switched this branch to a true multi-label setup using `composition_elements.json`.
+- Current label set:
+  - `horizontal`
+  - `vertical`
+  - `diagonal`
+  - `triangle`
+  - `symmetric`
+  - `pattern`
+- Extended the unified trainer to support:
+  - `BCEWithLogitsLoss`
+  - multi-label macro precision / recall / F1
+  - `val_macro_f1` early stopping
+  - `ReduceLROnPlateau` with configurable patience/factor
+
+### Learned
+- The more faithful use of CADB for this project is not `scene_categories`, but `composition_elements`.
+- This better matches the research question because a single image can contain multiple spatial/compositional structures at once.
+- Label-wise accuracy can look high early because many negatives are easy; macro F1 is the more useful monitor here.
+
+### Next
+- Run the full 100-epoch baseline / row-wise / column-wise comparison on `cadb_elements`.
+- After that, compare per-label F1 for:
+  - `horizontal`
+  - `vertical`
+  - `diagonal`
+  - `triangle`
+  - `symmetric`
+  - `pattern`

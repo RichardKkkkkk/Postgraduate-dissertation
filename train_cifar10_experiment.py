@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from datasets.cifar10_data import get_class_names
 from experiment_utils import (
@@ -82,6 +83,9 @@ def parse_args():
     parser.add_argument("--rope-base", type=float, default=10000.0)
     parser.add_argument("--early-stopping-patience", type=int, default=None)
     parser.add_argument("--early-stopping-min-delta", type=float, default=0.0)
+    parser.add_argument("--lr-plateau-patience", type=int, default=5)
+    parser.add_argument("--lr-plateau-factor", type=float, default=0.5)
+    parser.add_argument("--lr-plateau-min-lr", type=float, default=1e-6)
     parser.add_argument(
         "--early-stopping-metric",
         type=str,
@@ -108,6 +112,10 @@ def print_run_header(args, spec, device):
             f"label_mode={args.cadb_label_mode}, "
             f"balance_mode={args.cadb_balance_mode}"
         )
+    elif args.dataset == "cadb_scene":
+        print("CADB options: official scene_categories.json + official split.json")
+    elif args.dataset == "cadb_elements":
+        print("CADB options: composition_elements multi-label task")
     if args.early_stopping_patience is not None:
         print(
             "Early stopping: "
@@ -115,9 +123,26 @@ def print_run_header(args, spec, device):
             f"patience={args.early_stopping_patience}, "
             f"min_delta={args.early_stopping_min_delta}"
         )
+    print(
+        "LR scheduler: "
+        f"ReduceLROnPlateau patience={args.lr_plateau_patience}, "
+        f"factor={args.lr_plateau_factor}, "
+        f"min_lr={args.lr_plateau_min_lr}"
+    )
 
 
-def train_and_collect_history(args, model, train_loader, val_loader, test_loader, criterion, optimizer, device):
+def train_and_collect_history(
+    args,
+    model,
+    train_loader,
+    val_loader,
+    test_loader,
+    criterion,
+    optimizer,
+    scheduler,
+    device,
+    task_type,
+):
     history = []
     best_metric_value = None
     best_epoch = None
@@ -127,40 +152,53 @@ def train_and_collect_history(args, model, train_loader, val_loader, test_loader
 
     for epoch in range(1, args.epochs + 1):
         print(f"Epoch {epoch}/{args.epochs}")
-        train_loss, train_acc = train_one_epoch(
+        train_metrics = train_one_epoch(
             model=model,
             loader=train_loader,
             criterion=criterion,
             optimizer=optimizer,
             device=device,
+            task_type=task_type,
         )
-        val_loss, val_acc = evaluate(
+        val_metrics = evaluate(
             model=model,
             loader=val_loader,
             criterion=criterion,
             device=device,
+            task_type=task_type,
         )
-        test_loss, test_acc = evaluate(
+        test_metrics = evaluate(
             model=model,
             loader=test_loader,
             criterion=criterion,
             device=device,
+            task_type=task_type,
         )
         print(
-            f"  train loss={train_loss:.4f} acc={train_acc * 100:.2f}% | "
-            f"val loss={val_loss:.4f} acc={val_acc * 100:.2f}% | "
-            f"test loss={test_loss:.4f} acc={test_acc * 100:.2f}%"
+            f"  train loss={train_metrics['loss']:.4f} acc={train_metrics['acc'] * 100:.2f}% | "
+            f"val loss={val_metrics['loss']:.4f} acc={val_metrics['acc'] * 100:.2f}% | "
+            f"test loss={test_metrics['loss']:.4f} acc={test_metrics['acc'] * 100:.2f}%"
         )
         epoch_metrics = {
             "epoch": epoch,
-            "train_loss": train_loss,
-            "train_acc": train_acc,
-            "val_loss": val_loss,
-            "val_acc": val_acc,
-            "test_loss": test_loss,
-            "test_acc": test_acc,
+            "train_loss": train_metrics["loss"],
+            "train_acc": train_metrics["acc"],
+            "val_loss": val_metrics["loss"],
+            "val_acc": val_metrics["acc"],
+            "test_loss": test_metrics["loss"],
+            "test_acc": test_metrics["acc"],
         }
+        if "macro_f1" in val_metrics:
+            epoch_metrics["val_macro_f1"] = val_metrics["macro_f1"]
+        if "macro_f1" in test_metrics:
+            epoch_metrics["test_macro_f1"] = test_metrics["macro_f1"]
         history.append(epoch_metrics)
+
+        previous_lr = optimizer.param_groups[0]["lr"]
+        scheduler.step(epoch_metrics[args.early_stopping_metric])
+        current_lr = optimizer.param_groups[0]["lr"]
+        if current_lr < previous_lr:
+            print(f"  lr reduced: {previous_lr:.6g} -> {current_lr:.6g}")
 
         best_metric_value, best_epoch, best_state_dict, patience_counter, improved = maybe_update_early_stopping(
             model=model,
@@ -231,17 +269,19 @@ def save_run_outputs(
         run_name=args.run_name,
         title_prefix=f"{get_dataset_display_name(args.dataset)} {spec.plot_title_prefix}",
     )
-    save_confusion_matrix_csv(
-        confusion_matrix=selected_test_metrics["confusion_matrix"],
-        class_names=class_names,
-        path=confusion_csv_path,
-    )
-    plot_confusion_matrix(
-        confusion_matrix=selected_test_metrics["confusion_matrix"],
-        class_names=class_names,
-        path=confusion_figure_path,
-        title=f"{args.run_name} Test Confusion Matrix",
-    )
+    task_type = metadata.get("task_type", "single_label")
+    if task_type == "single_label":
+        save_confusion_matrix_csv(
+            confusion_matrix=selected_test_metrics["confusion_matrix"],
+            class_names=class_names,
+            path=confusion_csv_path,
+        )
+        plot_confusion_matrix(
+            confusion_matrix=selected_test_metrics["confusion_matrix"],
+            class_names=class_names,
+            path=confusion_figure_path,
+            title=f"{args.run_name} Test Confusion Matrix",
+        )
     save_best_checkpoint(
         path=checkpoint_path,
         model=model,
@@ -289,14 +329,20 @@ def save_run_outputs(
         "test_per_class_precision": selected_test_metrics["per_class_precision"],
         "test_per_class_recall": selected_test_metrics["per_class_recall"],
         "test_per_class_f1": selected_test_metrics["per_class_f1"],
-        "test_confusion_matrix_csv": str(confusion_csv_path),
-        "test_confusion_matrix_figure": str(confusion_figure_path),
         "checkpoint_path": str(checkpoint_path),
         "model_name": args.model,
         "model_family": metadata["architecture"],
         "model_variant": metadata["variant"],
         "position_encoding": metadata.get("position_encoding"),
+        "task_type": task_type,
     }
+    if "subset_accuracy" in selected_val_metrics:
+        selected_model_metrics["val_subset_accuracy"] = selected_val_metrics["subset_accuracy"]
+    if "subset_accuracy" in selected_test_metrics:
+        selected_model_metrics["test_subset_accuracy"] = selected_test_metrics["subset_accuracy"]
+    if task_type == "single_label":
+        selected_model_metrics["test_confusion_matrix_csv"] = str(confusion_csv_path)
+        selected_model_metrics["test_confusion_matrix_figure"] = str(confusion_figure_path)
     save_summary_json(
         args,
         history,
@@ -310,8 +356,9 @@ def save_run_outputs(
     print(f"Saved summary: {summary_path}")
     print(f"Saved loss plot: {loss_path}")
     print(f"Saved accuracy plot: {acc_path}")
-    print(f"Saved confusion matrix CSV: {confusion_csv_path}")
-    print(f"Saved confusion matrix figure: {confusion_figure_path}")
+    if task_type == "single_label":
+        print(f"Saved confusion matrix CSV: {confusion_csv_path}")
+        print(f"Saved confusion matrix figure: {confusion_figure_path}")
     print(f"Saved best checkpoint: {checkpoint_path}")
 
 
@@ -326,12 +373,23 @@ def main():
 
     model, model_config, train_loader, val_loader, test_loader, metadata = build_selected_experiment(args, spec)
     model = model.to(device)
+    task_type = metadata.get("task_type", "single_label")
 
-    criterion = nn.CrossEntropyLoss()
+    if task_type == "multilabel":
+        criterion = nn.BCEWithLogitsLoss()
+    else:
+        criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.lr,
         weight_decay=args.weight_decay,
+    )
+    scheduler = ReduceLROnPlateau(
+        optimizer,
+        mode=get_metric_mode(args.early_stopping_metric),
+        factor=args.lr_plateau_factor,
+        patience=args.lr_plateau_patience,
+        min_lr=args.lr_plateau_min_lr,
     )
 
     run_state = train_and_collect_history(
@@ -342,7 +400,9 @@ def main():
         test_loader=test_loader,
         criterion=criterion,
         optimizer=optimizer,
+        scheduler=scheduler,
         device=device,
+        task_type=task_type,
     )
 
     if run_state["best_state_dict"] is not None:
@@ -356,6 +416,7 @@ def main():
         criterion=criterion,
         device=device,
         num_classes=num_classes,
+        task_type=task_type,
     )
     selected_test_metrics = evaluate_with_details(
         model=model,
@@ -363,6 +424,7 @@ def main():
         criterion=criterion,
         device=device,
         num_classes=num_classes,
+        task_type=task_type,
     )
     print(
         f"Selected checkpoint epoch {run_state['best_epoch']}: "

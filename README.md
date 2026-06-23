@@ -504,3 +504,30 @@ python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset syntheti
 python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset synthetic_col_code --epochs 20 --seed 42 --run-name row_model_on_col_code
 python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset synthetic_col_code --epochs 20 --seed 42 --run-name col_model_on_col_code
 ```
+
+## CADB Elements Multi-Label Note
+
+`cadb_elements` uses the original `composition_elements.json` annotations as a multi-label classification task.
+
+Current label set:
+
+- `horizontal`
+- `vertical`
+- `diagonal`
+- `triangle`
+- `symmetric`
+- `pattern`
+
+涓枃璇存槑锛?
+- 杩欎笉鏄崟鏍囩鍒嗙被
+- 姣忓紶鍥惧彲浠ュ悓鏃舵湁澶氫釜鏋勫浘缁撴瀯鏍囩
+- 妯″瀷杈撳嚭鐨勬槸鈥滃摢浜?composition elements 鍑虹幇浜嗏€濓紝鑰屼笉鏄€滃睘浜庡摢涓€涓崟鐙被鈥?
+- 璁粌鏃堕粯璁ゆ洿鎺ㄨ崘鐢?`val_macro_f1` 鐩戞帶鏃╁仠
+
+Recommended commands:
+
+```bash
+python train_cifar10_experiment.py --model vit_baseline --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name baseline_cadb_elements_seed42
+python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name row_cadb_elements_seed42
+python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name col_cadb_elements_seed42
+```

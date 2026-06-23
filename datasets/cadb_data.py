@@ -10,6 +10,26 @@ from torchvision import transforms
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 TARGET_CLASSES = ("horizontal", "vertical")
+CADB_ELEMENT_LABELS = (
+    "horizontal",
+    "vertical",
+    "diagonal",
+    "triangle",
+    "symmetric",
+    "pattern",
+)
+SCENE_CATEGORIES = (
+    "animal",
+    "plant",
+    "human",
+    "static",
+    "architecture",
+    "landscape",
+    "cityscape",
+    "indoor",
+    "night",
+    "other",
+)
 ELEMENT_ANNOTATION_FILENAME = "composition_elements.json"
 SPLIT_FILENAME = "split.json"
 CLASS_CONTAINER_KEYS = {
@@ -262,6 +282,107 @@ def load_cadb_orientation_samples(cadb_root, label_mode="exclusive"):
     return samples
 
 
+def load_cadb_scene_samples(cadb_root):
+    cadb_root = Path(cadb_root)
+    images_dir = cadb_root / "images"
+    scene_annotation_path = cadb_root / "scene_categories.json"
+    split_path = cadb_root / SPLIT_FILENAME
+
+    if not scene_annotation_path.exists():
+        raise FileNotFoundError(f"Could not find CADB scene annotation file: {scene_annotation_path}")
+    if not split_path.exists():
+        raise FileNotFoundError(f"Could not find CADB split file: {split_path}")
+    if not images_dir.exists():
+        raise FileNotFoundError(f"Could not find CADB images directory: {images_dir}")
+
+    with scene_annotation_path.open("r", encoding="utf-8") as handle:
+        scene_labels = json.load(handle)
+    with split_path.open("r", encoding="utf-8") as handle:
+        split_data = json.load(handle)
+
+    class_to_index = {name: index for index, name in enumerate(SCENE_CATEGORIES)}
+    train_names = set(split_data.get("train", []))
+    test_names = set(split_data.get("test", []))
+
+    samples = []
+    for image_name, scene_name in scene_labels.items():
+        if scene_name not in class_to_index:
+            continue
+
+        image_path = images_dir / image_name
+        if not image_path.exists():
+            continue
+
+        split_name = None
+        if image_name in train_names:
+            split_name = "train"
+        elif image_name in test_names:
+            split_name = "test"
+
+        samples.append((image_path, class_to_index[scene_name], split_name))
+
+    if not samples:
+        raise ValueError("No CADB scene samples were found. Check the dataset path and annotation files.")
+
+    return samples
+
+
+def load_cadb_elements_multilabel_samples(cadb_root, element_labels=CADB_ELEMENT_LABELS):
+    cadb_root = Path(cadb_root)
+    images_dir = cadb_root / "images"
+    element_annotation_path = cadb_root / ELEMENT_ANNOTATION_FILENAME
+    split_path = cadb_root / SPLIT_FILENAME
+
+    if not element_annotation_path.exists():
+        raise FileNotFoundError(f"Could not find CADB element annotation file: {element_annotation_path}")
+    if not split_path.exists():
+        raise FileNotFoundError(f"Could not find CADB split file: {split_path}")
+    if not images_dir.exists():
+        raise FileNotFoundError(f"Could not find CADB images directory: {images_dir}")
+
+    with element_annotation_path.open("r", encoding="utf-8") as handle:
+        element_annotation = json.load(handle)
+    with split_path.open("r", encoding="utf-8") as handle:
+        split_data = json.load(handle)
+
+    label_to_index = {label_name: index for index, label_name in enumerate(element_labels)}
+    train_names = set(split_data.get("train", []))
+    test_names = set(split_data.get("test", []))
+
+    samples = []
+    for image_name, record in element_annotation.items():
+        if not isinstance(record, dict):
+            continue
+
+        image_path = images_dir / image_name
+        if not image_path.exists():
+            continue
+
+        label_vector = torch.zeros(len(element_labels), dtype=torch.float32)
+        has_any_label = False
+        for label_name, label_index in label_to_index.items():
+            element_value = record.get(label_name, [])
+            is_present = isinstance(element_value, list) and len(element_value) > 0
+            label_vector[label_index] = 1.0 if is_present else 0.0
+            has_any_label = has_any_label or is_present
+
+        if not has_any_label:
+            continue
+
+        split_name = None
+        if image_name in train_names:
+            split_name = "train"
+        elif image_name in test_names:
+            split_name = "test"
+
+        samples.append((image_path, label_vector, split_name))
+
+    if not samples:
+        raise ValueError("No CADB element multi-label samples were found. Check the dataset path and label list.")
+
+    return samples
+
+
 def stratified_split_indices(labels, val_ratio, test_ratio, seed):
     if not 0.0 < val_ratio < 1.0:
         raise ValueError("val_ratio must be between 0 and 1.")
@@ -374,6 +495,40 @@ class CADBOrientationDataset(Dataset):
         return image, label
 
 
+class CADBSceneDataset(Dataset):
+    classes = list(SCENE_CATEGORIES)
+
+    def __init__(self, samples, transform):
+        self.samples = list(samples)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        image_path, label = self.samples[index]
+        image = Image.open(image_path).convert("RGB")
+        image = self.transform(image)
+        return image, label
+
+
+class CADBElementsMultiLabelDataset(Dataset):
+    classes = list(CADB_ELEMENT_LABELS)
+
+    def __init__(self, samples, transform):
+        self.samples = list(samples)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        image_path, label_vector = self.samples[index]
+        image = Image.open(image_path).convert("RGB")
+        image = self.transform(image)
+        return image, label_vector
+
+
 def build_cadb_orientation_dataloaders(
     cadb_root,
     batch_size,
@@ -432,6 +587,163 @@ def build_cadb_orientation_dataloaders(
 
     samples = [(image_path, label) for image_path, label, _ in samples_with_split]
     full_dataset = CADBOrientationDataset(samples=samples, transform=transform)
+    train_dataset = Subset(full_dataset, train_indices)
+    val_dataset = Subset(full_dataset, val_indices)
+    test_dataset = Subset(full_dataset, test_indices)
+
+    train_dataset = make_subset(train_dataset, train_subset, seed)
+    val_dataset = make_subset(val_dataset, val_subset, seed)
+    test_dataset = make_subset(test_dataset, test_subset, seed)
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+
+    return train_loader, val_loader, test_loader
+
+
+def build_cadb_scene_dataloaders(
+    cadb_root,
+    batch_size,
+    train_subset,
+    val_subset,
+    test_subset,
+    num_workers,
+    seed,
+    val_ratio,
+    test_ratio,
+    image_size=96,
+    use_imagenet_norm=True,
+):
+    mean = IMAGENET_MEAN if use_imagenet_norm else (0.5, 0.5, 0.5)
+    std = IMAGENET_STD if use_imagenet_norm else (0.5, 0.5, 0.5)
+    transform = transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean, std),
+        ]
+    )
+
+    samples_with_split = load_cadb_scene_samples(cadb_root=cadb_root)
+    labels = [label for _, label, _ in samples_with_split]
+
+    explicit_train_indices = [index for index, (_, _, split_name) in enumerate(samples_with_split) if split_name == "train"]
+    explicit_test_indices = [index for index, (_, _, split_name) in enumerate(samples_with_split) if split_name == "test"]
+
+    if explicit_train_indices and explicit_test_indices:
+        train_indices, val_indices = split_train_val_from_indices(
+            labels=labels,
+            train_pool_indices=explicit_train_indices,
+            val_ratio=val_ratio,
+            seed=seed,
+        )
+        test_indices = sorted(explicit_test_indices)
+    else:
+        train_indices, val_indices, test_indices = stratified_split_indices(
+            labels=labels,
+            val_ratio=val_ratio,
+            test_ratio=test_ratio,
+            seed=seed,
+        )
+
+    samples = [(image_path, label) for image_path, label, _ in samples_with_split]
+    full_dataset = CADBSceneDataset(samples=samples, transform=transform)
+    train_dataset = Subset(full_dataset, train_indices)
+    val_dataset = Subset(full_dataset, val_indices)
+    test_dataset = Subset(full_dataset, test_indices)
+
+    train_dataset = make_subset(train_dataset, train_subset, seed)
+    val_dataset = make_subset(val_dataset, val_subset, seed)
+    test_dataset = make_subset(test_dataset, test_subset, seed)
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+
+    return train_loader, val_loader, test_loader
+
+
+def build_cadb_elements_multilabel_dataloaders(
+    cadb_root,
+    batch_size,
+    train_subset,
+    val_subset,
+    test_subset,
+    num_workers,
+    seed,
+    val_ratio,
+    image_size=96,
+    use_imagenet_norm=True,
+):
+    mean = IMAGENET_MEAN if use_imagenet_norm else (0.5, 0.5, 0.5)
+    std = IMAGENET_STD if use_imagenet_norm else (0.5, 0.5, 0.5)
+    transform = transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean, std),
+        ]
+    )
+
+    samples_with_split = load_cadb_elements_multilabel_samples(cadb_root=cadb_root)
+
+    explicit_train_indices = [index for index, (_, _, split_name) in enumerate(samples_with_split) if split_name == "train"]
+    explicit_test_indices = [index for index, (_, _, split_name) in enumerate(samples_with_split) if split_name == "test"]
+
+    if not explicit_train_indices or not explicit_test_indices:
+        raise ValueError("CADB elements multi-label task expects official train/test splits from split.json.")
+
+    generator = torch.Generator().manual_seed(seed)
+    shuffled_train = torch.tensor(explicit_train_indices)[
+        torch.randperm(len(explicit_train_indices), generator=generator)
+    ].tolist()
+    val_count = max(1, int(len(shuffled_train) * val_ratio))
+    if val_count >= len(shuffled_train):
+        raise ValueError("val_ratio leaves no training samples for CADB elements multi-label.")
+
+    val_indices = sorted(shuffled_train[:val_count])
+    train_indices = sorted(shuffled_train[val_count:])
+    test_indices = sorted(explicit_test_indices)
+
+    samples = [(image_path, label_vector) for image_path, label_vector, _ in samples_with_split]
+    full_dataset = CADBElementsMultiLabelDataset(samples=samples, transform=transform)
     train_dataset = Subset(full_dataset, train_indices)
     val_dataset = Subset(full_dataset, val_indices)
     test_dataset = Subset(full_dataset, test_indices)

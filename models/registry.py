@@ -5,7 +5,12 @@ from typing import Any, Callable
 import torch.nn as nn
 from torchvision import models
 
-from datasets.cadb_data import build_cadb_orientation_dataloaders, build_cadb_scene_dataloaders
+from datasets.cadb_data import (
+    CADB_ELEMENT_LABELS,
+    build_cadb_elements_multilabel_dataloaders,
+    build_cadb_orientation_dataloaders,
+    build_cadb_scene_dataloaders,
+)
 from datasets.cifar10_data import build_resnet_dataloaders, build_vit_dataloaders
 from datasets.synthetic_orientation_data import (
     build_synthetic_col_code_dataloaders,
@@ -42,6 +47,7 @@ SUPPORTED_DATASETS = (
     "synthetic_col_code",
     "cadb_orientation",
     "cadb_scene",
+    "cadb_elements",
 )
 DATASET_NUM_CLASSES = {
     "cifar10": 10,
@@ -52,6 +58,7 @@ DATASET_NUM_CLASSES = {
     "synthetic_col_code": 2,
     "cadb_orientation": 2,
     "cadb_scene": 10,
+    "cadb_elements": len(CADB_ELEMENT_LABELS),
 }
 DATASET_DEFAULT_IMAGE_SIZE = {
     "cifar10": 32,
@@ -62,6 +69,7 @@ DATASET_DEFAULT_IMAGE_SIZE = {
     "synthetic_col_code": 32,
     "cadb_orientation": 96,
     "cadb_scene": 96,
+    "cadb_elements": 96,
 }
 DATASET_DISPLAY_NAMES = {
     "cifar10": "CIFAR-10",
@@ -72,6 +80,7 @@ DATASET_DISPLAY_NAMES = {
     "synthetic_col_code": "Synthetic Column-Code",
     "cadb_orientation": "CADB Orientation",
     "cadb_scene": "CADB Scene Categories",
+    "cadb_elements": "CADB Composition Elements",
 }
 
 
@@ -255,6 +264,19 @@ def build_vit_family_dataloaders(args):
             image_size=get_dataset_image_size(args),
             use_imagenet_norm=True,
         )
+    if args.dataset == "cadb_elements":
+        return build_cadb_elements_multilabel_dataloaders(
+            cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+            image_size=get_dataset_image_size(args),
+            use_imagenet_norm=True,
+        )
     raise ValueError(f"Unsupported dataset for ViT family: {args.dataset}")
 
 
@@ -418,6 +440,19 @@ def build_resnet18_scratch_dataloaders(args):
             image_size=image_size,
             use_imagenet_norm=False,
         )
+    if args.dataset == "cadb_elements":
+        return build_cadb_elements_multilabel_dataloaders(
+            cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            val_ratio=args.val_ratio,
+            image_size=image_size,
+            use_imagenet_norm=False,
+        )
     raise ValueError(f"Unsupported dataset for ResNet18 scratch: {args.dataset}")
 
 
@@ -453,6 +488,8 @@ def build_resnet18_imagenet_dataloaders(args):
             image_size=image_size,
             use_imagenet_norm=True,
         )
+    if args.dataset == "cadb_elements":
+        raise ValueError("resnet18_imagenet is not enabled for the CADB multi-label elements task yet.")
     if args.dataset in {"synthetic_orientation", "synthetic_orientation_clean", "synthetic_orientation_hard", "synthetic_row_code", "synthetic_col_code"}:
         raise ValueError("resnet18_imagenet currently supports only cifar10, cadb_orientation, and cadb_scene.")
     if args.dataset != "cifar10":
@@ -581,6 +618,10 @@ def build_selected_experiment(args, spec):
         "architecture": spec.architecture,
         "variant": spec.variant,
         "plot_title_prefix": spec.plot_title_prefix,
+        "task_type": "single_label",
         **spec.extra_summary_fields,
     }
+    if args.dataset == "cadb_elements":
+        metadata["task_type"] = "multilabel"
+        metadata["label_names"] = list(CADB_ELEMENT_LABELS)
     return model, model_config, train_loader, val_loader, test_loader, metadata
