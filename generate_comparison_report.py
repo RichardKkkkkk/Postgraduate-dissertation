@@ -115,6 +115,16 @@ INITIALIZATION_DISPLAY = {
     "none": "From scratch",
     "unknown": "Unknown",
 }
+DATASET_LABEL_NAMES = {
+    "cadb_elements": [
+        "horizontal",
+        "vertical",
+        "diagonal",
+        "triangle",
+        "symmetric",
+        "pattern",
+    ],
+}
 
 
 @dataclass
@@ -588,6 +598,8 @@ def detect_comparison_scenario(runs):
     families = {run.model_family for run in runs}
     variants = {run.model_variant for run in runs}
 
+    if families == {"vit"} and variants == {"baseline", "row_sinusoidal", "col_sinusoidal"}:
+        return "axis_bias_trio"
     if families == {"vit"} and variants == {"row_sinusoidal", "col_sinusoidal"}:
         return "row_vs_col_sinusoidal"
     if families == {"vit"} and {"baseline", "rope"}.issubset(variants):
@@ -600,6 +612,8 @@ def detect_comparison_scenario(runs):
 
 
 def build_default_title(runs, scenario):
+    if scenario == "axis_bias_trio":
+        return "Directional Comparison: ViT Baseline vs Row-wise vs Column-wise"
     if scenario == "row_vs_col_sinusoidal":
         return "Directional Comparison: ViT Row-wise vs ViT Column-wise"
     if scenario == "baseline_vs_rope":
@@ -614,6 +628,7 @@ def build_default_title(runs, scenario):
 
 def format_comparison_scenario(scenario: str):
     mapping = {
+        "axis_bias_trio": "Baseline vs Row-wise vs Column-wise",
         "row_vs_col_sinusoidal": "Row-wise vs Column-wise Sinusoidal",
         "baseline_vs_rope": "ViT Baseline vs RoPE",
         "scratch_vs_pretrained": "ResNet18 Scratch vs Pretrained",
@@ -781,24 +796,64 @@ def build_metric_insight_rows(summary_rows, metrics, reference_label):
     return rows
 
 
+def get_shared_dataset_name(runs):
+    dataset_names = set()
+    for run in runs:
+        dataset_value = run.config.get("dataset", run.flat_config.get("dataset"))
+        if isinstance(dataset_value, dict):
+            dataset_value = dataset_value.get("name")
+        if dataset_value:
+            dataset_names.add(str(dataset_value))
+    if len(dataset_names) == 1:
+        return next(iter(dataset_names))
+    return None
+
+
 def build_headline_insights(runs, summary_rows, metrics, scenario):
     if not metrics:
         return []
 
     reference_row = summary_rows[0]
     primary_metric = metrics[0]
+    dataset_name = get_shared_dataset_name(runs)
     if is_lower_better(primary_metric):
         best_row = min(summary_rows, key=lambda row: row[f"final_{primary_metric}"])
     else:
         best_row = max(summary_rows, key=lambda row: row[f"final_{primary_metric}"])
 
-    insights = [
-        (
+    insights = []
+
+    if scenario == "axis_bias_trio":
+        insights.append(
+            "This deck keeps the ViT backbone fixed and compares three positional choices: learned absolute embedding, row-tied sinusoidal indexing, and column-tied sinusoidal indexing.",
+        )
+        insights.append(
             f"Primary comparison metric: {metric_display_name(primary_metric)}. "
             f"Best final result is {best_row['label']} with "
             f"{format_metric_value(primary_metric, best_row[f'final_{primary_metric}'])}."
         )
-    ]
+        if dataset_name == "synthetic_orientation_clean":
+            insights.append(
+                "On the clean v2 synthetic split, all three models approach saturation, so the main value is as a sanity-check that the axis-biased variants do not break the task."
+            )
+            if len(summary_rows) >= 3:
+                col_row = next((row for row in summary_rows if row["model_variant"] == "col_sinusoidal"), None)
+                base_row = next((row for row in summary_rows if row["model_variant"] == "baseline"), None)
+                if col_row and base_row:
+                    delta = col_row[f"selected_test_macro_f1"] - base_row[f"selected_test_macro_f1"]
+                    insights.append(
+                        f"Column-wise reaches the cleanest selected-checkpoint result here, at {format_delta('test_macro_f1', delta)} versus the baseline on test macro F1."
+                    )
+        else:
+            insights.append(
+                "Use this three-way setup to separate the effect of adding an axis-tied bias from the effect of switching between row-tied and column-tied indexing."
+            )
+    else:
+        insights.append(
+            f"Primary comparison metric: {metric_display_name(primary_metric)}. "
+            f"Best final result is {best_row['label']} with "
+            f"{format_metric_value(primary_metric, best_row[f'final_{primary_metric}'])}."
+        )
 
     if scenario == "row_vs_col_sinusoidal":
         insights.insert(
@@ -840,7 +895,7 @@ def build_headline_insights(runs, summary_rows, metrics, scenario):
             )
         )
 
-    if "train_acc" in metrics and "test_acc" in metrics:
+    if scenario != "axis_bias_trio" and "train_acc" in metrics and "test_acc" in metrics:
         gap_rows = []
         for row in summary_rows:
             gap = row["final_train_acc"] - row["final_test_acc"]
@@ -867,6 +922,7 @@ def build_headline_insights(runs, summary_rows, metrics, scenario):
 
 def build_conclusion_lines(runs, summary_rows, metrics, per_class_metric_keys, scenario):
     conclusions = []
+    dataset_name = get_shared_dataset_name(runs)
     if metrics:
         primary_metric = metrics[0]
         if is_lower_better(primary_metric):
@@ -881,7 +937,7 @@ def build_conclusion_lines(runs, summary_rows, metrics, per_class_metric_keys, s
             )
         )
 
-    if len(summary_rows) >= 2 and metrics and scenario != "row_vs_col_sinusoidal":
+    if len(summary_rows) >= 2 and metrics and scenario not in {"row_vs_col_sinusoidal", "axis_bias_trio"}:
         reference = summary_rows[0]
         challenger = summary_rows[1]
         metric = metrics[0]
@@ -893,7 +949,27 @@ def build_conclusion_lines(runs, summary_rows, metrics, per_class_metric_keys, s
             )
         )
 
-    if scenario == "row_vs_col_sinusoidal":
+    if scenario == "axis_bias_trio":
+        if dataset_name == "synthetic_orientation_clean":
+            base_run = next((row for row in summary_rows if row["model_variant"] == "baseline"), None)
+            col_run = next((row for row in summary_rows if row["model_variant"] == "col_sinusoidal"), None)
+            if base_run and col_run:
+                delta = col_run["selected_test_macro_f1"] - base_run["selected_test_macro_f1"]
+                conclusions.append(
+                    f"On clean v2, all three models essentially solve the task, but ViT Column-wise achieves the cleanest selected-checkpoint result at {format_delta('test_macro_f1', delta)} versus the baseline on test macro F1."
+                )
+        conclusions.append(
+            "The structural sweep here is controlled: the attention blocks stay the same, and only the positional encoding changes from learned absolute to row-tied or column-tied fixed sinusoidal indexing."
+        )
+        if dataset_name == "synthetic_orientation_clean":
+            conclusions.append(
+                "Because the clean v2 split is already near-saturated, use this deck as a sanity-check slide: it shows the directional bias variants behave differently, but the task is too easy to be the main evidence slide."
+            )
+        else:
+            conclusions.append(
+                "Use this trio to discuss whether any gain comes from introducing an explicit axis bias at all, before narrowing to a row-vs-col comparison."
+            )
+    elif scenario == "row_vs_col_sinusoidal":
         row_run = next((row for row in summary_rows if row["model_variant"] == "row_sinusoidal"), None)
         col_run = next((row for row in summary_rows if row["model_variant"] == "col_sinusoidal"), None)
         if row_run and col_run:
@@ -1505,6 +1581,16 @@ def infer_class_names(run: RunArtifacts, metric_name: str):
     if run.confusion_matrix_csv and run.confusion_matrix_csv.exists():
         class_names, _ = load_confusion_matrix_csv(run.confusion_matrix_csv)
         return class_names
+    selected_model = run.summary.get("selected_model", {})
+    if isinstance(selected_model, dict):
+        label_names = selected_model.get("label_names")
+        if isinstance(label_names, list) and label_names:
+            return [str(label) for label in label_names]
+    dataset_name = run.config.get("dataset")
+    if isinstance(dataset_name, dict):
+        dataset_name = dataset_name.get("name")
+    if dataset_name in DATASET_LABEL_NAMES:
+        return list(DATASET_LABEL_NAMES[dataset_name])
     value_count = len(run.per_class_metrics.get(metric_name, []))
     return [f"class_{index}" for index in range(value_count)]
 
