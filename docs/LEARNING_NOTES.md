@@ -270,3 +270,20 @@ train_loader, val_loader, test_loader
 
 - 横向/纵向的结构线索，是否更偏好某一种 axis-tied positional bias
 - 观察到的变化是不是来自位置编码方向，而不是来自更大的模型结构改写
+
+## 为什么 clean v2 更像 sanity check
+
+`synthetic_orientation_clean` 的作用不是把三种模型完全拉开，
+而是先看：
+
+- 方向性位置编码有没有把任务做坏
+- baseline / row / col 在一个更干净的 controlled setting 下是否都能顺利收敛
+
+如果三者都接近满分，这不代表实验没用。
+
+它说明的是：
+
+- 这个任务已经太容易
+- 这一步适合当作 “clean sanity check”
+- 真正更能拉开差异的下一步，应该去 `synthetic_orientation_hard`
+  或更难的真实数据集

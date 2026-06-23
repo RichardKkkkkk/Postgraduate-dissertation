@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import torch
 
 
-EARLY_STOPPING_METRICS = ("val_acc", "val_loss")
+EARLY_STOPPING_METRICS = ("val_acc", "val_loss", "val_macro_f1")
 
 
 def set_seed(seed):
@@ -30,15 +30,26 @@ def get_device():
     return torch.device("cpu")
 
 
-def train_one_epoch(model, loader, criterion, optimizer, device):
+def _compute_single_label_accuracy(predictions, targets):
+    return (predictions == targets).sum().item() / max(1, targets.numel())
+
+
+def _compute_multilabel_accuracy(predictions, targets):
+    return (predictions == targets).sum().item() / max(1, targets.numel())
+
+
+def train_one_epoch(model, loader, criterion, optimizer, device, task_type="single_label", threshold=0.5):
     model.train()
     total_loss = 0.0
-    correct = 0
-    total = 0
+    total_acc_numerator = 0.0
+    total_acc_denominator = 0
 
     for images, labels in loader:
         images = images.to(device)
-        labels = labels.to(device)
+        if task_type == "multilabel":
+            labels = labels.to(device=device, dtype=torch.float32)
+        else:
+            labels = labels.to(device)
 
         logits = model(images)
         loss = criterion(logits, labels)
@@ -49,34 +60,76 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
 
         batch_size = labels.size(0)
         total_loss += loss.item() * batch_size
-        predictions = logits.argmax(dim=1)
-        correct += (predictions == labels).sum().item()
-        total += batch_size
+        if task_type == "multilabel":
+            probabilities = torch.sigmoid(logits)
+            predictions = (probabilities >= threshold).to(dtype=labels.dtype)
+            total_acc_numerator += (predictions == labels).sum().item()
+            total_acc_denominator += labels.numel()
+        else:
+            predictions = logits.argmax(dim=1)
+            total_acc_numerator += (predictions == labels).sum().item()
+            total_acc_denominator += batch_size
 
-    return total_loss / total, correct / total
+    return {
+        "loss": total_loss / max(1, len(loader.dataset)),
+        "acc": total_acc_numerator / max(1, total_acc_denominator),
+    }
 
 
 @torch.no_grad()
-def evaluate(model, loader, criterion, device):
+def evaluate(model, loader, criterion, device, task_type="single_label", threshold=0.5):
     model.eval()
     total_loss = 0.0
-    correct = 0
-    total = 0
+    all_predictions = []
+    all_targets = []
+    total_acc_numerator = 0.0
+    total_acc_denominator = 0
 
     for images, labels in loader:
         images = images.to(device)
-        labels = labels.to(device)
+        if task_type == "multilabel":
+            labels = labels.to(device=device, dtype=torch.float32)
+        else:
+            labels = labels.to(device)
 
         logits = model(images)
         loss = criterion(logits, labels)
 
         batch_size = labels.size(0)
         total_loss += loss.item() * batch_size
-        predictions = logits.argmax(dim=1)
-        correct += (predictions == labels).sum().item()
-        total += batch_size
+        if task_type == "multilabel":
+            probabilities = torch.sigmoid(logits)
+            predictions = (probabilities >= threshold).to(dtype=labels.dtype)
+            total_acc_numerator += (predictions == labels).sum().item()
+            total_acc_denominator += labels.numel()
+        else:
+            predictions = logits.argmax(dim=1)
+            total_acc_numerator += (predictions == labels).sum().item()
+            total_acc_denominator += batch_size
 
-    return total_loss / total, correct / total
+        all_predictions.append(predictions.cpu())
+        all_targets.append(labels.cpu())
+
+    predictions = torch.cat(all_predictions)
+    targets = torch.cat(all_targets)
+
+    if task_type == "multilabel":
+        metrics = compute_multilabel_metrics(targets=targets, predictions=predictions)
+    else:
+        confusion_matrix = compute_confusion_matrix(
+            targets=targets.tolist(),
+            predictions=predictions.tolist(),
+            num_classes=len(torch.unique(targets)),
+        )
+        metrics = compute_classification_metrics(confusion_matrix)
+
+    metrics.update(
+        {
+            "loss": total_loss / max(1, len(loader.dataset)),
+            "acc": total_acc_numerator / max(1, total_acc_denominator),
+        }
+    )
+    return metrics
 
 
 def compute_confusion_matrix(targets, predictions, num_classes):
@@ -120,46 +173,103 @@ def compute_classification_metrics(confusion_matrix):
     }
 
 
+def compute_multilabel_metrics(targets, predictions):
+    targets = targets.to(torch.float32)
+    predictions = predictions.to(torch.float32)
+
+    true_positives = (predictions * targets).sum(dim=0)
+    predicted_positives = predictions.sum(dim=0)
+    actual_positives = targets.sum(dim=0)
+
+    precision = torch.where(
+        predicted_positives > 0,
+        true_positives / predicted_positives,
+        torch.zeros_like(true_positives),
+    )
+    recall = torch.where(
+        actual_positives > 0,
+        true_positives / actual_positives,
+        torch.zeros_like(true_positives),
+    )
+    f1 = torch.where(
+        (precision + recall) > 0,
+        2 * precision * recall / (precision + recall),
+        torch.zeros_like(precision),
+    )
+    per_class_accuracy = (predictions == targets).to(torch.float32).mean(dim=0)
+    subset_accuracy = (predictions == targets).all(dim=1).to(torch.float32).mean()
+
+    return {
+        "macro_precision": precision.mean().item(),
+        "macro_recall": recall.mean().item(),
+        "macro_f1": f1.mean().item(),
+        "per_class_precision": precision.tolist(),
+        "per_class_recall": recall.tolist(),
+        "per_class_f1": f1.tolist(),
+        "per_class_accuracy": per_class_accuracy.tolist(),
+        "subset_accuracy": subset_accuracy.item(),
+    }
+
+
 @torch.no_grad()
-def evaluate_with_details(model, loader, criterion, device, num_classes):
+def evaluate_with_details(model, loader, criterion, device, num_classes, task_type="single_label", threshold=0.5):
     model.eval()
     total_loss = 0.0
-    correct = 0
-    total = 0
     all_predictions = []
     all_targets = []
+    total_acc_numerator = 0.0
+    total_acc_denominator = 0
 
     for images, labels in loader:
         images = images.to(device)
-        labels = labels.to(device)
+        if task_type == "multilabel":
+            labels = labels.to(device=device, dtype=torch.float32)
+        else:
+            labels = labels.to(device)
 
         logits = model(images)
         loss = criterion(logits, labels)
-        predictions = logits.argmax(dim=1)
+        if task_type == "multilabel":
+            probabilities = torch.sigmoid(logits)
+            predictions = (probabilities >= threshold).to(dtype=labels.dtype)
+            total_acc_numerator += (predictions == labels).sum().item()
+            total_acc_denominator += labels.numel()
+        else:
+            predictions = logits.argmax(dim=1)
+            total_acc_numerator += (predictions == labels).sum().item()
+            total_acc_denominator += labels.size(0)
 
         batch_size = labels.size(0)
         total_loss += loss.item() * batch_size
-        correct += (predictions == labels).sum().item()
-        total += batch_size
 
         all_predictions.append(predictions.cpu())
         all_targets.append(labels.cpu())
 
     predictions = torch.cat(all_predictions)
     targets = torch.cat(all_targets)
-    confusion_matrix = compute_confusion_matrix(
-        targets=targets.tolist(),
-        predictions=predictions.tolist(),
-        num_classes=num_classes,
-    )
-    metrics = compute_classification_metrics(confusion_matrix)
-    metrics.update(
-        {
-            "loss": total_loss / total,
-            "acc": correct / total,
-            "confusion_matrix": confusion_matrix.tolist(),
-        }
-    )
+    if task_type == "multilabel":
+        metrics = compute_multilabel_metrics(targets=targets, predictions=predictions)
+        metrics.update(
+            {
+                "loss": total_loss / max(1, len(loader.dataset)),
+                "acc": total_acc_numerator / max(1, total_acc_denominator),
+                "confusion_matrix": None,
+            }
+        )
+    else:
+        confusion_matrix = compute_confusion_matrix(
+            targets=targets.tolist(),
+            predictions=predictions.tolist(),
+            num_classes=num_classes,
+        )
+        metrics = compute_classification_metrics(confusion_matrix)
+        metrics.update(
+            {
+                "loss": total_loss / max(1, len(loader.dataset)),
+                "acc": total_acc_numerator / max(1, total_acc_denominator),
+                "confusion_matrix": confusion_matrix.tolist(),
+            }
+        )
     return metrics
 
 
@@ -264,15 +374,11 @@ def save_best_checkpoint(path, model, model_config, device, args, best_epoch, be
 
 def save_metrics_csv(history, path):
     path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = [
-        "epoch",
-        "train_loss",
-        "train_acc",
-        "val_loss",
-        "val_acc",
-        "test_loss",
-        "test_acc",
-    ]
+    fieldnames = []
+    for row in history:
+        for key in row.keys():
+            if key not in fieldnames:
+                fieldnames.append(key)
 
     with path.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -303,6 +409,9 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
             "batch_size": args.batch_size,
             "lr": args.lr,
             "weight_decay": args.weight_decay,
+            "lr_plateau_patience": getattr(args, "lr_plateau_patience", None),
+            "lr_plateau_factor": getattr(args, "lr_plateau_factor", None),
+            "lr_plateau_min_lr": getattr(args, "lr_plateau_min_lr", None),
             "train_subset": args.train_subset,
             "val_subset": args.val_subset,
             "test_subset": args.test_subset,
@@ -341,8 +450,10 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
 
 def save_summary_json(args, history, path, early_stopping_info, selected_model_metrics):
     path.parent.mkdir(parents=True, exist_ok=True)
-    best_val_epoch = max(history, key=lambda row: row["val_acc"])
-    best_test_epoch = max(history, key=lambda row: row["test_acc"])
+    best_val_key = "val_macro_f1" if "val_macro_f1" in history[0] else "val_acc"
+    best_test_key = "test_macro_f1" if "test_macro_f1" in history[0] else "test_acc"
+    best_val_epoch = max(history, key=lambda row: row[best_val_key])
+    best_test_epoch = max(history, key=lambda row: row[best_test_key])
     summary = {
         "best_val_epoch": best_val_epoch["epoch"],
         "best_val_acc": best_val_epoch["val_acc"],
