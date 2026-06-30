@@ -1,289 +1,168 @@
-# Learning Notes
+# 学习笔记
 
-## 2026-06-13 Row-wise / Column-wise Sinusoidal ViT
+这个文档用来记录：
 
-这次新增的不是 RoPE 变体，而是两种新的 additive positional embedding：
+- 关键 PyTorch 语法
+- 当前项目里容易混淆的实现点
+- 读代码时值得记住的概念
 
-- `vit_row_sinusoidal`
-- `vit_col_sinusoidal`
+## 1. `Dataset` 和 `DataLoader`
 
-它们的目标是做一个更干净的方向性实验。
+在这个项目里，数据流分成两层。
 
-### 1. 核心思想
+### `Dataset`
 
-`vit_row_sinusoidal`：
+作用是定义：
 
-- patch token 的位置只由 `row index` 决定
-- 同一行上的 patch 共享同一个 positional vector
-- 不显式区分这一行里不同列的位置
+- 第 `i` 个样本是什么
 
-`vit_col_sinusoidal`：
+例如：
 
-- patch token 的位置只由 `column index` 决定
-- 同一列上的 patch 共享同一个 positional vector
-- 不显式区分这一列里不同行的位置
-
-一句英文解释：
-
-`Row-wise and column-wise models inject directional bias through additive positional embeddings.`
-
-### 2. 它和 baseline 的边界
-
-这里故意保持 baseline ViT 主体不变：
-
-- 仍然先做 patch embedding
-- 仍然保留 `cls token`
-- 仍然走标准 Transformer blocks
-- 仍然在 token level 上做 additive position embedding
-
-变化只在这里：
-
-- baseline 用的是 learned absolute positional embedding
-- 新模型用的是 fixed sinusoidal positional embedding
-- 而且位置只沿一个轴定义
-
-所以它是 clean ablation，不是新 backbone。
-
-### 3. 位置向量怎么构造
-
-如果输入是 `32 x 32`，`patch_size = 4`，那么：
-
-```text
-grid_size = 32 / 4 = 8
-num_patches = 8 * 8 = 64
+```python
+image, label = dataset[index]
 ```
 
-row-wise 的 token 位置索引相当于：
+### `DataLoader`
 
-```text
-0 0 0 0 0 0 0 0
-1 1 1 1 1 1 1 1
-2 2 2 2 2 2 2 2
-...
-7 7 7 7 7 7 7 7
+作用是：
+
+- 把 `Dataset` 里的样本按 batch 取出来
+- 控制 `shuffle`
+- 控制 `num_workers`
+
+训练时你看到的：
+
+```python
+for images, labels in loader:
+    ...
 ```
 
-column-wise 的 token 位置索引相当于：
+这里的 `loader` 就是 `DataLoader`。
 
-```text
-0 1 2 3 4 5 6 7
-0 1 2 3 4 5 6 7
-0 1 2 3 4 5 6 7
-...
-0 1 2 3 4 5 6 7
-```
+## 2. 单标签和多标签的区别
 
-然后把这些位置索引送进标准 sinusoidal formula，得到每个 patch token 的固定位置向量。
+### 单标签任务
 
-### 4. Tensor shape 怎么看
-
-以当前小 ViT 默认配置为例：
-
-```text
-images: [B, 3, 32, 32]
-patch tokens: [B, 64, 128]
-after cls token: [B, 65, 128]
-pos_embed: [1, 65, 128]
-after addition: [B, 65, 128]
-logits: [B, num_classes]
-```
-
-这里的重点是：
-
-- `cls token` 仍然放在最前面
-- `cls token` 的 positional vector 设成全零
-- patch token 才真正携带 row-wise 或 col-wise positional bias
-
-### 5. 为什么先做 additive 版本
-
-这是为了把变量控制住。
-
-如果一开始就改 attention 机制，你很难回答：
-
-- 提升来自“方向先验”
-- 还是来自“attention 算法本身改了”
-
-现在这版更适合论文前期：
-
-- 实现简单
-- 可解释性强
-- 更容易和 baseline 做一对一比较
-
-## 2026-06-13 Synthetic Orientation Dataset
-
-为了配合老师说的 horizontal / vertical relationship 实验，这次补了一个轻量 synthetic dataset：
+一张图只属于一个类别。  
+例如：
 
 - `horizontal`
 - `vertical`
 
-### 1. 为什么先做 synthetic
+这种情况下模型常见输出是：
 
-因为它最适合快速验证假设：
+- 一个 `logits` 向量
+- 最后用 `argmax` 取一个类
 
-- 变量可控
-- 类别定义清楚
-- 能直接把“横向结构”和“纵向结构”分开
-- 很适合先看 epoch 曲线
+### 多标签任务
 
-一句英文解释：
-
-`Synthetic data is the cleanest first test for directional inductive bias.`
-
-### 2. 数据是怎么生成的
-
-每张图像都会：
-
-1. 先生成一个低强度背景
-2. 随机采样若干 stripe 的位置
-3. 如果标签是 `horizontal`，就在行方向画条纹
-4. 如果标签是 `vertical`，就在列方向画条纹
-5. 最后再加一点高斯噪声
-
-这样做的好处是：
-
-- 类别差异主要来自方向
-- 不是来自复杂语义内容
-
-### 3. split 为什么是固定 seed 生成
-
-当前 `train / val / test` 都是可重复生成的。
-
-这意味着：
-
-- 同一个 seed 下，你的 row / col / baseline 比较更公平
-- 不会因为每次重新生成数据而导致比较失真
-
-## 2026-06-13 当前周报应该怎么看
-
-这周不再优先讲 multi-seed stability。
-
-更适合讲的是：
-
-1. 我们把实验平台改成了更规范的 `train / val / test`
-2. 现在已经支持方向性 positional embedding 的 clean ablation
-3. 现在已经有一个受控 synthetic dataset，可以直接检验 row / col bias
-4. 接下来主要看 epoch-based loss / accuracy curves
-
-一句组会常用英文：
-
-`This week the focus shifts from seed stability to directional positional-bias comparison under a controlled setup.`
-
-## 2026-06-14 CADB Orientation Subset
-
-这一步新增的不是一个全新的大模型，而是真实数据集接入层：
-
-- `cadb_orientation`
-
-它的作用是把老师提到的 CADB 转成当前实验平台能直接训练的二分类子任务。
-
-### 1. 为什么不是直接整套 CADB 全上
-
-因为老师这周的问题非常聚焦：
-
-- horizontal relationships
-- vertical relationships
-
-所以当前最小可用版本只做：
+一张图可以同时属于多个标签。  
+例如当前 `cadb_elements`：
 
 - `horizontal`
 - `vertical`
+- `diagonal`
+- `triangle`
+- `symmetric`
+- `pattern`
 
-这样实验问题更干净，也更适合先看 row-wise / col-wise positional bias。
+这种情况下模型输出的是一个向量，每一维都单独判断某个标签是否出现。
 
-### 2. 当前 loader 默认做了什么假设
+## 3. 为什么 `cadb_elements` 的 `acc` 看起来会偏高
 
-当前实现优先读取 `composition_elements.json`，因为真实 CADB 里
-`horizontal / vertical` 更直接对应 composition element annotation。
+当前 `cadb_elements` 用的是 multi-label 指标。  
+日志里的 `acc` 不是“整张图完全预测正确”的准确率，而更接近：
 
-然后默认：
+- 逐标签位的 0/1 准确率
 
-- 保留只属于 `horizontal` 的图像
-- 保留只属于 `vertical` 的图像
-- 跳过同时属于两者的样本
-- 跳过两者都不属于的样本
+如果负样本很多，`acc` 容易显得不低。  
+所以当前更值得看的指标是：
 
-这就是 `exclusive` label mode。
+- `macro_f1`
+- `per_class_f1`
+- `subset_accuracy`
 
-英文可以这样记：
+## 4. `subset_accuracy` 是什么
 
-`Exclusive mode keeps only clean horizontal-only or vertical-only samples.`
+`subset_accuracy` 的意思是：
 
-### 3. 为什么要自己切 split
+- 一张图的所有标签都必须预测对
+- 才算这张图正确
 
-CADB 不是像 CIFAR-10 那样自带官方 `train / test`。
+它比普通 multi-label 的 `acc` 更严格。
 
-修正后发现，真实 CADB 实际上带有 `split.json`。
+## 5. 为什么 `pattern` 结果一直是 0
 
-所以现在 loader 里会优先：
+不是模型单独不会学 `pattern`，而是当前原始标注里：
 
-1. 读取官方 `train / test`
-2. 再从官方 `train` 里切一个 `validation`
+- `pattern` 字段虽然存在
+- 但没有有效正样本
 
-如果某份数据没有 `split.json`，才会退回到全数据上自己切分。
+所以：
 
-这样做的好处是：
+- train 里没有 `pattern = 1`
+- test 里也没有 `pattern = 1`
 
-- horizontal / vertical 两类在三个 split 里都更平衡
-- seed 固定后，比较可重复
+这属于数据标注问题，不是模型 bug。
 
-### 4. 这层代码和训练主循环的关系
+## 6. 当前模型分支怎么理解
 
-你现在的统一训练入口根本没变。
+### `vit_no_pos`
 
-变的是：
+- 没有 positional encoding
+- 用来回答“位置编码本身有没有帮助”
 
-- `models/registry.py` 多了一条数据集路由
-- `datasets/cadb_data.py` 负责把 CADB 解析成标准 `DataLoader`
+### `vit_baseline`
 
-也就是说，训练层看到的仍然只是：
+- learned absolute positional embedding
+- 这是当前标准 ViT baseline
 
-```text
-train_loader, val_loader, test_loader
-```
+### `vit_row_sinusoidal`
 
-所以对主训练循环来说：
+- patch token 的位置只看 row
+- 同一行共享位置向量
 
-- CIFAR-10
-- synthetic orientation
-- CADB orientation
+### `vit_col_sinusoidal`
 
-都已经被统一成同一接口了。
+- patch token 的位置只看 column
+- 同一列共享位置向量
 
-## Row-wise vs Column-wise Sinusoidal 是怎么改结构的
+## 7. `registry.py` 的角色
 
-`vit_row_sinusoidal` 和 `vit_col_sinusoidal` 没有改动主干 Transformer block。
+`models/registry.py` 可以理解成项目的“接线板”。
 
-变动点只在 positional embedding：
+它负责：
 
-- `row-wise`
-  - patch 位置信息只看它属于第几行
-  - 同一行的 patch 会共享同一个 sinusoidal position code
-- `column-wise`
-  - patch 位置信息只看它属于第几列
-  - 同一列的 patch 会共享同一个 sinusoidal position code
+- 注册模型名
+- 选择 dataloader
+- 提供默认超参数
 
-可以把它记成一句英文：
+如果以后要加新模型，通常都要先改这里。
 
-`Same ViT backbone, different axis used for fixed sinusoidal indexing.`
+## 8. 当前结果管理约定
 
-所以这类实验特别适合回答：
+现在项目里区分两类结果。
 
-- 横向/纵向的结构线索，是否更偏好某一种 axis-tied positional bias
-- 观察到的变化是不是来自位置编码方向，而不是来自更大的模型结构改写
+### 原始结果
 
-## 为什么 clean v2 更像 sanity check
+放在：
 
-`synthetic_orientation_clean` 的作用不是把三种模型完全拉开，
-而是先看：
+- `results/`
 
-- 方向性位置编码有没有把任务做坏
-- baseline / row / col 在一个更干净的 controlled setting 下是否都能顺利收敛
+作用：
 
-如果三者都接近满分，这不代表实验没用。
+- 本地分析
+- 中间产物
+- 可以随时重跑
 
-它说明的是：
+### 长期文档
 
-- 这个任务已经太容易
-- 这一步适合当作 “clean sanity check”
-- 真正更能拉开差异的下一步，应该去 `synthetic_orientation_hard`
-  或更难的真实数据集
+放在：
+
+- `docs/`
+
+作用：
+
+- 记录研究路线
+- 记录项目状态
+- 作为跨设备共享记忆

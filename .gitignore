@@ -5,9 +5,8 @@
 ~$*
 data/
 checkpoints/
-results/*
-!results/reports/
-!results/reports/**
+results/matplotlib_cache/
+results/logs/
 results/**/.DS_Store
 __pycache__/
 *.pyc

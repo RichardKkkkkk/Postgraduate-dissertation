@@ -13,6 +13,8 @@ repository documents as the shared memory between Codex sessions.
 - Keep checkpoints under `checkpoints/` and do not commit them.
 - Save plots under `results/figures/`.
 - Update README when adding runnable scripts.
+- When changing project structure, shared training flow, experiment protocol, or
+  result management rules, also update the relevant files under `docs/`.
 - When changing a shared or unified training interface, also update README with:
   - the supported CLI parameters
   - which parameters are model-specific
@@ -25,9 +27,11 @@ repository documents as the shared memory between Codex sessions.
 
 ## Cross-device workflow
 
-- At the start of a session, read `docs/PROJECT_LOG.md` first, then skim `docs/DEVELOPMENT_MAP.md` and `README.md` before making changes.
+- At the start of a session, read `docs/PROJECT_LOG.md` first, then skim
+  `docs/RESEARCH_PLAN.md` and `README.md` before making changes.
 - Use `docs/PROJECT_LOG.md` for short chronological progress notes: what changed, what was learned, what is blocked, and what should happen next.
-- Use `docs/DEVELOPMENT_MAP.md` for the research roadmap and reasoning behind major direction changes.
+- Use `docs/RESEARCH_PLAN.md` for the research roadmap, current mainline
+  experiment protocol, and reasoning behind major direction changes.
 - Use `docs/LEARNING_NOTES.md` for explanations of PyTorch syntax, tensor shapes, and implementation details.
 - If local code and docs disagree, call out the mismatch before continuing. Update the log with the mismatch and the chosen resolution.
 - Before ending a session with meaningful work, update `docs/PROJECT_LOG.md` with the latest status and next action.
@@ -42,7 +46,8 @@ repository documents as the shared memory between Codex sessions.
 - Explain important PyTorch syntax with examples.
 - Include tensor shapes where relevant.
 - Update `docs/LEARNING_NOTES.md` after meaningful changes.
-- When the user proposes a new research or development idea, record the idea and reasoning in `docs/DEVELOPMENT_MAP.md`.
+- When the user proposes a new research or development idea, record the idea
+  and reasoning in `docs/RESEARCH_PLAN.md`.
 
 ## Test commands
 
