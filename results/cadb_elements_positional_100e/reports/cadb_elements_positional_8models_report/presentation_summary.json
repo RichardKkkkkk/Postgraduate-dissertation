@@ -1,7 +1,7 @@
 {
   "title": "CADB Multi-label Positional Encoding Comparison (8 Models)",
   "scenario": "generic_multi_run",
-  "generated_at": "2026-07-01T16:03:47",
+  "generated_at": "2026-07-01T16:11:18",
   "reference_run": {
     "run_name": "no_pos_cadb_elements_seed42",
     "label": "ViT No Pos"

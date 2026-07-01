@@ -146,6 +146,30 @@ COMPACT_PER_CLASS_PRIORITY = [
     "test_per_class_precision",
     "test_per_class_accuracy",
 ]
+RUN_COLOR_MAP = {
+    "vit_no_pos": "#1d4ed8",
+    "vit_baseline": "#ea580c",
+    "vit_row_sinusoidal": "#16a34a",
+    "vit_col_sinusoidal": "#dc2626",
+    "vit_additive_sinusoidal": "#7c3aed",
+    "vit_additive_sinusoidal_shifted": "#a16207",
+    "vit_multiplicative_sinusoidal": "#db2777",
+    "vit_multiplicative_sinusoidal_shifted": "#0f766e",
+    "vit_rope": "#2563eb",
+    "vit_rope_2d": "#0891b2",
+    "resnet18_scratch": "#4b5563",
+    "resnet18_imagenet": "#111827",
+}
+FALLBACK_RUN_COLORS = [
+    "#1d4ed8",
+    "#ea580c",
+    "#16a34a",
+    "#dc2626",
+    "#7c3aed",
+    "#a16207",
+    "#db2777",
+    "#0f766e",
+]
 
 
 @dataclass
@@ -1494,11 +1518,17 @@ def setup_plot_style():
     plt.style.use("seaborn-v0_8-whitegrid")
 
 
+def get_run_color(run, index: int):
+    if run.model_name in RUN_COLOR_MAP:
+        return RUN_COLOR_MAP[run.model_name]
+    return FALLBACK_RUN_COLORS[index % len(FALLBACK_RUN_COLORS)]
+
+
 def plot_metric(figures_dir: Path, runs, metric_name: str):
     setup_plot_style()
     figure, axis = plt.subplots(figsize=(8.2, 4.8))
-    colors = ["#2563eb", "#0891b2", "#16a34a", "#dc2626", "#7c3aed", "#ea580c"]
     for index, run in enumerate(runs):
+        color = get_run_color(run, index)
         epochs = [int(row["epoch"]) for row in run.history]
         values = [scale_metric_value(metric_name, row[metric_name]) for row in run.history]
         axis.plot(
@@ -1508,11 +1538,11 @@ def plot_metric(figures_dir: Path, runs, metric_name: str):
             linewidth=2.4,
             markersize=3.8,
             label=run.label,
-            color=colors[index % len(colors)],
+            color=color,
         )
 
         final_value = values[-1]
-        axis.scatter([epochs[-1]], [final_value], s=45, color=colors[index % len(colors)], zorder=3)
+        axis.scatter([epochs[-1]], [final_value], s=45, color=color, zorder=3)
 
     axis.set_xlabel("Epoch")
     axis.set_ylabel("Percentage (%)" if is_percentage_metric(metric_name) else "Value")
@@ -1551,9 +1581,9 @@ def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
     figure, axis = plt.subplots(figsize=(8.0, 4.8))
     x_positions = np.arange(len(focus_metrics))
     width = min(0.75 / max(1, len(runs)), 0.22)
-    colors = ["#2563eb", "#0891b2", "#16a34a", "#dc2626", "#7c3aed", "#ea580c"]
 
     for index, run in enumerate(runs):
+        color = get_run_color(run, index)
         values = [scale_metric_value(metric_name, resolve_macro_value(run, metric_name)) for metric_name in focus_metrics]
         offset = (index - (len(runs) - 1) / 2) * width
         axis.bar(
@@ -1561,7 +1591,7 @@ def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
             values,
             width=width,
             label=run.label,
-            color=colors[index % len(colors)],
+            color=color,
             alpha=0.9,
         )
 
@@ -1694,9 +1724,9 @@ def plot_per_class_metric(figures_dir: Path, runs, metric_name: str):
 
     setup_plot_style()
     figure, axis = plt.subplots(figsize=(9.4, 4.8))
-    colors = ["#2563eb", "#0891b2", "#16a34a", "#dc2626", "#7c3aed", "#ea580c"]
 
     for index, run in enumerate(runs):
+        color = get_run_color(run, index)
         values = np.array(run.per_class_metrics[metric_name]) * 100.0
         offset = (index - (len(runs) - 1) / 2) * width
         axis.bar(
@@ -1704,7 +1734,7 @@ def plot_per_class_metric(figures_dir: Path, runs, metric_name: str):
             values,
             width=width,
             label=run.label,
-            color=colors[index % len(colors)],
+            color=color,
             alpha=0.9,
         )
 

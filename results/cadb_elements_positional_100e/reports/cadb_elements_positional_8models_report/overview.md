@@ -1,6 +1,6 @@
 # CADB Multi-label Positional Encoding Comparison (8 Models)
 
-Generated: 2026-07-01T16:03:47
+Generated: 2026-07-01T16:11:18
 Comparison scenario: `generic_multi_run`
 Reference run: `ViT No Pos`
 
