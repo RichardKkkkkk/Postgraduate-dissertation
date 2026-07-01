@@ -76,11 +76,14 @@ COLOR_CARD = (255, 255, 255)
 COLOR_HEADER_FILL = (226, 232, 240)
 FONT_FAMILY = "Aptos"
 MODEL_DISPLAY_NAMES = {
+    "vit_no_pos": "ViT No Pos",
     "vit_baseline": "ViT Baseline",
     "vit_rope": "ViT RoPE",
     "vit_rope_2d": "ViT RoPE 2D",
     "vit_row_sinusoidal": "ViT Row-wise Sinusoidal",
     "vit_col_sinusoidal": "ViT Column-wise Sinusoidal",
+    "vit_additive_sinusoidal": "ViT Additive Sinusoidal",
+    "vit_additive_sinusoidal_shifted": "ViT Additive Sinusoidal Shifted",
     "resnet18_scratch": "ResNet18 Scratch",
     "resnet18_imagenet": "ResNet18 ImageNet",
     "vit": "ViT",
@@ -92,11 +95,14 @@ MODEL_FAMILY_DISPLAY = {
     "cnn": "CNN",
 }
 MODEL_VARIANT_DISPLAY = {
+    "no_pos": "No Pos",
     "baseline": "Baseline",
     "rope": "RoPE",
     "rope_2d": "RoPE 2D",
     "row_sinusoidal": "Row-wise Sinusoidal",
     "col_sinusoidal": "Column-wise Sinusoidal",
+    "additive_sinusoidal": "Additive Sinusoidal",
+    "additive_sinusoidal_shifted": "Additive Sinusoidal Shifted",
     "scratch": "Scratch",
     "imagenet": "ImageNet",
     "pretrained": "Pretrained",
@@ -107,6 +113,8 @@ POSITION_ENCODING_DISPLAY = {
     "rope_2d": "RoPE 2D",
     "row_sinusoidal": "Row-wise Sinusoidal",
     "col_sinusoidal": "Column-wise Sinusoidal",
+    "additive_sinusoidal": "Additive Sinusoidal",
+    "additive_sinusoidal_shifted": "Additive Sinusoidal Shifted",
     "none": "None",
 }
 INITIALIZATION_DISPLAY = {
@@ -125,6 +133,13 @@ DATASET_LABEL_NAMES = {
         "pattern",
     ],
 }
+COMPACT_CURVE_PRIORITY = ["val_macro_f1", "val_acc", "test_acc", "train_loss"]
+COMPACT_PER_CLASS_PRIORITY = [
+    "test_per_class_f1",
+    "test_per_class_recall",
+    "test_per_class_precision",
+    "test_per_class_accuracy",
+]
 
 
 @dataclass
@@ -132,6 +147,7 @@ class ComparisonContext:
     report_name: str
     title: str
     scenario: str
+    compact_mode: bool
     runs: list
     metrics: list[str]
     selected_metric_keys: list[str]
@@ -225,6 +241,11 @@ def parse_args():
         "--skip-ppt",
         action="store_true",
         help="Skip PowerPoint generation and only write plots and summary files.",
+    )
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Export a shorter weekly-meeting PPT with fewer slides and only the highest-signal sections.",
     )
     return parser.parse_args()
 
@@ -387,7 +408,7 @@ def infer_model_metadata(config: dict, summary: dict, run_name: str):
             family = "vit"
 
     if not variant and raw_model_name:
-        if raw_model_name in {"vit_baseline", "vit_rope", "resnet18_scratch", "resnet18_imagenet"}:
+        if raw_model_name in {"vit_no_pos", "vit_baseline", "vit_rope", "resnet18_scratch", "resnet18_imagenet"}:
             variant = raw_model_name.split("_", 1)[1]
         elif raw_model_name == "resnet18":
             variant = "baseline"
@@ -582,16 +603,19 @@ def determine_selected_metric_keys(runs, history_metrics):
     return sorted(shared, key=lambda key: (priority(key), key))
 
 
-def determine_macro_metric_keys(selected_metric_keys):
+def determine_macro_metric_keys(selected_metric_keys, metrics):
+    available_metrics = set(selected_metric_keys) | {
+        metric_name for metric_name in metrics if "macro_" in metric_name
+    }
     preferred = [
+        "test_macro_f1",
         "test_macro_precision",
         "test_macro_recall",
-        "test_macro_f1",
+        "val_macro_f1",
         "val_macro_precision",
         "val_macro_recall",
-        "val_macro_f1",
     ]
-    return [metric for metric in preferred if metric in selected_metric_keys]
+    return [metric for metric in preferred if metric in available_metrics]
 
 
 def detect_comparison_scenario(runs):
@@ -806,6 +830,60 @@ def get_shared_dataset_name(runs):
             dataset_names.add(str(dataset_value))
     if len(dataset_names) == 1:
         return next(iter(dataset_names))
+    return None
+
+
+def build_shared_dataset_card_content(runs):
+    dataset_name = get_shared_dataset_name(runs)
+    if not dataset_name or not runs:
+        return None
+
+    reference_run = runs[0]
+    dataset_config = reference_run.config.get("dataset", {})
+    cadb_config = reference_run.config.get("cadb_dataset", {})
+    dataset_sizes = []
+    for key in ("train_size", "val_size", "test_size"):
+        value = dataset_config.get(key) if isinstance(dataset_config, dict) else None
+        if value is not None:
+            dataset_sizes.append(f"{key.replace('_size', '')} {value}")
+    size_line = f"Sizes: {', '.join(dataset_sizes)}" if dataset_sizes else None
+
+    if dataset_name == "cadb_elements":
+        val_ratio = reference_run.flat_config.get("val_ratio", reference_run.config.get("training", {}).get("val_ratio"))
+        lines = [
+            "Task: CADB composition elements multi-label classification",
+            "Files: images/ + composition_elements.json + split.json",
+            "Labels: horizontal / vertical / diagonal",
+            "triangle / symmetric / pattern",
+            f"Split: official train/test + val from train (ratio={val_ratio})",
+        ]
+        if size_line:
+            lines.append(size_line)
+        return "CADB Dataset Structure", lines[:6]
+
+    if dataset_name == "cadb_scene":
+        lines = [
+            "Task: CADB scene classification",
+            "Files: images/ + scene_categories.json + split.json",
+            "Labels: 10 scene categories",
+            "Split: official train/test + val from train",
+        ]
+        if size_line:
+            lines.append(size_line)
+        return "CADB Dataset Structure", lines[:6]
+
+    if dataset_name == "cadb_orientation":
+        label_mode = cadb_config.get("label_mode", reference_run.flat_config.get("cadb_label_mode", "exclusive"))
+        lines = [
+            "Task: CADB horizontal-vs-vertical pilot subset",
+            "Files: images/ + composition_elements.json + split.json",
+            f"Label mode: {label_mode}",
+            "Split: official train/test when available + val from train",
+        ]
+        if size_line:
+            lines.append(size_line)
+        return "CADB Dataset Structure", lines[:6]
+
     return None
 
 
@@ -1448,9 +1526,16 @@ def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
     if not macro_metric_keys:
         return None
 
+    def resolve_macro_value(run, metric_name: str):
+        if metric_name in run.selected_metrics:
+            return run.selected_metrics[metric_name]
+        if metric_name in run.available_metrics:
+            return compute_metric_summary(run.history, metric_name)["final_value"]
+        raise KeyError(metric_name)
+
     focus_metrics = [
         metric
-        for metric in ["test_macro_precision", "test_macro_recall", "test_macro_f1"]
+        for metric in ["test_macro_f1", "test_macro_precision", "test_macro_recall"]
         if metric in macro_metric_keys
     ]
     if not focus_metrics:
@@ -1463,7 +1548,7 @@ def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
     colors = ["#2563eb", "#0891b2", "#16a34a", "#dc2626", "#7c3aed", "#ea580c"]
 
     for index, run in enumerate(runs):
-        values = [scale_metric_value(metric_name, run.selected_metrics[metric_name]) for metric_name in focus_metrics]
+        values = [scale_metric_value(metric_name, resolve_macro_value(run, metric_name)) for metric_name in focus_metrics]
         offset = (index - (len(runs) - 1) / 2) * width
         axis.bar(
             x_positions + offset,
@@ -1478,7 +1563,7 @@ def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
     axis.set_xticklabels([metric_display_name(metric_name) for metric_name in focus_metrics], fontsize=10)
     axis.set_ylabel("Percentage (%)")
     axis.set_ylim(0, max(100.0, axis.get_ylim()[1]))
-    axis.set_title("Selected Checkpoint Macro Metrics", fontsize=14, pad=12)
+    axis.set_title("Macro Metric Snapshot", fontsize=14, pad=12)
     axis.legend(loc="upper center", ncol=min(3, len(runs)), frameon=True)
     figure.tight_layout()
 
@@ -1488,20 +1573,20 @@ def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
 
     summary_lines = []
     if "test_macro_f1" in focus_metrics:
-        best_run = max(runs, key=lambda run: run.selected_metrics["test_macro_f1"])
-        best_value = best_run.selected_metrics["test_macro_f1"]
+        best_run = max(runs, key=lambda run: resolve_macro_value(run, "test_macro_f1"))
+        best_value = resolve_macro_value(best_run, "test_macro_f1")
         summary_lines.append(
-            f"Best selected Test Macro F1: {best_run.label} ({format_metric_value('test_macro_f1', best_value)})."
+            f"Best Test Macro F1 snapshot: {best_run.label} ({format_metric_value('test_macro_f1', best_value)})."
         )
     if "test_macro_precision" in focus_metrics:
-        best_precision_run = max(runs, key=lambda run: run.selected_metrics["test_macro_precision"])
+        best_precision_run = max(runs, key=lambda run: resolve_macro_value(run, "test_macro_precision"))
         summary_lines.append(
-            f"Best selected Test Macro Precision: {best_precision_run.label} ({format_metric_value('test_macro_precision', best_precision_run.selected_metrics['test_macro_precision'])})."
+            f"Best selected Test Macro Precision: {best_precision_run.label} ({format_metric_value('test_macro_precision', resolve_macro_value(best_precision_run, 'test_macro_precision'))})."
         )
     if "test_macro_recall" in focus_metrics:
-        best_recall_run = max(runs, key=lambda run: run.selected_metrics["test_macro_recall"])
+        best_recall_run = max(runs, key=lambda run: resolve_macro_value(run, "test_macro_recall"))
         summary_lines.append(
-            f"Best selected Test Macro Recall: {best_recall_run.label} ({format_metric_value('test_macro_recall', best_recall_run.selected_metrics['test_macro_recall'])})."
+            f"Best selected Test Macro Recall: {best_recall_run.label} ({format_metric_value('test_macro_recall', resolve_macro_value(best_recall_run, 'test_macro_recall'))})."
         )
 
     return {
@@ -1712,7 +1797,7 @@ def build_run_profile_lines(run: RunArtifacts, selected_varying_keys):
             f"stopped_early={early_stopping.get('stopped_early', False)})"
         )
 
-    return lines[:7]
+    return lines[:6]
 
 
 def build_model_comparison_rows(runs):
@@ -1748,12 +1833,17 @@ def build_macro_metric_rows(summary_rows, macro_metric_keys):
     headers = ["Macro Metric", "Direction"] + [row["label"] for row in summary_rows] + ["Best Run"]
     rows = []
     for metric_name in macro_metric_keys:
-        best_row = max(summary_rows, key=lambda row: row[f"selected_{metric_name}"])
+        row_key = f"selected_{metric_name}"
+        if not all(row_key in row for row in summary_rows):
+            row_key = f"final_{metric_name}"
+        if not all(row_key in row for row in summary_rows):
+            continue
+        best_row = max(summary_rows, key=lambda row: row[row_key])
         rows.append(
             [
-                f"Selected {metric_display_name(metric_name)}",
+                f"{'Selected' if row_key.startswith('selected_') else 'Final'} {metric_display_name(metric_name)}",
                 "Higher",
-                *[format_metric_value(metric_name, row[f"selected_{metric_name}"]) for row in summary_rows],
+                *[format_metric_value(metric_name, row[row_key]) for row in summary_rows],
                 best_row["label"],
             ]
         )
@@ -1809,6 +1899,64 @@ def build_main_metric_rows(summary_rows, metrics, selected_metric_keys):
     return headers, rows
 
 
+def build_compact_metric_rows(summary_rows):
+    headers = ["Metric", "Direction"] + [row["label"] for row in summary_rows] + ["Best Run"]
+    metric_specs = [
+        ("Final Test ACC", "final_test_acc", "test_acc"),
+        ("Final Val ACC", "final_val_acc", "val_acc"),
+        ("Final Val Macro F1", "final_val_macro_f1", "val_macro_f1"),
+        ("Final Test Macro F1", "final_test_macro_f1", "test_macro_f1"),
+        ("Selected Test Macro F1", "selected_test_macro_f1", "test_macro_f1"),
+        ("Selected Test Macro Precision", "selected_test_macro_precision", "test_macro_precision"),
+        ("Selected Test Macro Recall", "selected_test_macro_recall", "test_macro_recall"),
+        ("Selected Test Subset Accuracy", "selected_test_subset_accuracy", "test_subset_accuracy"),
+    ]
+
+    rows = []
+    for display_name, row_key, metric_name in metric_specs:
+        if not all(row_key in row for row in summary_rows):
+            continue
+        best_row = (
+            min(summary_rows, key=lambda row: row[row_key])
+            if is_lower_better(metric_name)
+            else max(summary_rows, key=lambda row: row[row_key])
+        )
+        rows.append(
+            [
+                display_name,
+                "Lower" if is_lower_better(metric_name) else "Higher",
+                *[format_metric_value(metric_name, row[row_key]) for row in summary_rows],
+                best_row["label"],
+            ]
+        )
+    return headers, rows
+
+
+def choose_compact_curve_metrics(metrics):
+    chosen = []
+    for metric_name in COMPACT_CURVE_PRIORITY:
+        if metric_name in metrics and metric_name not in chosen:
+            chosen.append(metric_name)
+    for metric_name in metrics:
+        if metric_name not in chosen:
+            chosen.append(metric_name)
+        if len(chosen) >= 2:
+            break
+    return chosen[:2]
+
+
+def choose_compact_per_class_payloads(payloads):
+    payload_by_metric = {payload["metric"]: payload for payload in payloads}
+    chosen = []
+    for metric_name in COMPACT_PER_CLASS_PRIORITY:
+        payload = payload_by_metric.get(metric_name)
+        if payload:
+            chosen.append(payload)
+        if len(chosen) >= 2:
+            break
+    return chosen
+
+
 def export_ppt(report_dir: Path, context: ComparisonContext):
     try:
         from pptx import Presentation
@@ -1839,6 +1987,7 @@ def export_ppt(report_dir: Path, context: ComparisonContext):
     headline_insights = context.headline_insights
     conclusion_lines = context.conclusion_lines
     scenario = context.scenario
+    compact_mode = context.compact_mode
 
     prs = Presentation()
     prs.slide_width = Inches(SLIDE_WIDTH_INCHES)
@@ -2108,6 +2257,7 @@ def export_ppt(report_dir: Path, context: ComparisonContext):
 
     def add_run_info_slides():
         run_cards = [(run.label, build_run_profile_lines(run, all_varying_keys)) for run in runs]
+        shared_dataset_card = build_shared_dataset_card_content(runs)
         for group_index, run_group in enumerate(chunked(run_cards, 4), start=1):
             slide = prs.slides.add_slide(prs.slide_layouts[6])
             apply_slide_background(slide, COLOR_BG)
@@ -2138,6 +2288,19 @@ def export_ppt(report_dir: Path, context: ComparisonContext):
 
             for (card_left, card_top), (card_title, body_lines) in zip(positions, run_group):
                 add_card(slide, card_left, card_top, card_width, card_height, card_title, body_lines)
+
+            if shared_dataset_card and group_index == 1 and len(run_group) == 3:
+                dataset_title, dataset_lines = shared_dataset_card
+                add_card(
+                    slide,
+                    6.85,
+                    4.1,
+                    5.9,
+                    2.52,
+                    dataset_title,
+                    dataset_lines,
+                    accent=COLOR_CYAN,
+                )
 
             add_footer(
                 slide,
@@ -2228,7 +2391,7 @@ def export_ppt(report_dir: Path, context: ComparisonContext):
         add_slide_header(
             slide,
             "Macro Metrics",
-            "Selected-checkpoint macro precision, recall, and F1 are grouped here for quick meeting discussion.",
+            "Macro F1, precision, and recall are grouped here for quick meeting discussion.",
             section_label="Macro Metrics",
         )
         slide.shapes.add_picture(str(macro_figure_payload["path"]), Inches(0.62), Inches(1.82), width=Inches(7.25))
@@ -2243,6 +2406,99 @@ def export_ppt(report_dir: Path, context: ComparisonContext):
             accent=COLOR_CYAN,
         )
         add_footer(slide, "Macro metrics help when accuracy alone hides uneven class performance.")
+
+    def add_compact_metrics_slide():
+        headers, rows = build_compact_metric_rows(summary_rows)
+        if not rows:
+            return
+        add_table_slides(
+            "Key Metrics",
+            "Compact weekly snapshot of the final accuracy and selected-checkpoint macro metrics.",
+            headers,
+            rows,
+            sticky_columns=2,
+            max_total_columns=6,
+            max_body_rows=8,
+            font_size=11,
+            footer_text="Compact mode keeps only the highest-signal summary rows for projection-friendly reading.",
+        )
+
+    def add_compact_curve_slide():
+        chosen_metrics = choose_compact_curve_metrics(metrics)
+        if not chosen_metrics:
+            return
+
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        apply_slide_background(slide, COLOR_BG)
+        add_slide_header(
+            slide,
+            "Training Curves",
+            "Compact mode keeps the most useful convergence views for weekly discussion.",
+            section_label="Curves",
+        )
+
+        slot_positions = [(0.55, 1.72), (6.55, 1.72)]
+        for (slot_left, slot_top), metric_name in zip(slot_positions, chosen_metrics):
+            best_row = (
+                min(summary_rows, key=lambda row: row[f"final_{metric_name}"])
+                if is_lower_better(metric_name)
+                else max(summary_rows, key=lambda row: row[f"final_{metric_name}"])
+            )
+            slide.shapes.add_picture(
+                str(metric_figure_paths[metric_name]),
+                Inches(slot_left),
+                Inches(slot_top),
+                width=Inches(5.65),
+            )
+            add_textbox(slide, slot_left, 5.65, 5.65, 0.22, metric_display_name(metric_name), 13, bold=True)
+            add_textbox(
+                slide,
+                slot_left,
+                5.95,
+                5.65,
+                0.28,
+                f"Best final value: {best_row['label']} ({format_metric_value(metric_name, best_row[f'final_{metric_name}'])})",
+                10,
+                color=COLOR_MUTED,
+            )
+
+        add_footer(slide, "In compact mode, trend slides are limited so the deck stays short.")
+
+    def add_compact_per_class_slide():
+        selected_payloads = choose_compact_per_class_payloads(per_class_figure_payloads)
+        if not selected_payloads:
+            return
+
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        apply_slide_background(slide, COLOR_BG)
+        add_slide_header(
+            slide,
+            "Per-Class Analysis",
+            "Only the most interpretable classwise views are kept in compact mode.",
+            section_label="Per-Class",
+        )
+
+        if len(selected_payloads) == 1:
+            payload = selected_payloads[0]
+            slide.shapes.add_picture(str(payload["path"]), Inches(0.72), Inches(1.82), width=Inches(7.4))
+            add_card(
+                slide,
+                8.55,
+                2.0,
+                3.7,
+                3.1,
+                metric_display_name(payload["metric"]),
+                payload["summary"],
+                accent=COLOR_CYAN,
+            )
+        else:
+            positions = [(0.55, 1.85), (6.6, 1.85)]
+            for (slot_left, slot_top), payload in zip(positions, selected_payloads):
+                slide.shapes.add_picture(str(payload["path"]), Inches(slot_left), Inches(slot_top), width=Inches(5.8))
+                add_textbox(slide, slot_left, 5.2, 5.8, 0.22, metric_display_name(payload["metric"]), 12, bold=True)
+                add_bullet_box(slide, slot_left, 5.48, 5.8, 1.0, payload["summary"][:2], font_size=10)
+
+        add_footer(slide, "Per-class bars help explain which composition elements benefit from each positional choice.")
 
     def add_table_slides(title_text, subtitle_text, headers, rows, sticky_columns=1, max_total_columns=6, max_body_rows=8, font_size=None, footer_text=""):
         if len(headers) <= max_total_columns:
@@ -2414,65 +2670,73 @@ def export_ppt(report_dir: Path, context: ComparisonContext):
     add_title_slide()
     add_run_info_slides()
     add_highlight_slide()
-    add_model_comparison_slide()
 
-    overview_headers, overview_rows = build_results_overview_rows(summary_rows, metrics)
-    add_table_slides(
-        "Result Snapshot",
-        "Compact overview of the most important final metrics and selected checkpoint epoch.",
-        overview_headers,
-        overview_rows,
-        sticky_columns=2,
-        max_total_columns=8,
-        max_body_rows=7,
-        footer_text="This table is intentionally compact so it remains readable on projected slides.",
-    )
+    if compact_mode:
+        add_compact_metrics_slide()
+        add_macro_metrics_slide()
+        add_compact_curve_slide()
+        add_compact_per_class_slide()
+        add_conclusion_slide()
+    else:
+        add_model_comparison_slide()
 
-    metric_headers, metric_rows = build_main_metric_rows(summary_rows, metrics, selected_metric_keys)
-    add_table_slides(
-        "Main Metrics Comparison",
-        "Each row is a meeting-friendly metric statement rather than a raw logger dump.",
-        metric_headers,
-        metric_rows,
-        sticky_columns=2,
-        max_total_columns=6,
-        max_body_rows=8,
-        footer_text="Direction indicates whether higher or lower values are preferable.",
-    )
-
-    if macro_metric_keys:
-        macro_headers, macro_rows = build_macro_metric_rows(summary_rows, macro_metric_keys)
+        overview_headers, overview_rows = build_results_overview_rows(summary_rows, metrics)
         add_table_slides(
-            "Macro Metrics Table",
-            "Exact selected-checkpoint macro metrics for precision, recall, and F1.",
-            macro_headers,
-            macro_rows,
+            "Result Snapshot",
+            "Compact overview of the most important final metrics and selected checkpoint epoch.",
+            overview_headers,
+            overview_rows,
+            sticky_columns=2,
+            max_total_columns=8,
+            max_body_rows=7,
+            footer_text="This table is intentionally compact so it remains readable on projected slides.",
+        )
+
+        metric_headers, metric_rows = build_main_metric_rows(summary_rows, metrics, selected_metric_keys)
+        add_table_slides(
+            "Main Metrics Comparison",
+            "Each row is a meeting-friendly metric statement rather than a raw logger dump.",
+            metric_headers,
+            metric_rows,
             sticky_columns=2,
             max_total_columns=6,
             max_body_rows=8,
-            footer_text="This table complements the macro bar chart on the next page.",
-        )
-        add_macro_metrics_slide()
-
-    if varying_rows:
-        config_headers = ["Config"] + [run.label for run in runs]
-        config_table_rows = [[key, *values] for key, values in varying_rows]
-        add_table_slides(
-            "Config Differences",
-            f"Showing the top {len(varying_rows)} differing settings for experiment traceability.",
-            config_headers,
-            config_table_rows,
-            sticky_columns=1,
-            max_total_columns=5,
-            max_body_rows=7,
-            font_size=10,
-            footer_text="Long config lists are paginated automatically to avoid overflow and tiny fonts.",
+            footer_text="Direction indicates whether higher or lower values are preferable.",
         )
 
-    add_curve_slides()
-    add_confusion_matrix_slides()
-    add_per_class_slides()
-    add_conclusion_slide()
+        if macro_metric_keys:
+            macro_headers, macro_rows = build_macro_metric_rows(summary_rows, macro_metric_keys)
+            add_table_slides(
+                "Macro Metrics Table",
+                "Exact selected-checkpoint macro metrics for precision, recall, and F1.",
+                macro_headers,
+                macro_rows,
+                sticky_columns=2,
+                max_total_columns=6,
+                max_body_rows=8,
+                footer_text="This table complements the macro bar chart on the next page.",
+            )
+            add_macro_metrics_slide()
+
+        if varying_rows:
+            config_headers = ["Config"] + [run.label for run in runs]
+            config_table_rows = [[key, *values] for key, values in varying_rows]
+            add_table_slides(
+                "Config Differences",
+                f"Showing the top {len(varying_rows)} differing settings for experiment traceability.",
+                config_headers,
+                config_table_rows,
+                sticky_columns=1,
+                max_total_columns=5,
+                max_body_rows=7,
+                font_size=10,
+                footer_text="Long config lists are paginated automatically to avoid overflow and tiny fonts.",
+            )
+
+        add_curve_slides()
+        add_confusion_matrix_slides()
+        add_per_class_slides()
+        add_conclusion_slide()
 
     ppt_path = report_dir / f"{report_name}.pptx"
     prs.save(ppt_path)
@@ -2892,7 +3156,7 @@ def build_report_context(args, run_specs, project_root: Path):
     scenario = detect_comparison_scenario(runs)
     title = args.title or build_default_title(runs, scenario)
     selected_metric_keys = determine_selected_metric_keys(runs, metrics)
-    macro_metric_keys = determine_macro_metric_keys(selected_metric_keys)
+    macro_metric_keys = determine_macro_metric_keys(selected_metric_keys, metrics)
     summary_rows = build_summary_rows(runs, metrics, selected_metric_keys)
     selected_varying_keys, all_varying_keys = choose_varying_config_keys(
         runs, args.max_config_rows
@@ -2903,6 +3167,7 @@ def build_report_context(args, run_specs, project_root: Path):
         report_name=report_name,
         title=title,
         scenario=scenario,
+        compact_mode=args.compact,
         runs=runs,
         metrics=metrics,
         selected_metric_keys=selected_metric_keys,

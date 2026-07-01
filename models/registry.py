@@ -20,7 +20,13 @@ from datasets.synthetic_orientation_data import (
     build_synthetic_row_code_dataloaders,
 )
 from .vit import ViT
-from .vit_axis_sinusoidal import ViTColSinusoidal, ViTRowSinusoidal
+from .vit_axis_sinusoidal import (
+    ViTAdditiveSinusoidal,
+    ViTAdditiveSinusoidalShifted,
+    ViTColSinusoidal,
+    ViTRowSinusoidal,
+)
+from .vit_no_pos import ViTNoPos
 from .vit_rope import ViTRoPE
 from .vit_rope_2d import ViTRoPE2D
 
@@ -124,6 +130,11 @@ def build_vit_baseline_model(args):
     return ViT(**model_config), model_config
 
 
+def build_vit_no_pos_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTNoPos(**model_config), model_config
+
+
 def build_vit_rope_model(args):
     model_config = build_vit_model_config(args)
     model_config["rope_base"] = args.rope_base
@@ -144,6 +155,16 @@ def build_vit_row_sinusoidal_model(args):
 def build_vit_col_sinusoidal_model(args):
     model_config = build_vit_model_config(args)
     return ViTColSinusoidal(**model_config), model_config
+
+
+def build_vit_additive_sinusoidal_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTAdditiveSinusoidal(**model_config), model_config
+
+
+def build_vit_additive_sinusoidal_shifted_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTAdditiveSinusoidalShifted(**model_config), model_config
 
 
 def build_vit_family_dataloaders(args):
@@ -510,6 +531,19 @@ def build_resnet18_imagenet_dataloaders(args):
 
 register_experiment(
     ExperimentSpec(
+        model_name="vit_no_pos",
+        architecture="vit",
+        variant="no_pos",
+        plot_title_prefix="ViT No Pos",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_no_pos_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "none"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
         model_name="vit_baseline",
         architecture="vit",
         variant="baseline",
@@ -557,6 +591,32 @@ register_experiment(
         build_model=build_vit_col_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
         extra_summary_fields={"position_encoding": "col_sinusoidal"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_additive_sinusoidal",
+        architecture="vit",
+        variant="additive_sinusoidal",
+        plot_title_prefix="ViT Additive Sinusoidal",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_additive_sinusoidal_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "additive_sinusoidal"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_additive_sinusoidal_shifted",
+        architecture="vit",
+        variant="additive_sinusoidal_shifted",
+        plot_title_prefix="ViT Additive Sinusoidal Shifted",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_additive_sinusoidal_shifted_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "additive_sinusoidal_shifted"},
     )
 )
 

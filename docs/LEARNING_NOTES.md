@@ -127,6 +127,18 @@ for images, labels in loader:
 - patch token 的位置只看 column
 - 同一列共享位置向量
 
+### `vit_additive_sinusoidal`
+
+- patch token 的位置同时看 row 和 column
+- 位置向量由 `row_pe + col_pe` 构成
+- 它更接近一种 factorized 2D absolute positional encoding
+
+### `vit_additive_sinusoidal_shifted`
+
+- 也是 additive 结构
+- 但 row 和 column 使用错开的 wavelength
+- 目标是减少 row / column 使用同一频率时的重合
+
 ## 7. `registry.py` 的角色
 
 `models/registry.py` 可以理解成项目的“接线板”。

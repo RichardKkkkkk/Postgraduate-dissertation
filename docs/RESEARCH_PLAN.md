@@ -39,6 +39,13 @@
 
 当前不把 `RoPE` 和 `2D RoPE` 作为本周主线，但保留实现，方便后续继续扩展。
 
+当前已经把下一阶段要用的两种 additive positional encoding 接进仓库：
+
+- `vit_additive_sinusoidal`
+- `vit_additive_sinusoidal_shifted`
+
+它们暂时属于“下一阶段结构扩展”，还不是当前主线四模型的一部分。
+
 ## 当前主线数据集
 
 当前主线优先任务是：
@@ -106,6 +113,7 @@ python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset cadb_ele
 ```bash
 python generate_comparison_report.py --run no_pos_cadb_elements_seed42="ViT No Pos" --run baseline_cadb_elements_seed42="ViT Baseline" --run row_cadb_elements_seed42="ViT Row-wise" --run col_cadb_elements_seed42="ViT Column-wise" --report-name cadb_elements_positional_controls --title "CADB Elements: No Pos vs Baseline vs Row-wise vs Column-wise" --skip-ppt
 ```
+
 
 ## 当前结果解释原则
 

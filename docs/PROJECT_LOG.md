@@ -20,6 +20,8 @@
   - `vit_baseline`
   - `vit_row_sinusoidal`
   - `vit_col_sinusoidal`
+  - `vit_additive_sinusoidal`
+  - `vit_additive_sinusoidal_shifted`
   - `vit_rope`
   - `vit_rope_2d`
 - `cadb_elements` 已经接成 multi-label 任务
@@ -55,6 +57,27 @@
 2. 决定哪些旧实验结果需要保留，哪些可以删除
 3. 重新跑主线四模型对照
 4. 再进入老师要求的新位置编码组合实验
+
+## 2026-07-01 Additive PE 接入
+
+### 已完成
+
+- 新增 `vit_additive_sinusoidal`
+- 新增 `vit_additive_sinusoidal_shifted`
+- 两者都已经接入 `models/registry.py`
+- 两者都可以通过统一入口 `train_cifar10_experiment.py --model ...` 直接训练
+
+### 当前理解
+
+- `vit_additive_sinusoidal`
+  对应 `row_pe + col_pe`
+- `vit_additive_sinusoidal_shifted`
+  对应 row / column 使用错开的 wavelength 后再相加
+
+### 下一步
+
+1. 先做最小 smoke test
+2. 再决定先在 `CADB` 还是更干净的数据集上跑 additive 系列
 
 ## 2026-06-25 到 2026-06-29 阶段总结
 

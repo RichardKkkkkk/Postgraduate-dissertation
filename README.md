@@ -81,6 +81,10 @@ pip install -r requirements.txt
   只按 row 注入 sinusoidal positional embedding
 - `vit_col_sinusoidal`
   只按 column 注入 sinusoidal positional embedding
+- `vit_additive_sinusoidal`
+  先分别生成 row / column sinusoidal embedding，再逐元素相加
+- `vit_additive_sinusoidal_shifted`
+  additive 版本，但 row / column 使用错开的 wavelength
 - `vit_rope`
   1D RoPE 版本
 - `vit_rope_2d`
@@ -172,11 +176,24 @@ python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset cadb_ele
 python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name col_cadb_elements_seed42
 ```
 
+### `vit_additive_sinusoidal`
+
+```bash
+python train_cifar10_experiment.py --model vit_additive_sinusoidal --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name additive_cadb_elements_seed42
+```
+
+### `vit_additive_sinusoidal_shifted`
+
+```bash
+python train_cifar10_experiment.py --model vit_additive_sinusoidal_shifted --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name additive_shifted_cadb_elements_seed42
+```
+
 ### 四模型对比报告
 
 ```bash
 python generate_comparison_report.py --run no_pos_cadb_elements_seed42="ViT No Pos" --run baseline_cadb_elements_seed42="ViT Baseline" --run row_cadb_elements_seed42="ViT Row-wise" --run col_cadb_elements_seed42="ViT Column-wise" --report-name cadb_elements_positional_controls --title "CADB Elements: No Pos vs Baseline vs Row-wise vs Column-wise" --skip-ppt
 ```
+
 
 ## 训练输出
 
@@ -284,6 +301,7 @@ python generate_comparison_report.py --run no_pos_cadb_elements_seed42="ViT No P
 
 现在默认不把整个 `results/` 目录当作长期文档区。  
 如果有少量必须长期保留的结果图，后续再单独决定单独目录，而不是默认把结果和文档混放。
+
 
 ## Git 工作流
 
