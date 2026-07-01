@@ -1,3 +1,0 @@
-config_key,ViT Baseline,ViT Row-wise,ViT Column-wise
-command,train_cifar10_experiment.py --model vit_baseline --dataset cadb_orientation --cadb-root data/CADB_Dataset --image-size 96 --epochs 20 --seed 42 --run-name baseline_cadb_seed42_noes,train_cifar10_experiment.py --model vit_row_sinusoidal --dataset cadb_orientation --cadb-root data/CADB_Dataset --image-size 96 --epochs 20 --seed 42 --run-name row_cadb_seed42_noes,train_cifar10_experiment.py --model vit_col_sinusoidal --dataset cadb_orientation --cadb-root data/CADB_Dataset --image-size 96 --epochs 20 --seed 42 --run-name col_cadb_seed42_noes
-outputs.run_name,baseline_cadb_seed42_noes,row_cadb_seed42_noes,col_cadb_seed42_noes
