@@ -24,6 +24,8 @@ from .vit_axis_sinusoidal import (
     ViTAdditiveSinusoidal,
     ViTAdditiveSinusoidalShifted,
     ViTColSinusoidal,
+    ViTMultiplicativeSinusoidal,
+    ViTMultiplicativeSinusoidalShifted,
     ViTRowSinusoidal,
 )
 from .vit_no_pos import ViTNoPos
@@ -165,6 +167,16 @@ def build_vit_additive_sinusoidal_model(args):
 def build_vit_additive_sinusoidal_shifted_model(args):
     model_config = build_vit_model_config(args)
     return ViTAdditiveSinusoidalShifted(**model_config), model_config
+
+
+def build_vit_multiplicative_sinusoidal_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTMultiplicativeSinusoidal(**model_config), model_config
+
+
+def build_vit_multiplicative_sinusoidal_shifted_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTMultiplicativeSinusoidalShifted(**model_config), model_config
 
 
 def build_vit_family_dataloaders(args):
@@ -617,6 +629,32 @@ register_experiment(
         build_model=build_vit_additive_sinusoidal_shifted_model,
         build_dataloaders=build_vit_family_dataloaders,
         extra_summary_fields={"position_encoding": "additive_sinusoidal_shifted"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_multiplicative_sinusoidal",
+        architecture="vit",
+        variant="multiplicative_sinusoidal",
+        plot_title_prefix="ViT Multiplicative Sinusoidal",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_multiplicative_sinusoidal_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "multiplicative_sinusoidal"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_multiplicative_sinusoidal_shifted",
+        architecture="vit",
+        variant="multiplicative_sinusoidal_shifted",
+        plot_title_prefix="ViT Multiplicative Sinusoidal Shifted",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_multiplicative_sinusoidal_shifted_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "multiplicative_sinusoidal_shifted"},
     )
 )
 

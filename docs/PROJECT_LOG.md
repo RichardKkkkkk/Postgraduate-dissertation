@@ -79,6 +79,22 @@
 1. 先做最小 smoke test
 2. 再决定先在 `CADB` 还是更干净的数据集上跑 additive 系列
 
+## 2026-07-01 Multiplicative PE 接入
+
+### 已完成
+
+- 新增 `vit_multiplicative_sinusoidal`
+- 新增 `vit_multiplicative_sinusoidal_shifted`
+- 两者都已经接入 `models/registry.py`
+- 两者都可以通过统一入口 `train_cifar10_experiment.py --model ...` 直接训练
+
+### 当前理解
+
+- `vit_multiplicative_sinusoidal`
+  对应 `row_pe * col_pe`
+- `vit_multiplicative_sinusoidal_shifted`
+  对应 row / column 使用错开的 wavelength 后再相乘
+
 ## 2026-06-25 到 2026-06-29 阶段总结
 
 ### 这段时间主要做了什么

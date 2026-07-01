@@ -46,6 +46,11 @@
 
 它们暂时属于“下一阶段结构扩展”，还不是当前主线四模型的一部分。
 
+当前也已经把对应的 multiplicative 分支接进仓库：
+
+- `vit_multiplicative_sinusoidal`
+- `vit_multiplicative_sinusoidal_shifted`
+
 ## 当前主线数据集
 
 当前主线优先任务是：

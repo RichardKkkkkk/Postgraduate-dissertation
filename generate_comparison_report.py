@@ -84,6 +84,8 @@ MODEL_DISPLAY_NAMES = {
     "vit_col_sinusoidal": "ViT Column-wise Sinusoidal",
     "vit_additive_sinusoidal": "ViT Additive Sinusoidal",
     "vit_additive_sinusoidal_shifted": "ViT Additive Sinusoidal Shifted",
+    "vit_multiplicative_sinusoidal": "ViT Multiplicative Sinusoidal",
+    "vit_multiplicative_sinusoidal_shifted": "ViT Multiplicative Sinusoidal Shifted",
     "resnet18_scratch": "ResNet18 Scratch",
     "resnet18_imagenet": "ResNet18 ImageNet",
     "vit": "ViT",
@@ -103,6 +105,8 @@ MODEL_VARIANT_DISPLAY = {
     "col_sinusoidal": "Column-wise Sinusoidal",
     "additive_sinusoidal": "Additive Sinusoidal",
     "additive_sinusoidal_shifted": "Additive Sinusoidal Shifted",
+    "multiplicative_sinusoidal": "Multiplicative Sinusoidal",
+    "multiplicative_sinusoidal_shifted": "Multiplicative Sinusoidal Shifted",
     "scratch": "Scratch",
     "imagenet": "ImageNet",
     "pretrained": "Pretrained",
@@ -115,6 +119,8 @@ POSITION_ENCODING_DISPLAY = {
     "col_sinusoidal": "Column-wise Sinusoidal",
     "additive_sinusoidal": "Additive Sinusoidal",
     "additive_sinusoidal_shifted": "Additive Sinusoidal Shifted",
+    "multiplicative_sinusoidal": "Multiplicative Sinusoidal",
+    "multiplicative_sinusoidal_shifted": "Multiplicative Sinusoidal Shifted",
     "none": "None",
 }
 INITIALIZATION_DISPLAY = {

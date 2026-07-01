@@ -85,6 +85,10 @@ pip install -r requirements.txt
   先分别生成 row / column sinusoidal embedding，再逐元素相加
 - `vit_additive_sinusoidal_shifted`
   additive 版本，但 row / column 使用错开的 wavelength
+- `vit_multiplicative_sinusoidal`
+  先分别生成 row / column sinusoidal embedding，再逐元素相乘
+- `vit_multiplicative_sinusoidal_shifted`
+  multiplicative 版本，但 row / column 使用错开的 wavelength
 - `vit_rope`
   1D RoPE 版本
 - `vit_rope_2d`
@@ -186,6 +190,18 @@ python train_cifar10_experiment.py --model vit_additive_sinusoidal --dataset cad
 
 ```bash
 python train_cifar10_experiment.py --model vit_additive_sinusoidal_shifted --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name additive_shifted_cadb_elements_seed42
+```
+
+### `vit_multiplicative_sinusoidal`
+
+```bash
+python train_cifar10_experiment.py --model vit_multiplicative_sinusoidal --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name multiplicative_cadb_elements_seed42
+```
+
+### `vit_multiplicative_sinusoidal_shifted`
+
+```bash
+python train_cifar10_experiment.py --model vit_multiplicative_sinusoidal_shifted --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name multiplicative_shifted_cadb_elements_seed42
 ```
 
 ### 四模型对比报告
