@@ -438,6 +438,7 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
         },
         "model": model_config,
         "outputs": {
+            "experiment_name": getattr(args, "experiment_name", None),
             "results_dir": str(args.results_dir),
             "checkpoint_dir": str(args.checkpoint_dir),
             "run_name": args.run_name,

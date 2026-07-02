@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from models.registry import EXPERIMENT_REGISTRY
-from result_paths import resolve_run_artifact_paths
+from result_paths import build_report_artifact_dirs, resolve_run_artifact_paths
 
 
 DEFAULT_MODELS = ["vit_baseline", "vit_rope", "vit_rope_2d"]
@@ -55,6 +55,7 @@ def parse_args():
         help="Seeds to summarize, for example: --seeds 42 43 44",
     )
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
+    parser.add_argument("--experiment-name", type=str, default=None)
     parser.add_argument(
         "--run-prefix",
         type=str,
@@ -65,7 +66,7 @@ def parse_args():
         "--report-name",
         type=str,
         default=None,
-        help="Output report folder name under results/reports/.",
+        help="Output report folder name. If experiment-name is set, it is saved under results/<experiment>/reports/.",
     )
     parser.add_argument(
         "--reference-model",
@@ -118,7 +119,11 @@ def collect_run_rows(args):
     for model_name in args.models:
         for seed in args.seeds:
             run_name = build_run_name(model_name, seed, args.run_prefix)
-            summary_path = resolve_run_artifact_paths(args.results_dir, run_name)["summary_path"]
+            summary_path = resolve_run_artifact_paths(
+                args.results_dir,
+                run_name,
+                experiment_name=args.experiment_name,
+            )["summary_path"]
             if summary_path is None:
                 raise FileNotFoundError(f"Missing summary file for run: {run_name}")
             summary = load_json(summary_path)
@@ -225,9 +230,14 @@ def build_headline_insights(rows, summary_rows, reference_model):
     return insights
 
 
-def ensure_report_dirs(results_dir: Path, report_name: str):
-    report_dir = results_dir / "reports" / report_name
-    figures_dir = report_dir / "figures"
+def ensure_report_dirs(results_dir: Path, report_name: str, experiment_name: str | None = None):
+    report_paths = build_report_artifact_dirs(
+        results_dir=results_dir,
+        report_name=report_name,
+        experiment_name=experiment_name,
+    )
+    report_dir = report_paths["report_dir"]
+    figures_dir = report_paths["figures_dir"]
     figures_dir.mkdir(parents=True, exist_ok=True)
     return report_dir, figures_dir
 
@@ -347,7 +357,11 @@ def main():
     delta_rows = build_delta_rows(summary_rows, args.reference_model, args.metrics)
     insights = build_headline_insights(rows, summary_rows, args.reference_model)
 
-    report_dir, figures_dir = ensure_report_dirs(args.results_dir, report_name)
+    report_dir, figures_dir = ensure_report_dirs(
+        args.results_dir,
+        report_name,
+        experiment_name=args.experiment_name,
+    )
     per_seed_csv = report_dir / "per_seed_metrics.csv"
     aggregate_csv = report_dir / "aggregate_summary.csv"
     delta_csv = report_dir / "delta_vs_reference.csv"

@@ -46,6 +46,7 @@ def parse_args():
     parser.add_argument("--dataset", choices=SUPPORTED_DATASETS, default="cifar10")
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
+    parser.add_argument("--experiment-name", type=str, default=None)
     parser.add_argument("--run-name", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=5, help="Number of training epochs.")
     parser.add_argument("--batch-size", type=int, default=None)
@@ -97,6 +98,7 @@ def parse_args():
 
 def print_run_header(args, spec, device):
     print(f"Using device: {device}")
+    print(f"Experiment: {args.experiment_name}")
     print(f"Run name: {args.run_name}")
     print(f"Dataset: {get_dataset_display_name(args.dataset)} ({args.dataset})")
     print(f"Model: {args.model}")
@@ -253,8 +255,9 @@ def save_run_outputs(
         checkpoint_dir=args.checkpoint_dir,
         model_name=args.model,
         run_name=args.run_name,
+        experiment_name=args.experiment_name,
+        dataset_name=args.dataset,
     )
-    metrics_dir = artifact_paths["metrics_dir"]
     figure_dir = artifact_paths["figures_dir"]
     metrics_path = artifact_paths["metrics_path"]
     config_path = artifact_paths["config_path"]
@@ -367,6 +370,7 @@ def main():
     spec = resolve_experiment(args)
     set_seed(args.seed)
     args.run_name = args.run_name or make_run_name(args.model)
+    args.experiment_name = args.experiment_name or args.dataset
 
     device = get_device()
     print_run_header(args, spec, device)

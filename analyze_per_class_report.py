@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from result_paths import resolve_run_artifact_paths
+from result_paths import build_report_artifact_dirs, resolve_run_artifact_paths
 
 
 DEFAULT_CLASS_NAMES = [
@@ -44,6 +44,7 @@ def parse_args():
         help="Run spec in the form run_name or run_name=Display Label. Repeatable.",
     )
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
+    parser.add_argument("--experiment-name", type=str, default=None)
     parser.add_argument("--report-name", type=str, default=None)
     parser.add_argument(
         "--reference-run",
@@ -73,15 +74,24 @@ def make_default_report_name(run_specs):
     return f"per_class_{joined}_{timestamp}"
 
 
-def ensure_report_dirs(results_dir: Path, report_name: str):
-    report_dir = results_dir / "reports" / report_name
-    figures_dir = report_dir / "figures"
+def ensure_report_dirs(results_dir: Path, report_name: str, experiment_name: str | None = None):
+    report_paths = build_report_artifact_dirs(
+        results_dir=results_dir,
+        report_name=report_name,
+        experiment_name=experiment_name,
+    )
+    report_dir = report_paths["report_dir"]
+    figures_dir = report_paths["figures_dir"]
     figures_dir.mkdir(parents=True, exist_ok=True)
     return report_dir, figures_dir
 
 
-def load_run_payload(results_dir: Path, run_name: str, label: str):
-    summary_path = resolve_run_artifact_paths(results_dir, run_name)["summary_path"]
+def load_run_payload(results_dir: Path, run_name: str, label: str, experiment_name: str | None = None):
+    summary_path = resolve_run_artifact_paths(
+        results_dir,
+        run_name,
+        experiment_name=experiment_name,
+    )["summary_path"]
     if summary_path is None:
         raise FileNotFoundError(f"Missing summary artifact for run '{run_name}'.")
     summary = load_json(summary_path)
@@ -277,9 +287,16 @@ def main():
     args = parse_args()
     run_specs = [parse_run_spec(spec) for spec in (args.runs or DEFAULT_RUN_SPECS)]
     report_name = args.report_name or make_default_report_name(run_specs)
-    report_dir, figures_dir = ensure_report_dirs(args.results_dir, report_name)
+    report_dir, figures_dir = ensure_report_dirs(
+        args.results_dir,
+        report_name,
+        experiment_name=args.experiment_name,
+    )
 
-    runs = [load_run_payload(args.results_dir, run_name, label) for run_name, label in run_specs]
+    runs = [
+        load_run_payload(args.results_dir, run_name, label, experiment_name=args.experiment_name)
+        for run_name, label in run_specs
+    ]
     class_names = load_class_names(args.results_dir, runs)
 
     if args.reference_run:

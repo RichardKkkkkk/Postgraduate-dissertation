@@ -10,8 +10,8 @@ repository documents as the shared memory between Codex sessions.
 - Do not modify the core VisionTransformer architecture unless explicitly asked.
 - Use CIFAR-10 for initial MVP experiments.
 - Keep datasets under `data/` and do not commit them.
-- Keep checkpoints under `checkpoints/` and do not commit them.
-- Save plots under `results/figures/`.
+- Keep checkpoints under `checkpoints/`.
+- Save plots and report artifacts under experiment-scoped folders inside `results/`.
 - Update README when adding runnable scripts.
 - When changing project structure, shared training flow, experiment protocol, or
   result management rules, also update the relevant files under `docs/`.
@@ -21,6 +21,8 @@ repository documents as the shared memory between Codex sessions.
   - the default values the user should expect
 - When adding a new model variant or dataset path, also update README so the
   runnable commands for that branch are explicit.
+- When changing artifact paths, also update README and `docs/PROJECT_STRUCTURE.md`
+  so the experiment directory layout stays documented.
 - Use the conda environment `vit_research` for project development.
 - Do not create a `.venv` for this project.
 - Remind the user when the current changes form a reasonable commit checkpoint, suggest a clear commit message, but do not commit unless explicitly asked.

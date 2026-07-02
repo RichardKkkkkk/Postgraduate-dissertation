@@ -215,12 +215,15 @@ python generate_comparison_report.py --run no_pos_cadb_elements_seed42="ViT No P
 
 每次训练完成后会保存：
 
-- `results/metrics/<model>/<run_name>_metrics.csv`
-- `results/metrics/<model>/<run_name>_config.json`
-- `results/metrics/<model>/<run_name>_summary.json`
-- `results/figures/<model>/<run_name>_loss.png`
-- `results/figures/<model>/<run_name>_accuracy.png`
-- `checkpoints/<model>/<run_name>_best.pt`
+- `results/<experiment_name>/metrics/<model>/<run_name>_metrics.csv`
+- `results/<experiment_name>/metrics/<model>/<run_name>_config.json`
+- `results/<experiment_name>/metrics/<model>/<run_name>_summary.json`
+- `results/<experiment_name>/figures/<model>/<run_name>_loss.png`
+- `results/<experiment_name>/figures/<model>/<run_name>_accuracy.png`
+- `results/<experiment_name>/reports/<report_name>/...`
+- `checkpoints/<experiment_name>/<model>/<run_name>_best.pt`
+
+濡傛灉涓嶆樉寮忎紶 `--experiment-name`锛岀郴缁熼粯璁や細浣跨敤 `dataset` 鍚嶇О浣滀负瀹為獙鐩綍銆?
 
 单标签任务还会额外保存 confusion matrix。
 
@@ -238,6 +241,7 @@ python generate_comparison_report.py --run no_pos_cadb_elements_seed42="ViT No P
 - `--data-dir`
 - `--results-dir`
 - `--checkpoint-dir`
+- `--experiment-name`
 - `--run-name`
 - `--epochs`
 - `--batch-size`

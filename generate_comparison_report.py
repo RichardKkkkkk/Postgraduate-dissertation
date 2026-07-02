@@ -11,7 +11,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from result_paths import resolve_run_artifact_paths
+from result_paths import build_report_artifact_dirs, resolve_run_artifact_paths
 
 
 PRIORITY_METRICS = [
@@ -215,6 +215,8 @@ class RunArtifacts:
     confusion_matrix_csv: Path | None
     confusion_matrix_figure: Path | None
     early_stopping: dict | None
+    experiment_name: str | None
+    results_experiment_dir: Path | None
 
 
 def parse_args():
@@ -232,7 +234,7 @@ def parse_args():
         "--summary-report",
         type=str,
         default=None,
-        help="Existing seed-summary report folder name under results/reports/.",
+        help="Existing seed-summary report folder name. If experiment-name is set, it is resolved inside that experiment first.",
     )
     input_group.add_argument(
         "--summary-manifest",
@@ -244,7 +246,7 @@ def parse_args():
         "--per-class-report",
         type=str,
         default=None,
-        help="Optional per-class comparison report folder name under results/reports/ to append as extra slides.",
+        help="Optional per-class comparison report folder name to append as extra slides.",
     )
     parser.add_argument(
         "--per-class-manifest",
@@ -253,6 +255,7 @@ def parse_args():
         help="Optional path to a per-class comparison report_manifest.json file.",
     )
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
+    parser.add_argument("--experiment-name", type=str, default=None)
     parser.add_argument("--report-name", type=str, default=None)
     parser.add_argument("--title", type=str, default=None)
     parser.add_argument(
@@ -526,8 +529,14 @@ def extract_per_class_metrics(summary: dict):
     return metrics
 
 
-def load_run_artifacts(results_dir: Path, project_root: Path, run_name: str, label: str):
-    artifact_paths = resolve_run_artifact_paths(results_dir, run_name)
+def load_run_artifacts(
+    results_dir: Path,
+    project_root: Path,
+    run_name: str,
+    label: str,
+    experiment_name: str | None = None,
+):
+    artifact_paths = resolve_run_artifact_paths(results_dir, run_name, experiment_name=experiment_name)
     history_path = artifact_paths["metrics_path"]
     config_path = artifact_paths["config_path"]
     summary_path = artifact_paths["summary_path"]
@@ -581,6 +590,8 @@ def load_run_artifacts(results_dir: Path, project_root: Path, run_name: str, lab
             project_root, selected.get("test_confusion_matrix_figure")
         ),
         early_stopping=summary.get("early_stopping") if isinstance(summary.get("early_stopping"), dict) else None,
+        experiment_name=artifact_paths.get("experiment_name"),
+        results_experiment_dir=artifact_paths.get("results_experiment_dir"),
     )
 
 
@@ -816,9 +827,22 @@ def stringify_config_value(value):
     return str(value)
 
 
-def ensure_report_dirs(results_dir: Path, report_name: str):
-    report_dir = results_dir / "reports" / report_name
-    figures_dir = report_dir / "figures"
+def infer_shared_experiment_name(runs):
+    experiment_names = {run.experiment_name for run in runs if run.experiment_name}
+    if len(experiment_names) == 1:
+        return next(iter(experiment_names))
+    return None
+
+
+def ensure_report_dirs(results_dir: Path, report_name: str, experiment_name: str | None = None, runs=None):
+    resolved_experiment_name = experiment_name or infer_shared_experiment_name(runs or [])
+    report_paths = build_report_artifact_dirs(
+        results_dir=results_dir,
+        report_name=report_name,
+        experiment_name=resolved_experiment_name,
+    )
+    report_dir = report_paths["report_dir"]
+    figures_dir = report_paths["figures_dir"]
     figures_dir.mkdir(parents=True, exist_ok=True)
     return report_dir, figures_dir
 
@@ -1251,13 +1275,24 @@ def save_summary_outputs(
     return summary_csv_path, config_csv_path, overview_path, presentation_summary_path, manifest_path
 
 
-def resolve_summary_manifest_path(results_dir: Path, summary_report: str | None, summary_manifest: Path | None):
+def resolve_summary_manifest_path(
+    results_dir: Path,
+    summary_report: str | None,
+    summary_manifest: Path | None,
+    experiment_name: str | None = None,
+):
     if summary_manifest:
         path = summary_manifest if summary_manifest.is_absolute() else Path.cwd() / summary_manifest
         if path.is_dir():
             path = path / "summary_manifest.json"
     elif summary_report:
-        path = results_dir / "reports" / summary_report / "summary_manifest.json"
+        candidates = []
+        if experiment_name:
+            candidates.append(results_dir / experiment_name / "reports" / summary_report / "summary_manifest.json")
+        candidates.append(results_dir / "reports" / summary_report / "summary_manifest.json")
+        recursive_matches = sorted(results_dir.glob(f"**/{summary_report}/summary_manifest.json"))
+        candidates.extend(recursive_matches)
+        path = next((candidate for candidate in candidates if candidate.exists()), candidates[0])
     else:
         raise ValueError("Either --summary-report or --summary-manifest must be provided.")
 
@@ -1266,13 +1301,24 @@ def resolve_summary_manifest_path(results_dir: Path, summary_report: str | None,
     return path.resolve()
 
 
-def resolve_report_manifest_path(results_dir: Path, report_name: str | None, manifest_path: Path | None):
+def resolve_report_manifest_path(
+    results_dir: Path,
+    report_name: str | None,
+    manifest_path: Path | None,
+    experiment_name: str | None = None,
+):
     if manifest_path:
         path = manifest_path if manifest_path.is_absolute() else Path.cwd() / manifest_path
         if path.is_dir():
             path = path / "report_manifest.json"
     elif report_name:
-        path = results_dir / "reports" / report_name / "report_manifest.json"
+        candidates = []
+        if experiment_name:
+            candidates.append(results_dir / experiment_name / "reports" / report_name / "report_manifest.json")
+        candidates.append(results_dir / "reports" / report_name / "report_manifest.json")
+        recursive_matches = sorted(results_dir.glob(f"**/{report_name}/report_manifest.json"))
+        candidates.extend(recursive_matches)
+        path = next((candidate for candidate in candidates if candidate.exists()), candidates[0])
     else:
         return None
 
@@ -1423,7 +1469,12 @@ def save_seed_summary_report_outputs(
 
 
 def load_per_class_report_data(args, project_root: Path):
-    manifest_path = resolve_report_manifest_path(args.results_dir, args.per_class_report, args.per_class_manifest)
+    manifest_path = resolve_report_manifest_path(
+        args.results_dir,
+        args.per_class_report,
+        args.per_class_manifest,
+        experiment_name=args.experiment_name,
+    )
     if manifest_path is None:
         return None
 
@@ -3125,12 +3176,24 @@ def export_seed_summary_ppt(
 
 
 def build_seed_summary_report_data(args, project_root: Path):
-    manifest_path = resolve_summary_manifest_path(args.results_dir, args.summary_report, args.summary_manifest)
+    manifest_path = resolve_summary_manifest_path(
+        args.results_dir,
+        args.summary_report,
+        args.summary_manifest,
+        experiment_name=args.experiment_name,
+    )
     source_manifest = load_json(manifest_path)
     per_class_report = load_per_class_report_data(args, project_root)
     source_report_name = str(source_manifest.get("report_name") or manifest_path.parent.name)
     report_name = args.report_name or source_report_name
-    report_dir = manifest_path.parent if report_name == source_report_name else args.results_dir / "reports" / report_name
+    if report_name == source_report_name:
+        report_dir = manifest_path.parent
+    else:
+        report_dir = build_report_artifact_dirs(
+            results_dir=args.results_dir,
+            report_name=report_name,
+            experiment_name=args.experiment_name,
+        )["report_dir"]
     report_dir.mkdir(parents=True, exist_ok=True)
 
     aggregate_csv_path = resolve_summary_artifact_path(project_root, source_manifest.get("aggregate_csv"))
@@ -3181,7 +3244,13 @@ def build_seed_summary_report_data(args, project_root: Path):
 def build_report_context(args, run_specs, project_root: Path):
     report_name = args.report_name or make_default_report_name(run_specs)
     runs = [
-        load_run_artifacts(args.results_dir, project_root, run_name, label)
+        load_run_artifacts(
+            args.results_dir,
+            project_root,
+            run_name,
+            label,
+            experiment_name=args.experiment_name,
+        )
         for run_name, label in run_specs
     ]
     runs = ensure_unique_run_labels(runs)
@@ -3225,7 +3294,12 @@ def main():
     if args.runs:
         run_specs = [parse_run_spec(spec) for spec in args.runs]
         context = build_report_context(args, run_specs, project_root)
-        report_dir, figures_dir = ensure_report_dirs(args.results_dir, context.report_name)
+        report_dir, figures_dir = ensure_report_dirs(
+            args.results_dir,
+            context.report_name,
+            experiment_name=args.experiment_name,
+            runs=context.runs,
+        )
 
         for metric in context.metrics:
             context.metric_figure_paths[metric] = plot_metric(figures_dir, context.runs, metric)

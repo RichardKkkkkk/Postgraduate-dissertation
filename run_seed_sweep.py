@@ -38,6 +38,7 @@ def parse_args():
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
+    parser.add_argument("--experiment-name", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--lr", type=float, default=None)
@@ -99,8 +100,12 @@ def build_report_name(seed: int, report_prefix: str, run_prefix: str | None):
     return f"{report_prefix}_seed{seed}"
 
 
-def summary_exists(results_dir: Path, run_name: str):
-    return resolve_run_artifact_paths(results_dir, run_name)["summary_path"] is not None
+def summary_exists(results_dir: Path, run_name: str, experiment_name: str | None = None):
+    return resolve_run_artifact_paths(
+        results_dir,
+        run_name,
+        experiment_name=experiment_name,
+    )["summary_path"] is not None
 
 
 def append_optional_arg(command: list[str], flag: str, value):
@@ -163,6 +168,7 @@ def build_train_command(args, model_name: str, seed: int):
     append_optional_arg(command, "--val-subset", args.val_subset)
     append_optional_arg(command, "--test-subset", args.test_subset)
     append_optional_arg(command, "--image-size", args.image_size)
+    append_optional_arg(command, "--experiment-name", args.experiment_name)
     return command
 
 
@@ -177,6 +183,7 @@ def build_report_command(args, seed: int, run_specs: list[tuple[str, str]]):
         "--title",
         f"Seed {seed} Model Comparison",
     ]
+    append_optional_arg(command, "--experiment-name", args.experiment_name)
     if not args.with_ppt:
         command.append("--skip-ppt")
     for run_name, label in run_specs:
@@ -195,7 +202,7 @@ def main():
             run_name = build_run_name(model_name, seed, args.run_prefix)
             run_specs.append((run_name, MODEL_LABELS.get(model_name, model_name)))
 
-            if args.skip_existing and summary_exists(args.results_dir, run_name):
+            if args.skip_existing and summary_exists(args.results_dir, run_name, args.experiment_name):
                 print(f"Skipping existing run: {run_name}")
                 continue
 
