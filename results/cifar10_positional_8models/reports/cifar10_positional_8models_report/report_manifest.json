@@ -1,0 +1,59 @@
+{
+  "report_dir": "results\\cifar10_positional_8models\\reports\\cifar10_positional_8models_report",
+  "generated_at": "2026-07-02T13:01:40",
+  "scenario": "generic_multi_run",
+  "runs": [
+    {
+      "run_name": "vit_no_pos_cifar10_seed42",
+      "label": "ViT No Pos"
+    },
+    {
+      "run_name": "vit_baseline_cifar10_seed42",
+      "label": "ViT Baseline"
+    },
+    {
+      "run_name": "vit_row_cifar10_seed42",
+      "label": "ViT Row-wise"
+    },
+    {
+      "run_name": "vit_col_cifar10_seed42",
+      "label": "ViT Column-wise"
+    },
+    {
+      "run_name": "vit_additive_cifar10_seed42",
+      "label": "ViT Additive"
+    },
+    {
+      "run_name": "vit_additive_shifted_cifar10_seed42",
+      "label": "ViT Additive Shifted"
+    },
+    {
+      "run_name": "vit_multi_cifar10_seed42",
+      "label": "ViT Multiplicative"
+    },
+    {
+      "run_name": "vit_multi_shifted_cifar10_seed42",
+      "label": "ViT Multiplicative Shifted"
+    }
+  ],
+  "metrics": [
+    "test_acc",
+    "val_acc",
+    "test_loss",
+    "val_loss",
+    "train_acc",
+    "train_loss",
+    "val_macro_f1",
+    "test_macro_f1"
+  ],
+  "selected_checkpoint_metrics": [
+    "test_macro_precision",
+    "test_macro_recall",
+    "val_macro_precision",
+    "val_macro_recall"
+  ],
+  "summary_csv": "results\\cifar10_positional_8models\\reports\\cifar10_positional_8models_report\\comparison_summary.csv",
+  "config_csv": "results\\cifar10_positional_8models\\reports\\cifar10_positional_8models_report\\config_comparison.csv",
+  "overview_md": "results\\cifar10_positional_8models\\reports\\cifar10_positional_8models_report\\overview.md",
+  "presentation_summary_json": "results\\cifar10_positional_8models\\reports\\cifar10_positional_8models_report\\presentation_summary.json"
+}
