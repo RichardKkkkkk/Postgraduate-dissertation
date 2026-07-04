@@ -76,8 +76,8 @@ COLOR_CARD = (255, 255, 255)
 COLOR_HEADER_FILL = (226, 232, 240)
 FONT_FAMILY = "Aptos"
 MODEL_DISPLAY_NAMES = {
-    "vit_no_pos": "ViT No Pos",
-    "vit_baseline": "ViT Baseline",
+    "vit_baseline": "ViT Baseline (No Pos)",
+    "vit_learnable_position": "ViT Learnable Position",
     "vit_rope": "ViT RoPE",
     "vit_rope_2d": "ViT RoPE 2D",
     "vit_row_sinusoidal": "ViT Row-wise Sinusoidal",
@@ -97,8 +97,8 @@ MODEL_FAMILY_DISPLAY = {
     "cnn": "CNN",
 }
 MODEL_VARIANT_DISPLAY = {
-    "no_pos": "No Pos",
-    "baseline": "Baseline",
+    "baseline": "Baseline (No Pos)",
+    "learnable_position": "Learnable Position",
     "rope": "RoPE",
     "rope_2d": "RoPE 2D",
     "row_sinusoidal": "Row-wise Sinusoidal",
@@ -139,6 +139,17 @@ DATASET_LABEL_NAMES = {
         "pattern",
     ],
 }
+DATASET_DISPLAY_NAMES = {
+    "cifar10": "CIFAR-10",
+    "cadb_elements": "CADB Elements",
+    "cadb_orientation": "CADB Orientation",
+    "cadb_scene": "CADB Scene",
+    "synthetic_orientation": "Synthetic Orientation",
+    "synthetic_orientation_clean": "Synthetic Orientation Clean",
+    "synthetic_orientation_hard": "Synthetic Orientation Hard",
+    "synthetic_row_code": "Synthetic Row Code",
+    "synthetic_col_code": "Synthetic Column Code",
+}
 COMPACT_CURVE_PRIORITY = ["val_macro_f1", "val_acc", "test_acc", "train_loss"]
 COMPACT_PER_CLASS_PRIORITY = [
     "test_per_class_f1",
@@ -147,8 +158,8 @@ COMPACT_PER_CLASS_PRIORITY = [
     "test_per_class_accuracy",
 ]
 RUN_COLOR_MAP = {
-    "vit_no_pos": "#1d4ed8",
-    "vit_baseline": "#ea580c",
+    "vit_baseline": "#1d4ed8",
+    "vit_learnable_position": "#ea580c",
     "vit_row_sinusoidal": "#16a34a",
     "vit_col_sinusoidal": "#dc2626",
     "vit_additive_sinusoidal": "#7c3aed",
@@ -372,12 +383,27 @@ def format_initialization_display(initialization: str):
     )
 
 
+def format_dataset_display_name(dataset_name: str | None):
+    if not dataset_name:
+        return None
+    return DATASET_DISPLAY_NAMES.get(dataset_name, dataset_name.replace("_", " ").title())
+
+
+def build_dataset_plot_title(dataset_name: str | None, base_title: str):
+    dataset_display_name = format_dataset_display_name(dataset_name)
+    if not dataset_display_name:
+        return base_title
+    return f"{dataset_display_name} | {base_title}"
+
+
 def build_model_display_name(model_name: str, family: str, variant: str, initialization: str):
     if model_name in MODEL_DISPLAY_NAMES:
         return MODEL_DISPLAY_NAMES[model_name]
     if family == "vit":
         if variant == "baseline":
-            return "ViT Baseline"
+            return "ViT Baseline (No Pos)"
+        if variant == "learnable_position":
+            return "ViT Learnable Position"
         if variant == "rope":
             return "ViT RoPE"
         return f"ViT {format_variant_display(variant)}"
@@ -441,7 +467,13 @@ def infer_model_metadata(config: dict, summary: dict, run_name: str):
             family = "vit"
 
     if not variant and raw_model_name:
-        if raw_model_name in {"vit_no_pos", "vit_baseline", "vit_rope", "resnet18_scratch", "resnet18_imagenet"}:
+        if raw_model_name in {
+            "vit_baseline",
+            "vit_learnable_position",
+            "vit_rope",
+            "resnet18_scratch",
+            "resnet18_imagenet",
+        }:
             variant = raw_model_name.split("_", 1)[1]
         elif raw_model_name == "resnet18":
             variant = "baseline"
@@ -678,11 +710,11 @@ def detect_comparison_scenario(runs):
 
 def build_default_title(runs, scenario):
     if scenario == "axis_bias_trio":
-        return "Directional Comparison: ViT Baseline vs Row-wise vs Column-wise"
+        return "Directional Comparison: ViT Baseline (No Pos) vs Row-wise vs Column-wise"
     if scenario == "row_vs_col_sinusoidal":
         return "Directional Comparison: ViT Row-wise vs ViT Column-wise"
     if scenario == "baseline_vs_rope":
-        return "Weekly Comparison: ViT Baseline vs ViT RoPE"
+        return "Weekly Comparison: ViT Baseline (No Pos) vs ViT RoPE"
     if scenario == "scratch_vs_pretrained":
         return "Weekly Comparison: ResNet18 Scratch vs ResNet18 ImageNet"
     if scenario == "vit_vs_cnn":
@@ -693,9 +725,9 @@ def build_default_title(runs, scenario):
 
 def format_comparison_scenario(scenario: str):
     mapping = {
-        "axis_bias_trio": "Baseline vs Row-wise vs Column-wise",
+        "axis_bias_trio": "Baseline (No Pos) vs Row-wise vs Column-wise",
         "row_vs_col_sinusoidal": "Row-wise vs Column-wise Sinusoidal",
-        "baseline_vs_rope": "ViT Baseline vs RoPE",
+        "baseline_vs_rope": "ViT Baseline (No Pos) vs RoPE",
         "scratch_vs_pretrained": "ResNet18 Scratch vs Pretrained",
         "vit_vs_cnn": "ViT vs CNN",
         "generic_multi_run": "Multi-run comparison",
@@ -1578,6 +1610,7 @@ def get_run_color(run, index: int):
 def plot_metric(figures_dir: Path, runs, metric_name: str):
     setup_plot_style()
     figure, axis = plt.subplots(figsize=(8.2, 4.8))
+    dataset_name = get_shared_dataset_name(runs)
     for index, run in enumerate(runs):
         color = get_run_color(run, index)
         epochs = [int(row["epoch"]) for row in run.history]
@@ -1598,7 +1631,14 @@ def plot_metric(figures_dir: Path, runs, metric_name: str):
     axis.set_xlabel("Epoch")
     axis.set_ylabel("Percentage (%)" if is_percentage_metric(metric_name) else "Value")
     direction = "Higher is better" if not is_lower_better(metric_name) else "Lower is better"
-    axis.set_title(f"{metric_display_name(metric_name)} Across Training ({direction})", fontsize=14, pad=12)
+    axis.set_title(
+        build_dataset_plot_title(
+            dataset_name,
+            f"{metric_display_name(metric_name)} Across Training ({direction})",
+        ),
+        fontsize=14,
+        pad=12,
+    )
     axis.grid(True, alpha=0.25)
     axis.legend(loc="best", frameon=True)
     figure.tight_layout()
@@ -1612,6 +1652,7 @@ def plot_metric(figures_dir: Path, runs, metric_name: str):
 def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
     if not macro_metric_keys:
         return None
+    dataset_name = get_shared_dataset_name(runs)
 
     def resolve_macro_value(run, metric_name: str):
         if metric_name in run.selected_metrics:
@@ -1650,7 +1691,7 @@ def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
     axis.set_xticklabels([metric_display_name(metric_name) for metric_name in focus_metrics], fontsize=10)
     axis.set_ylabel("Percentage (%)")
     axis.set_ylim(0, max(100.0, axis.get_ylim()[1]))
-    axis.set_title("Macro Metric Snapshot", fontsize=14, pad=12)
+    axis.set_title(build_dataset_plot_title(dataset_name, "Macro Metric Snapshot"), fontsize=14, pad=12)
     axis.legend(loc="upper center", ncol=min(3, len(runs)), frameon=True)
     figure.tight_layout()
 
@@ -1718,7 +1759,14 @@ def ensure_confusion_matrix_figure(figures_dir: Path, run: RunArtifacts):
     axis.set_yticklabels(class_names, fontsize=8)
     axis.set_xlabel("Predicted label")
     axis.set_ylabel("True label")
-    axis.set_title(f"{run.model_display_name} Test Confusion Matrix", fontsize=13, pad=10)
+    dataset_name = run.config.get("dataset")
+    if isinstance(dataset_name, dict):
+        dataset_name = dataset_name.get("name")
+    axis.set_title(
+        build_dataset_plot_title(dataset_name, f"{run.model_display_name} Test Confusion Matrix"),
+        fontsize=13,
+        pad=10,
+    )
 
     for row_index in range(data.shape[0]):
         for column_index in range(data.shape[1]):
@@ -1768,6 +1816,7 @@ def infer_class_names(run: RunArtifacts, metric_name: str):
 
 
 def plot_per_class_metric(figures_dir: Path, runs, metric_name: str):
+    dataset_name = get_shared_dataset_name(runs)
     class_names = infer_class_names(runs[0], metric_name)
     value_count = len(class_names)
     x_positions = np.arange(value_count)
@@ -1793,7 +1842,11 @@ def plot_per_class_metric(figures_dir: Path, runs, metric_name: str):
     axis.set_xticklabels(class_names, rotation=35, ha="right", fontsize=8)
     axis.set_ylim(0, max(100.0, axis.get_ylim()[1]))
     axis.set_ylabel("Percentage (%)")
-    axis.set_title(f"{metric_display_name(metric_name)} by Class", fontsize=14, pad=12)
+    axis.set_title(
+        build_dataset_plot_title(dataset_name, f"{metric_display_name(metric_name)} by Class"),
+        fontsize=14,
+        pad=12,
+    )
     axis.legend(loc="upper center", ncol=min(3, len(runs)), frameon=True)
     figure.tight_layout()
 

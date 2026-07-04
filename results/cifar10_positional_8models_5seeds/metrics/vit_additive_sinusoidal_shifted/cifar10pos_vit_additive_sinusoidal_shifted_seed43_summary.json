@@ -81,7 +81,28 @@
     "position_encoding": "additive_sinusoidal_shifted",
     "task_type": "single_label",
     "test_confusion_matrix_csv": "results\\cifar10_positional_8models_5seeds\\metrics\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_test_confusion_matrix.csv",
-    "test_confusion_matrix_figure": "results\\cifar10_positional_8models_5seeds\\figures\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_test_confusion_matrix.png"
+    "test_confusion_matrix_figure": "results\\cifar10_positional_8models_5seeds\\figures\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_test_confusion_matrix.png",
+    "label_names": [
+      "airplane",
+      "automobile",
+      "bird",
+      "cat",
+      "deer",
+      "dog",
+      "frog",
+      "horse",
+      "ship",
+      "truck"
+    ],
+    "per_class_figure_paths": {
+      "test_per_class_accuracy": "results\\cifar10_positional_8models_5seeds\\figures\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_test_per_class_accuracy.png",
+      "test_per_class_precision": "results\\cifar10_positional_8models_5seeds\\figures\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_test_per_class_precision.png",
+      "test_per_class_recall": "results\\cifar10_positional_8models_5seeds\\figures\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_test_per_class_recall.png",
+      "test_per_class_f1": "results\\cifar10_positional_8models_5seeds\\figures\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_test_per_class_f1.png"
+    },
+    "loss_figure": "results\\cifar10_positional_8models_5seeds\\figures\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_loss.png",
+    "accuracy_figure": "results\\cifar10_positional_8models_5seeds\\figures\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_accuracy.png",
+    "macro_f1_figure": "results\\cifar10_positional_8models_5seeds\\figures\\vit_additive_sinusoidal_shifted\\cifar10pos_vit_additive_sinusoidal_shifted_seed43_macro_f1.png"
   },
   "early_stopping": {
     "enabled": true,

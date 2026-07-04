@@ -13,6 +13,23 @@ import torch
 
 
 EARLY_STOPPING_METRICS = ("val_acc", "val_loss", "val_macro_f1")
+CURVE_COLORS = {
+    "train": "#2563eb",
+    "val": "#ea580c",
+    "test": "#16a34a",
+}
+PER_CLASS_COLORS = {
+    "test_per_class_accuracy": "#2563eb",
+    "test_per_class_precision": "#7c3aed",
+    "test_per_class_recall": "#dc2626",
+    "test_per_class_f1": "#16a34a",
+}
+PER_CLASS_TITLES = {
+    "test_per_class_accuracy": "Selected Test Per-Class Accuracy",
+    "test_per_class_precision": "Selected Test Per-Class Precision",
+    "test_per_class_recall": "Selected Test Per-Class Recall",
+    "test_per_class_f1": "Selected Test Per-Class F1",
+}
 
 
 def set_seed(seed):
@@ -28,6 +45,10 @@ def get_device():
     if torch.cuda.is_available():
         return torch.device("cuda")
     return torch.device("cpu")
+
+
+def setup_plot_style():
+    plt.style.use("seaborn-v0_8-whitegrid")
 
 
 def _compute_single_label_accuracy(predictions, targets):
@@ -324,6 +345,7 @@ def plot_confusion_matrix(confusion_matrix, class_names, path, title):
     path.parent.mkdir(parents=True, exist_ok=True)
     matrix = torch.tensor(confusion_matrix, dtype=torch.float32)
 
+    setup_plot_style()
     figure, axis = plt.subplots(figsize=(8, 6))
     heatmap = axis.imshow(matrix, cmap="Blues")
     axis.set_xticks(range(len(class_names)))
@@ -353,6 +375,91 @@ def plot_confusion_matrix(confusion_matrix, class_names, path, title):
     figure.tight_layout()
     figure.savefig(path, dpi=150)
     plt.close(figure)
+
+
+def _draw_selected_epoch(axis, selected_epoch):
+    if selected_epoch is None:
+        return
+    axis.axvline(
+        x=selected_epoch,
+        color="#475569",
+        linestyle="--",
+        linewidth=1.3,
+        alpha=0.75,
+        label=f"Selected epoch ({selected_epoch})",
+    )
+
+
+def _plot_history_lines(history, path, title, ylabel, series_specs, selected_epoch=None):
+    setup_plot_style()
+    epochs = [int(row["epoch"]) for row in history]
+
+    figure, axis = plt.subplots(figsize=(8.6, 5.3))
+    for key, label, color, scale in series_specs:
+        values = [float(row[key]) * scale for row in history]
+        axis.plot(
+            epochs,
+            values,
+            linewidth=2.3,
+            marker="o",
+            markersize=3.6,
+            label=label,
+            color=color,
+        )
+        axis.scatter([epochs[-1]], [values[-1]], s=34, color=color, zorder=3)
+
+    _draw_selected_epoch(axis, selected_epoch)
+    axis.set_xlabel("Epoch")
+    axis.set_ylabel(ylabel)
+    axis.set_title(title)
+    axis.grid(True, alpha=0.25)
+    axis.legend(loc="best", frameon=True)
+    figure.tight_layout()
+    figure.savefig(path, dpi=170)
+    plt.close(figure)
+
+
+def plot_selected_per_class_metrics(selected_model_metrics, class_names, figure_dir, run_name, title_prefix):
+    figure_dir.mkdir(parents=True, exist_ok=True)
+    saved_paths = {}
+
+    for metric_name, metric_title in PER_CLASS_TITLES.items():
+        values = selected_model_metrics.get(metric_name)
+        if not isinstance(values, list) or not values:
+            continue
+
+        setup_plot_style()
+        figure, axis = plt.subplots(figsize=(10.0, 5.0))
+        x_positions = list(range(len(values)))
+        plotted_values = [float(value) * 100.0 for value in values]
+        color = PER_CLASS_COLORS.get(metric_name, "#2563eb")
+        bars = axis.bar(x_positions, plotted_values, color=color, alpha=0.9)
+
+        axis.set_xticks(x_positions)
+        axis.set_xticklabels(class_names, rotation=35, ha="right", fontsize=8)
+        axis.set_ylim(0, max(100.0, max(plotted_values) * 1.12 if plotted_values else 100.0))
+        axis.set_ylabel("Percentage (%)")
+        axis.set_title(f"{title_prefix} {metric_title}")
+        axis.grid(True, axis="y", alpha=0.25)
+
+        for bar, value in zip(bars, plotted_values):
+            axis.text(
+                bar.get_x() + bar.get_width() / 2,
+                value + 0.8,
+                f"{value:.1f}",
+                ha="center",
+                va="bottom",
+                fontsize=7,
+                color="#0f172a",
+            )
+
+        figure.tight_layout()
+        figure_path = figure_dir / f"{run_name}_{metric_name}.png"
+        figure.savefig(figure_path, dpi=170)
+        plt.close(figure)
+        saved_paths[metric_name] = figure_path
+
+    return saved_paths
 
 
 def save_best_checkpoint(path, model, model_config, device, args, best_epoch, best_metric_value):
@@ -470,36 +577,55 @@ def save_summary_json(args, history, path, early_stopping_info, selected_model_m
         json.dump(summary, handle, indent=2, default=str)
 
 
-def plot_curves(history, figure_dir, run_name, title_prefix):
+def plot_curves(history, figure_dir, run_name, title_prefix, selected_epoch=None):
     figure_dir.mkdir(parents=True, exist_ok=True)
-    epochs = [row["epoch"] for row in history]
-
-    plt.figure(figsize=(7, 5))
-    plt.plot(epochs, [row["train_loss"] for row in history], label="train loss")
-    plt.plot(epochs, [row["val_loss"] for row in history], label="val loss")
-    plt.plot(epochs, [row["test_loss"] for row in history], label="test loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title(f"{title_prefix} Loss")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
     loss_path = figure_dir / f"{run_name}_loss.png"
-    plt.savefig(loss_path, dpi=150)
-    plt.close()
-
-    plt.figure(figsize=(7, 5))
-    plt.plot(epochs, [row["train_acc"] * 100 for row in history], label="train acc")
-    plt.plot(epochs, [row["val_acc"] * 100 for row in history], label="val acc")
-    plt.plot(epochs, [row["test_acc"] * 100 for row in history], label="test acc")
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy (%)")
-    plt.title(f"{title_prefix} Accuracy")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
     acc_path = figure_dir / f"{run_name}_accuracy.png"
-    plt.savefig(acc_path, dpi=150)
-    plt.close()
+    _plot_history_lines(
+        history=history,
+        path=loss_path,
+        title=f"{title_prefix} Loss",
+        ylabel="Loss",
+        series_specs=[
+            ("train_loss", "Train Loss", CURVE_COLORS["train"], 1.0),
+            ("val_loss", "Validation Loss", CURVE_COLORS["val"], 1.0),
+            ("test_loss", "Test Loss", CURVE_COLORS["test"], 1.0),
+        ],
+        selected_epoch=selected_epoch,
+    )
+    _plot_history_lines(
+        history=history,
+        path=acc_path,
+        title=f"{title_prefix} Accuracy",
+        ylabel="Accuracy (%)",
+        series_specs=[
+            ("train_acc", "Train Accuracy", CURVE_COLORS["train"], 100.0),
+            ("val_acc", "Validation Accuracy", CURVE_COLORS["val"], 100.0),
+            ("test_acc", "Test Accuracy", CURVE_COLORS["test"], 100.0),
+        ],
+        selected_epoch=selected_epoch,
+    )
 
-    return loss_path, acc_path
+    curve_paths = {
+        "loss": loss_path,
+        "accuracy": acc_path,
+    }
+    if any("val_macro_f1" in row or "test_macro_f1" in row for row in history):
+        macro_f1_path = figure_dir / f"{run_name}_macro_f1.png"
+        series_specs = []
+        if all("val_macro_f1" in row for row in history):
+            series_specs.append(("val_macro_f1", "Validation Macro F1", CURVE_COLORS["val"], 100.0))
+        if all("test_macro_f1" in row for row in history):
+            series_specs.append(("test_macro_f1", "Test Macro F1", CURVE_COLORS["test"], 100.0))
+        if series_specs:
+            _plot_history_lines(
+                history=history,
+                path=macro_f1_path,
+                title=f"{title_prefix} Macro F1",
+                ylabel="Macro F1 (%)",
+                series_specs=series_specs,
+                selected_epoch=selected_epoch,
+            )
+            curve_paths["macro_f1"] = macro_f1_path
+
+    return curve_paths

@@ -28,7 +28,7 @@ from .vit_axis_sinusoidal import (
     ViTMultiplicativeSinusoidalShifted,
     ViTRowSinusoidal,
 )
-from .vit_no_pos import ViTNoPos
+from .vit_baseline import ViTBaseline
 from .vit_rope import ViTRoPE
 from .vit_rope_2d import ViTRoPE2D
 
@@ -127,14 +127,14 @@ def build_vit_model_config(args):
     }
 
 
-def build_vit_baseline_model(args):
+def build_vit_learnable_position_model(args):
     model_config = build_vit_model_config(args)
     return ViT(**model_config), model_config
 
 
-def build_vit_no_pos_model(args):
+def build_vit_baseline_model(args):
     model_config = build_vit_model_config(args)
-    return ViTNoPos(**model_config), model_config
+    return ViTBaseline(**model_config), model_config
 
 
 def build_vit_rope_model(args):
@@ -543,12 +543,12 @@ def build_resnet18_imagenet_dataloaders(args):
 
 register_experiment(
     ExperimentSpec(
-        model_name="vit_no_pos",
+        model_name="vit_baseline",
         architecture="vit",
-        variant="no_pos",
-        plot_title_prefix="ViT No Pos",
+        variant="baseline",
+        plot_title_prefix="ViT Baseline (No Pos)",
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
-        build_model=build_vit_no_pos_model,
+        build_model=build_vit_baseline_model,
         build_dataloaders=build_vit_family_dataloaders,
         extra_summary_fields={"position_encoding": "none"},
     )
@@ -556,12 +556,12 @@ register_experiment(
 
 register_experiment(
     ExperimentSpec(
-        model_name="vit_baseline",
+        model_name="vit_learnable_position",
         architecture="vit",
-        variant="baseline",
-        plot_title_prefix="ViT Baseline",
+        variant="learnable_position",
+        plot_title_prefix="ViT Learnable Position",
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
-        build_model=build_vit_baseline_model,
+        build_model=build_vit_learnable_position_model,
         build_dataloaders=build_vit_family_dataloaders,
         extra_summary_fields={"position_encoding": "absolute"},
     )

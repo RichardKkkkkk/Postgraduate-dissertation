@@ -65,7 +65,24 @@
     "position_encoding": "row_sinusoidal",
     "task_type": "multilabel",
     "val_subset_accuracy": 0.3255360722541809,
-    "test_subset_accuracy": 0.28298279643058777
+    "test_subset_accuracy": 0.28298279643058777,
+    "label_names": [
+      "horizontal",
+      "vertical",
+      "diagonal",
+      "triangle",
+      "symmetric",
+      "pattern"
+    ],
+    "per_class_figure_paths": {
+      "test_per_class_accuracy": "results\\cadb_elements_positional_100e\\figures\\vit_row_sinusoidal\\row_cadb_elements_seed42_test_per_class_accuracy.png",
+      "test_per_class_precision": "results\\cadb_elements_positional_100e\\figures\\vit_row_sinusoidal\\row_cadb_elements_seed42_test_per_class_precision.png",
+      "test_per_class_recall": "results\\cadb_elements_positional_100e\\figures\\vit_row_sinusoidal\\row_cadb_elements_seed42_test_per_class_recall.png",
+      "test_per_class_f1": "results\\cadb_elements_positional_100e\\figures\\vit_row_sinusoidal\\row_cadb_elements_seed42_test_per_class_f1.png"
+    },
+    "loss_figure": "results\\cadb_elements_positional_100e\\figures\\vit_row_sinusoidal\\row_cadb_elements_seed42_loss.png",
+    "accuracy_figure": "results\\cadb_elements_positional_100e\\figures\\vit_row_sinusoidal\\row_cadb_elements_seed42_accuracy.png",
+    "macro_f1_figure": "results\\cadb_elements_positional_100e\\figures\\vit_row_sinusoidal\\row_cadb_elements_seed42_macro_f1.png"
   },
   "early_stopping": {
     "enabled": true,

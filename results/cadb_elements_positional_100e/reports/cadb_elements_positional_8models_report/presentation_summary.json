@@ -1,19 +1,19 @@
 {
-  "title": "CADB Multi-label Positional Encoding Comparison (8 Models)",
+  "title": "CADB Elements Positional Encoding Comparison",
   "scenario": "generic_multi_run",
-  "generated_at": "2026-07-01T16:11:18",
+  "generated_at": "2026-07-04T15:12:20",
   "reference_run": {
-    "run_name": "no_pos_cadb_elements_seed42",
-    "label": "ViT No Pos"
+    "run_name": "baseline_cadb_elements_seed42",
+    "label": "ViT Baseline (No Pos)"
   },
   "headline_insights": [
-    "Primary comparison metric: Test ACC. Best final result is ViT No Pos with 79.48%.",
-    "Largest train-to-test accuracy gap appears in ViT Additive Shifted (22.83 pp), worth calling out during generalization discussion.",
-    "Early stopping summary: ViT No Pos: stopped early; ViT Baseline: stopped early; ViT Row-wise: stopped early"
+    "Primary comparison metric: Test ACC. Best final result is ViT Baseline (No Pos) with 79.48%.",
+    "Largest train-to-test accuracy gap appears in ViT Additive Sinusoidal Shifted (22.83 pp), worth calling out during generalization discussion.",
+    "Early stopping summary: ViT Baseline (No Pos): stopped early; ViT Learnable Position: stopped early; ViT Row-wise Sinusoidal: stopped early"
   ],
   "conclusion_lines": [
-    "Current headline result: ViT No Pos leads on Test ACC with 79.48%.",
-    "When presenting baseline vs comparison, use ViT No Pos as reference and report ViT Baseline at -0.51 pp on Test ACC.",
+    "Current headline result: ViT Baseline (No Pos) leads on Test ACC with 79.48%.",
+    "When presenting baseline vs comparison, use ViT Baseline (No Pos) as reference and report ViT Learnable Position at -0.51 pp on Test ACC.",
     "Per-class pages are now included when selected-checkpoint classwise metrics exist, so class imbalance or hard classes can be discussed directly in meetings.",
     "The deck is now organized for weekly reporting: setup, overview, key metrics, curves, error analysis, and a conclusion slide instead of raw log-style export."
   ],
@@ -37,12 +37,12 @@
   ],
   "runs": [
     {
-      "run_name": "no_pos_cadb_elements_seed42",
-      "label": "ViT No Pos",
-      "model_name": "vit_no_pos",
-      "model_display_name": "ViT No Pos",
+      "run_name": "baseline_cadb_elements_seed42",
+      "label": "ViT Baseline (No Pos)",
+      "model_name": "vit_baseline",
+      "model_display_name": "ViT Baseline (No Pos)",
       "model_family": "vit",
-      "model_variant": "no_pos",
+      "model_variant": "baseline",
       "position_encoding": "none",
       "initialization": "scratch",
       "device": "cuda",
@@ -80,12 +80,12 @@
       "selected_val_subset_accuracy": 0.30799219012260437
     },
     {
-      "run_name": "baseline_cadb_elements_seed42",
-      "label": "ViT Baseline",
-      "model_name": "vit_baseline",
-      "model_display_name": "ViT Baseline",
+      "run_name": "learnable_position_cadb_elements_seed42",
+      "label": "ViT Learnable Position",
+      "model_name": "vit_learnable_position",
+      "model_display_name": "ViT Learnable Position",
       "model_family": "vit",
-      "model_variant": "baseline",
+      "model_variant": "learnable_position",
       "position_encoding": "absolute",
       "initialization": "scratch",
       "device": "cuda",
@@ -124,7 +124,7 @@
     },
     {
       "run_name": "row_cadb_elements_seed42",
-      "label": "ViT Row-wise",
+      "label": "ViT Row-wise Sinusoidal",
       "model_name": "vit_row_sinusoidal",
       "model_display_name": "ViT Row-wise Sinusoidal",
       "model_family": "vit",
@@ -167,7 +167,7 @@
     },
     {
       "run_name": "col_cadb_elements_seed42",
-      "label": "ViT Column-wise",
+      "label": "ViT Column-wise Sinusoidal",
       "model_name": "vit_col_sinusoidal",
       "model_display_name": "ViT Column-wise Sinusoidal",
       "model_family": "vit",
@@ -210,7 +210,7 @@
     },
     {
       "run_name": "additive_cadb_elements_seed42",
-      "label": "ViT Additive",
+      "label": "ViT Additive Sinusoidal",
       "model_name": "vit_additive_sinusoidal",
       "model_display_name": "ViT Additive Sinusoidal",
       "model_family": "vit",
@@ -253,7 +253,7 @@
     },
     {
       "run_name": "additive_shifted_cadb_elements_seed42",
-      "label": "ViT Additive Shifted",
+      "label": "ViT Additive Sinusoidal Shifted",
       "model_name": "vit_additive_sinusoidal_shifted",
       "model_display_name": "ViT Additive Sinusoidal Shifted",
       "model_family": "vit",
@@ -296,7 +296,7 @@
     },
     {
       "run_name": "multiplicative_cadb_elements_seed42",
-      "label": "ViT Multiplicative",
+      "label": "ViT Multiplicative Sinusoidal",
       "model_name": "vit_multiplicative_sinusoidal",
       "model_display_name": "ViT Multiplicative Sinusoidal",
       "model_family": "vit",
@@ -339,7 +339,7 @@
     },
     {
       "run_name": "multiplicative_shifted_cadb_elements_seed42",
-      "label": "ViT Multiplicative Shifted",
+      "label": "ViT Multiplicative Sinusoidal Shifted",
       "model_name": "vit_multiplicative_sinusoidal_shifted",
       "model_display_name": "ViT Multiplicative Sinusoidal Shifted",
       "model_family": "vit",

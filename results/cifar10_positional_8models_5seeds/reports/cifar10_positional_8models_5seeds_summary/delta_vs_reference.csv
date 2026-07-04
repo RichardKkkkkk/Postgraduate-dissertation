@@ -1,9 +1,9 @@
-model,model_label,reference_model,best_val_acc_delta_vs_vit_baseline,test_acc_delta_vs_vit_baseline,macro_f1_delta_vs_vit_baseline
-vit_no_pos,vit_no_pos,vit_baseline,-0.07472000000000001,-0.07464000000000004,-0.07480083703994755
-vit_baseline,ViT Baseline,vit_baseline,0.0,0.0,0.0
-vit_row_sinusoidal,vit_row_sinusoidal,vit_baseline,-0.04064000000000001,-0.03936000000000006,-0.03950458765029907
-vit_col_sinusoidal,vit_col_sinusoidal,vit_baseline,-0.04308000000000001,-0.04280000000000006,-0.04297173023223877
-vit_additive_sinusoidal,vit_additive_sinusoidal,vit_baseline,-0.024719999999999964,-0.02302000000000004,-0.02332626581192021
-vit_additive_sinusoidal_shifted,vit_additive_sinusoidal_shifted,vit_baseline,-0.019160000000000066,-0.020299999999999985,-0.02027692794799807
-vit_multiplicative_sinusoidal,vit_multiplicative_sinusoidal,vit_baseline,-0.01200000000000001,-0.013959999999999972,-0.014757859706878707
-vit_multiplicative_sinusoidal_shifted,vit_multiplicative_sinusoidal_shifted,vit_baseline,-0.011279999999999957,-0.012159999999999949,-0.011847448348998979
+model,model_label,reference_model,best_val_acc_delta_vs_vit_learnable_position,test_acc_delta_vs_vit_learnable_position,macro_f1_delta_vs_vit_learnable_position
+vit_baseline,ViT Baseline (No Pos),vit_learnable_position,-0.07472000000000001,-0.07464000000000004,-0.07480083703994755
+vit_learnable_position,ViT Learnable Position,vit_learnable_position,0.0,0.0,0.0
+vit_row_sinusoidal,ViT Row-wise Sinusoidal,vit_learnable_position,-0.04064000000000001,-0.03936000000000006,-0.03950458765029907
+vit_col_sinusoidal,ViT Column-wise Sinusoidal,vit_learnable_position,-0.04308000000000001,-0.04280000000000006,-0.04297173023223877
+vit_additive_sinusoidal,ViT Additive Sinusoidal,vit_learnable_position,-0.024719999999999964,-0.02302000000000004,-0.02332626581192021
+vit_additive_sinusoidal_shifted,ViT Additive Sinusoidal Shifted,vit_learnable_position,-0.019160000000000066,-0.020299999999999985,-0.02027692794799807
+vit_multiplicative_sinusoidal,ViT Multiplicative Sinusoidal,vit_learnable_position,-0.01200000000000001,-0.013959999999999972,-0.014757859706878707
+vit_multiplicative_sinusoidal_shifted,ViT Multiplicative Sinusoidal Shifted,vit_learnable_position,-0.011279999999999957,-0.012159999999999949,-0.011847448348998979

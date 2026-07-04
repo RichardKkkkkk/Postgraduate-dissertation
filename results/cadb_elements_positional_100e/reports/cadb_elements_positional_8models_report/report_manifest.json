@@ -1,39 +1,39 @@
 {
   "report_dir": "results\\cadb_elements_positional_100e\\reports\\cadb_elements_positional_8models_report",
-  "generated_at": "2026-07-01T16:11:18",
+  "generated_at": "2026-07-04T15:12:20",
   "scenario": "generic_multi_run",
   "runs": [
     {
-      "run_name": "no_pos_cadb_elements_seed42",
-      "label": "ViT No Pos"
+      "run_name": "baseline_cadb_elements_seed42",
+      "label": "ViT Baseline (No Pos)"
     },
     {
-      "run_name": "baseline_cadb_elements_seed42",
-      "label": "ViT Baseline"
+      "run_name": "learnable_position_cadb_elements_seed42",
+      "label": "ViT Learnable Position"
     },
     {
       "run_name": "row_cadb_elements_seed42",
-      "label": "ViT Row-wise"
+      "label": "ViT Row-wise Sinusoidal"
     },
     {
       "run_name": "col_cadb_elements_seed42",
-      "label": "ViT Column-wise"
+      "label": "ViT Column-wise Sinusoidal"
     },
     {
       "run_name": "additive_cadb_elements_seed42",
-      "label": "ViT Additive"
+      "label": "ViT Additive Sinusoidal"
     },
     {
       "run_name": "additive_shifted_cadb_elements_seed42",
-      "label": "ViT Additive Shifted"
+      "label": "ViT Additive Sinusoidal Shifted"
     },
     {
       "run_name": "multiplicative_cadb_elements_seed42",
-      "label": "ViT Multiplicative"
+      "label": "ViT Multiplicative Sinusoidal"
     },
     {
       "run_name": "multiplicative_shifted_cadb_elements_seed42",
-      "label": "ViT Multiplicative Shifted"
+      "label": "ViT Multiplicative Sinusoidal Shifted"
     }
   ],
   "metrics": [

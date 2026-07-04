@@ -1,41 +1,41 @@
 model,model_label,seed,run_name,best_val_acc,test_acc,macro_f1,best_epoch
-vit_no_pos,vit_no_pos,42,cifar10pos_vit_no_pos_seed42,0.7184,0.7104,0.7091013193130493,49
-vit_no_pos,vit_no_pos,43,cifar10pos_vit_no_pos_seed43,0.7364,0.7115,0.7117285132408142,50
-vit_no_pos,vit_no_pos,44,cifar10pos_vit_no_pos_seed44,0.7276,0.7233,0.7237434983253479,62
-vit_no_pos,vit_no_pos,45,cifar10pos_vit_no_pos_seed45,0.718,0.715,0.7145577669143677,72
-vit_no_pos,vit_no_pos,46,cifar10pos_vit_no_pos_seed46,0.7086,0.7093,0.7083896398544312,53
-vit_baseline,ViT Baseline,42,cifar10pos_vit_baseline_seed42,0.7924,0.7888,0.7878645658493042,56
-vit_baseline,ViT Baseline,43,cifar10pos_vit_baseline_seed43,0.808,0.7928,0.7924777269363403,75
-vit_baseline,ViT Baseline,44,cifar10pos_vit_baseline_seed44,0.7984,0.789,0.788575291633606,40
-vit_baseline,ViT Baseline,45,cifar10pos_vit_baseline_seed45,0.7892,0.7818,0.7825642824172974,44
-vit_baseline,ViT Baseline,46,cifar10pos_vit_baseline_seed46,0.7946,0.7903,0.7900430560112,64
-vit_row_sinusoidal,vit_row_sinusoidal,42,cifar10pos_vit_row_sinusoidal_seed42,0.7514,0.7479,0.7482032775878906,51
-vit_row_sinusoidal,vit_row_sinusoidal,43,cifar10pos_vit_row_sinusoidal_seed43,0.7612,0.7519,0.7520918846130371,45
-vit_row_sinusoidal,vit_row_sinusoidal,44,cifar10pos_vit_row_sinusoidal_seed44,0.7572,0.7501,0.7496197819709778,67
-vit_row_sinusoidal,vit_row_sinusoidal,45,cifar10pos_vit_row_sinusoidal_seed45,0.754,0.7473,0.7459670305252075,36
-vit_row_sinusoidal,vit_row_sinusoidal,46,cifar10pos_vit_row_sinusoidal_seed46,0.7556,0.7487,0.7481200098991394,50
-vit_col_sinusoidal,vit_col_sinusoidal,42,cifar10pos_vit_col_sinusoidal_seed42,0.7556,0.7433,0.7423122525215149,40
-vit_col_sinusoidal,vit_col_sinusoidal,43,cifar10pos_vit_col_sinusoidal_seed43,0.758,0.7527,0.7528301477432251,48
-vit_col_sinusoidal,vit_col_sinusoidal,44,cifar10pos_vit_col_sinusoidal_seed44,0.744,0.7366,0.7359267473220825,48
-vit_col_sinusoidal,vit_col_sinusoidal,45,cifar10pos_vit_col_sinusoidal_seed45,0.754,0.7467,0.7473350763320923,59
-vit_col_sinusoidal,vit_col_sinusoidal,46,cifar10pos_vit_col_sinusoidal_seed46,0.7556,0.7494,0.7482620477676392,54
-vit_additive_sinusoidal,vit_additive_sinusoidal,42,cifar10pos_vit_additive_sinusoidal_seed42,0.777,0.7701,0.7694441080093384,60
-vit_additive_sinusoidal,vit_additive_sinusoidal,43,cifar10pos_vit_additive_sinusoidal_seed43,0.7676,0.758,0.7562718987464905,54
-vit_additive_sinusoidal,vit_additive_sinusoidal,44,cifar10pos_vit_additive_sinusoidal_seed44,0.7766,0.765,0.7644596099853516,78
-vit_additive_sinusoidal,vit_additive_sinusoidal,45,cifar10pos_vit_additive_sinusoidal_seed45,0.761,0.7661,0.7668894529342651,56
-vit_additive_sinusoidal,vit_additive_sinusoidal,46,cifar10pos_vit_additive_sinusoidal_seed46,0.7768,0.7684,0.7678285241127014,44
-vit_additive_sinusoidal_shifted,vit_additive_sinusoidal_shifted,42,cifar10pos_vit_additive_sinusoidal_shifted_seed42,0.7778,0.7692,0.7695978283882141,57
-vit_additive_sinusoidal_shifted,vit_additive_sinusoidal_shifted,43,cifar10pos_vit_additive_sinusoidal_shifted_seed43,0.7822,0.7634,0.7625015377998352,54
-vit_additive_sinusoidal_shifted,vit_additive_sinusoidal_shifted,44,cifar10pos_vit_additive_sinusoidal_shifted_seed44,0.7796,0.7682,0.7676440477371216,72
-vit_additive_sinusoidal_shifted,vit_additive_sinusoidal_shifted,45,cifar10pos_vit_additive_sinusoidal_shifted_seed45,0.7646,0.7674,0.7674574851989746,56
-vit_additive_sinusoidal_shifted,vit_additive_sinusoidal_shifted,46,cifar10pos_vit_additive_sinusoidal_shifted_seed46,0.7826,0.773,0.7729393839836121,54
-vit_multiplicative_sinusoidal,vit_multiplicative_sinusoidal,42,cifar10pos_vit_multiplicative_sinusoidal_seed42,0.7772,0.7661,0.7628270983695984,38
-vit_multiplicative_sinusoidal,vit_multiplicative_sinusoidal,43,cifar10pos_vit_multiplicative_sinusoidal_seed43,0.7944,0.7781,0.778031587600708,53
-vit_multiplicative_sinusoidal,vit_multiplicative_sinusoidal,44,cifar10pos_vit_multiplicative_sinusoidal_seed44,0.7878,0.7768,0.7761567234992981,67
-vit_multiplicative_sinusoidal,vit_multiplicative_sinusoidal,45,cifar10pos_vit_multiplicative_sinusoidal_seed45,0.7838,0.7767,0.7759476900100708,62
-vit_multiplicative_sinusoidal,vit_multiplicative_sinusoidal,46,cifar10pos_vit_multiplicative_sinusoidal_seed46,0.7794,0.7752,0.7747725248336792,59
-vit_multiplicative_sinusoidal_shifted,vit_multiplicative_sinusoidal_shifted,42,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed42,0.7918,0.7778,0.7772284746170044,60
-vit_multiplicative_sinusoidal_shifted,vit_multiplicative_sinusoidal_shifted,43,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed43,0.802,0.7821,0.7819886207580566,59
-vit_multiplicative_sinusoidal_shifted,vit_multiplicative_sinusoidal_shifted,44,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed44,0.7784,0.7717,0.7726252675056458,44
-vit_multiplicative_sinusoidal_shifted,vit_multiplicative_sinusoidal_shifted,45,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed45,0.777,0.7747,0.7744938135147095,56
-vit_multiplicative_sinusoidal_shifted,vit_multiplicative_sinusoidal_shifted,46,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed46,0.777,0.7756,0.7759515047073364,51
+vit_baseline,ViT Baseline (No Pos),42,cifar10pos_vit_baseline_seed42,0.7184,0.7104,0.7091013193130493,49
+vit_baseline,ViT Baseline (No Pos),43,cifar10pos_vit_baseline_seed43,0.7364,0.7115,0.7117285132408142,50
+vit_baseline,ViT Baseline (No Pos),44,cifar10pos_vit_baseline_seed44,0.7276,0.7233,0.7237434983253479,62
+vit_baseline,ViT Baseline (No Pos),45,cifar10pos_vit_baseline_seed45,0.718,0.715,0.7145577669143677,72
+vit_baseline,ViT Baseline (No Pos),46,cifar10pos_vit_baseline_seed46,0.7086,0.7093,0.7083896398544312,53
+vit_learnable_position,ViT Learnable Position,42,cifar10pos_vit_learnable_position_seed42,0.7924,0.7888,0.7878645658493042,56
+vit_learnable_position,ViT Learnable Position,43,cifar10pos_vit_learnable_position_seed43,0.808,0.7928,0.7924777269363403,75
+vit_learnable_position,ViT Learnable Position,44,cifar10pos_vit_learnable_position_seed44,0.7984,0.789,0.788575291633606,40
+vit_learnable_position,ViT Learnable Position,45,cifar10pos_vit_learnable_position_seed45,0.7892,0.7818,0.7825642824172974,44
+vit_learnable_position,ViT Learnable Position,46,cifar10pos_vit_learnable_position_seed46,0.7946,0.7903,0.7900430560112,64
+vit_row_sinusoidal,ViT Row-wise Sinusoidal,42,cifar10pos_vit_row_sinusoidal_seed42,0.7514,0.7479,0.7482032775878906,51
+vit_row_sinusoidal,ViT Row-wise Sinusoidal,43,cifar10pos_vit_row_sinusoidal_seed43,0.7612,0.7519,0.7520918846130371,45
+vit_row_sinusoidal,ViT Row-wise Sinusoidal,44,cifar10pos_vit_row_sinusoidal_seed44,0.7572,0.7501,0.7496197819709778,67
+vit_row_sinusoidal,ViT Row-wise Sinusoidal,45,cifar10pos_vit_row_sinusoidal_seed45,0.754,0.7473,0.7459670305252075,36
+vit_row_sinusoidal,ViT Row-wise Sinusoidal,46,cifar10pos_vit_row_sinusoidal_seed46,0.7556,0.7487,0.7481200098991394,50
+vit_col_sinusoidal,ViT Column-wise Sinusoidal,42,cifar10pos_vit_col_sinusoidal_seed42,0.7556,0.7433,0.7423122525215149,40
+vit_col_sinusoidal,ViT Column-wise Sinusoidal,43,cifar10pos_vit_col_sinusoidal_seed43,0.758,0.7527,0.7528301477432251,48
+vit_col_sinusoidal,ViT Column-wise Sinusoidal,44,cifar10pos_vit_col_sinusoidal_seed44,0.744,0.7366,0.7359267473220825,48
+vit_col_sinusoidal,ViT Column-wise Sinusoidal,45,cifar10pos_vit_col_sinusoidal_seed45,0.754,0.7467,0.7473350763320923,59
+vit_col_sinusoidal,ViT Column-wise Sinusoidal,46,cifar10pos_vit_col_sinusoidal_seed46,0.7556,0.7494,0.7482620477676392,54
+vit_additive_sinusoidal,ViT Additive Sinusoidal,42,cifar10pos_vit_additive_sinusoidal_seed42,0.777,0.7701,0.7694441080093384,60
+vit_additive_sinusoidal,ViT Additive Sinusoidal,43,cifar10pos_vit_additive_sinusoidal_seed43,0.7676,0.758,0.7562718987464905,54
+vit_additive_sinusoidal,ViT Additive Sinusoidal,44,cifar10pos_vit_additive_sinusoidal_seed44,0.7766,0.765,0.7644596099853516,78
+vit_additive_sinusoidal,ViT Additive Sinusoidal,45,cifar10pos_vit_additive_sinusoidal_seed45,0.761,0.7661,0.7668894529342651,56
+vit_additive_sinusoidal,ViT Additive Sinusoidal,46,cifar10pos_vit_additive_sinusoidal_seed46,0.7768,0.7684,0.7678285241127014,44
+vit_additive_sinusoidal_shifted,ViT Additive Sinusoidal Shifted,42,cifar10pos_vit_additive_sinusoidal_shifted_seed42,0.7778,0.7692,0.7695978283882141,57
+vit_additive_sinusoidal_shifted,ViT Additive Sinusoidal Shifted,43,cifar10pos_vit_additive_sinusoidal_shifted_seed43,0.7822,0.7634,0.7625015377998352,54
+vit_additive_sinusoidal_shifted,ViT Additive Sinusoidal Shifted,44,cifar10pos_vit_additive_sinusoidal_shifted_seed44,0.7796,0.7682,0.7676440477371216,72
+vit_additive_sinusoidal_shifted,ViT Additive Sinusoidal Shifted,45,cifar10pos_vit_additive_sinusoidal_shifted_seed45,0.7646,0.7674,0.7674574851989746,56
+vit_additive_sinusoidal_shifted,ViT Additive Sinusoidal Shifted,46,cifar10pos_vit_additive_sinusoidal_shifted_seed46,0.7826,0.773,0.7729393839836121,54
+vit_multiplicative_sinusoidal,ViT Multiplicative Sinusoidal,42,cifar10pos_vit_multiplicative_sinusoidal_seed42,0.7772,0.7661,0.7628270983695984,38
+vit_multiplicative_sinusoidal,ViT Multiplicative Sinusoidal,43,cifar10pos_vit_multiplicative_sinusoidal_seed43,0.7944,0.7781,0.778031587600708,53
+vit_multiplicative_sinusoidal,ViT Multiplicative Sinusoidal,44,cifar10pos_vit_multiplicative_sinusoidal_seed44,0.7878,0.7768,0.7761567234992981,67
+vit_multiplicative_sinusoidal,ViT Multiplicative Sinusoidal,45,cifar10pos_vit_multiplicative_sinusoidal_seed45,0.7838,0.7767,0.7759476900100708,62
+vit_multiplicative_sinusoidal,ViT Multiplicative Sinusoidal,46,cifar10pos_vit_multiplicative_sinusoidal_seed46,0.7794,0.7752,0.7747725248336792,59
+vit_multiplicative_sinusoidal_shifted,ViT Multiplicative Sinusoidal Shifted,42,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed42,0.7918,0.7778,0.7772284746170044,60
+vit_multiplicative_sinusoidal_shifted,ViT Multiplicative Sinusoidal Shifted,43,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed43,0.802,0.7821,0.7819886207580566,59
+vit_multiplicative_sinusoidal_shifted,ViT Multiplicative Sinusoidal Shifted,44,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed44,0.7784,0.7717,0.7726252675056458,44
+vit_multiplicative_sinusoidal_shifted,ViT Multiplicative Sinusoidal Shifted,45,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed45,0.777,0.7747,0.7744938135147095,56
+vit_multiplicative_sinusoidal_shifted,ViT Multiplicative Sinusoidal Shifted,46,cifar10pos_vit_multiplicative_sinusoidal_shifted_seed46,0.777,0.7756,0.7759515047073364,51

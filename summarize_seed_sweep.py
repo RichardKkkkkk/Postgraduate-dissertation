@@ -14,7 +14,7 @@ from models.registry import EXPERIMENT_REGISTRY
 from result_paths import build_report_artifact_dirs, resolve_run_artifact_paths
 
 
-DEFAULT_MODELS = ["vit_baseline", "vit_rope", "vit_rope_2d"]
+DEFAULT_MODELS = ["vit_baseline", "vit_learnable_position", "vit_rope"]
 DEFAULT_METRICS = ["best_val_acc", "test_acc", "macro_f1"]
 CURVE_METRICS = [
     "train_loss",
@@ -27,7 +27,14 @@ CURVE_METRICS = [
     "test_macro_f1",
 ]
 MODEL_LABELS = {
-    "vit_baseline": "ViT Baseline",
+    "vit_baseline": "ViT Baseline (No Pos)",
+    "vit_learnable_position": "ViT Learnable Position",
+    "vit_row_sinusoidal": "ViT Row-wise Sinusoidal",
+    "vit_col_sinusoidal": "ViT Column-wise Sinusoidal",
+    "vit_additive_sinusoidal": "ViT Additive Sinusoidal",
+    "vit_additive_sinusoidal_shifted": "ViT Additive Sinusoidal Shifted",
+    "vit_multiplicative_sinusoidal": "ViT Multiplicative Sinusoidal",
+    "vit_multiplicative_sinusoidal_shifted": "ViT Multiplicative Sinusoidal Shifted",
     "vit_rope": "ViT RoPE",
     "vit_rope_2d": "ViT RoPE 2D",
     "resnet18_scratch": "ResNet18 Scratch",
@@ -49,8 +56,8 @@ CURVE_METRIC_LABELS = {
     "test_macro_f1": "Test Macro F1",
 }
 MODEL_COLORS = {
-    "vit_no_pos": "#1d4ed8",
-    "vit_baseline": "#ea580c",
+    "vit_baseline": "#1d4ed8",
+    "vit_learnable_position": "#ea580c",
     "vit_row_sinusoidal": "#16a34a",
     "vit_col_sinusoidal": "#dc2626",
     "vit_additive_sinusoidal": "#7c3aed",
@@ -67,6 +74,18 @@ SUMMARY_METRIC_EXTRACTORS = {
     "test_acc": lambda summary: float(summary["selected_model"]["test_acc"]),
     "macro_f1": lambda summary: float(summary["selected_model"]["test_macro_f1"]),
     "best_epoch": lambda summary: int(summary["selected_model"]["epoch"]),
+}
+
+DATASET_DISPLAY_NAMES = {
+    "cifar10": "CIFAR-10",
+    "cadb_elements": "CADB Elements",
+    "cadb_orientation": "CADB Orientation",
+    "cadb_scene": "CADB Scene",
+    "synthetic_orientation": "Synthetic Orientation",
+    "synthetic_orientation_clean": "Synthetic Orientation Clean",
+    "synthetic_orientation_hard": "Synthetic Orientation Hard",
+    "synthetic_row_code": "Synthetic Row Code",
+    "synthetic_col_code": "Synthetic Column Code",
 }
 
 
@@ -105,7 +124,7 @@ def parse_args():
     parser.add_argument(
         "--reference-model",
         choices=tuple(EXPERIMENT_REGISTRY.keys()),
-        default="vit_baseline",
+        default="vit_learnable_position",
         help="Reference model used for delta comparisons.",
     )
     parser.add_argument(
@@ -166,9 +185,25 @@ def format_float(value):
     return f"{value:.4f}"
 
 
+def get_dataset_name_from_config(config: dict):
+    dataset_value = config.get("dataset")
+    if isinstance(dataset_value, dict):
+        dataset_value = dataset_value.get("name")
+    if dataset_value:
+        return str(dataset_value)
+    return None
+
+
+def get_dataset_display_name(dataset_name: str | None):
+    if not dataset_name:
+        return None
+    return DATASET_DISPLAY_NAMES.get(dataset_name, dataset_name.replace("_", " ").title())
+
+
 def collect_run_rows(args):
     rows = []
     histories = []
+    dataset_names = set()
     for model_name in args.models:
         for seed in args.seeds:
             run_name = build_run_name(model_name, seed, args.run_prefix)
@@ -185,6 +220,11 @@ def collect_run_rows(args):
                 raise FileNotFoundError(f"Missing metrics file for run: {run_name}")
             summary = load_json(summary_path)
             history = load_history(metrics_path)
+            config_path = artifact_paths["config_path"]
+            config = load_json(config_path) if config_path is not None else {}
+            dataset_name = get_dataset_name_from_config(config)
+            if dataset_name:
+                dataset_names.add(dataset_name)
             row = {
                 "model": model_name,
                 "model_label": MODEL_LABELS.get(model_name, model_name),
@@ -202,10 +242,12 @@ def collect_run_rows(args):
                     "model_label": MODEL_LABELS.get(model_name, model_name),
                     "seed": seed,
                     "run_name": run_name,
+                    "dataset_name": dataset_name,
                     "history": history,
                 }
             )
-    return rows, histories
+    shared_dataset_name = next(iter(dataset_names)) if len(dataset_names) == 1 else None
+    return rows, histories, shared_dataset_name
 
 
 def summarize_by_model(rows, metrics):
@@ -368,7 +410,7 @@ def write_epoch_curve_csv(report_dir: Path, metric: str, rows):
     return path
 
 
-def plot_epoch_mean_std(figures_dir: Path, metric: str, rows):
+def plot_epoch_mean_std(figures_dir: Path, metric: str, rows, dataset_display_name: str | None = None):
     fig, ax = plt.subplots(figsize=(9, 5.5))
     grouped = {}
     for row in rows:
@@ -393,7 +435,10 @@ def plot_epoch_mean_std(figures_dir: Path, metric: str, rows):
     else:
         ax.set_ylabel(f"{ylabel} (mean +/- std)")
     ax.set_xlabel("Epoch")
-    ax.set_title(f"{ylabel} Across Epochs")
+    title = f"{ylabel} Across Epochs"
+    if dataset_display_name:
+        title = f"{dataset_display_name} | {title}"
+    ax.set_title(title)
     ax.grid(True, linestyle="--", alpha=0.3)
     ax.legend()
     fig.tight_layout()
@@ -459,7 +504,8 @@ def write_overview(
 def main():
     args = parse_args()
     report_name = args.report_name or make_default_report_name(args)
-    rows, histories = collect_run_rows(args)
+    rows, histories, shared_dataset_name = collect_run_rows(args)
+    dataset_display_name = get_dataset_display_name(shared_dataset_name)
     summary_rows = summarize_by_model(rows, args.metrics)
     delta_rows = build_delta_rows(summary_rows, args.reference_model, args.metrics)
     insights = build_headline_insights(rows, summary_rows, args.reference_model)
@@ -499,7 +545,9 @@ def main():
     for metric in curve_metrics:
         epoch_rows = build_epoch_curve_rows(histories, metric)
         epoch_curve_csvs[metric] = str(write_epoch_curve_csv(report_dir, metric, epoch_rows))
-        epoch_curve_figures[metric] = str(plot_epoch_mean_std(figures_dir, metric, epoch_rows))
+        epoch_curve_figures[metric] = str(
+            plot_epoch_mean_std(figures_dir, metric, epoch_rows, dataset_display_name=dataset_display_name)
+        )
 
     write_overview(overview_md, args, summary_rows, delta_rows, insights, curve_metrics)
 

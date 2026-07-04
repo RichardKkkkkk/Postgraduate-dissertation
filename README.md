@@ -18,8 +18,8 @@
 
 当前主线模型：
 
-- `vit_no_pos`
 - `vit_baseline`
+- `vit_learnable_position`
 - `vit_row_sinusoidal`
 - `vit_col_sinusoidal`
 
@@ -73,9 +73,9 @@ pip install -r requirements.txt
 
 ## 支持的模型
 
-- `vit_no_pos`
-  不带 positional encoding 的 ViT 对照模型
 - `vit_baseline`
+  不带 positional encoding 的 ViT 对照模型
+- `vit_learnable_position`
   带 learned absolute positional embedding 的标准 ViT
 - `vit_row_sinusoidal`
   只按 row 注入 sinusoidal positional embedding
@@ -156,16 +156,16 @@ python train_cifar10_experiment.py --model vit_baseline
 
 ## 当前主线实验命令
 
-### `vit_no_pos`
-
-```bash
-python train_cifar10_experiment.py --model vit_no_pos --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name no_pos_cadb_elements_seed42
-```
-
 ### `vit_baseline`
 
 ```bash
 python train_cifar10_experiment.py --model vit_baseline --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name baseline_cadb_elements_seed42
+```
+
+### `vit_learnable_position`
+
+```bash
+python train_cifar10_experiment.py --model vit_learnable_position --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name learnable_position_cadb_elements_seed42
 ```
 
 ### `vit_row_sinusoidal`
@@ -207,7 +207,7 @@ python train_cifar10_experiment.py --model vit_multiplicative_sinusoidal_shifted
 ### 四模型对比报告
 
 ```bash
-python generate_comparison_report.py --run no_pos_cadb_elements_seed42="ViT No Pos" --run baseline_cadb_elements_seed42="ViT Baseline" --run row_cadb_elements_seed42="ViT Row-wise" --run col_cadb_elements_seed42="ViT Column-wise" --report-name cadb_elements_positional_controls --title "CADB Elements: No Pos vs Baseline vs Row-wise vs Column-wise" --skip-ppt
+python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Baseline (No Pos)" --run learnable_position_cadb_elements_seed42="ViT Learnable Position" --run row_cadb_elements_seed42="ViT Row-wise" --run col_cadb_elements_seed42="ViT Column-wise" --report-name cadb_elements_positional_controls --title "CADB Elements: Baseline vs Learnable Position vs Row-wise vs Column-wise" --skip-ppt
 ```
 
 

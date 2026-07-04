@@ -13,8 +13,8 @@
 - 训练入口统一为 `train_cifar10_experiment.py`
 - 模型和数据集统一通过 `models/registry.py` 管理
 - 当前主线模型包括：
-  - `vit_no_pos`
   - `vit_baseline`
+  - `vit_learnable_position`
   - `vit_row_sinusoidal`
   - `vit_col_sinusoidal`
   - `vit_additive_sinusoidal`

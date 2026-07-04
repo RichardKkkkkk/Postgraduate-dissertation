@@ -21,16 +21,16 @@
 
 当前主线先收敛在这 4 个模型上：
 
-- `vit_no_pos`
 - `vit_baseline`
+- `vit_learnable_position`
 - `vit_row_sinusoidal`
 - `vit_col_sinusoidal`
 
 它们分别回答：
 
-- `vit_no_pos`
-  作为真正的无位置编码对照组
 - `vit_baseline`
+  作为真正的无位置编码对照组
+- `vit_learnable_position`
   作为标准 ViT baseline，使用 learned absolute positional embedding
 - `vit_row_sinusoidal`
   只按 row 注入 sinusoidal positional embedding
@@ -107,8 +107,8 @@
 ## 当前标准训练命令
 
 ```bash
-python train_cifar10_experiment.py --model vit_no_pos --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name no_pos_cadb_elements_seed42
 python train_cifar10_experiment.py --model vit_baseline --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name baseline_cadb_elements_seed42
+python train_cifar10_experiment.py --model vit_learnable_position --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name learnable_position_cadb_elements_seed42
 python train_cifar10_experiment.py --model vit_row_sinusoidal --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name row_cadb_elements_seed42
 python train_cifar10_experiment.py --model vit_col_sinusoidal --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name col_cadb_elements_seed42
 ```

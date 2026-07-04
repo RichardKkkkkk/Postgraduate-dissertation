@@ -1,30 +1,30 @@
 # CIFAR-10 Positional Encoding Comparison
 
-Generated: 2026-07-02T13:01:40
+Generated: 2026-07-04T15:12:20
 Comparison scenario: `generic_multi_run`
-Reference run: `ViT No Pos`
+Reference run: `ViT Baseline (No Pos)`
 
 ## Headline Takeaways
 
-- Primary comparison metric: Test ACC. Best final result is ViT Baseline with 78.03%.
-- Against reference run ViT No Pos, ViT Baseline changes Test ACC by +6.61 pp.
-- Largest train-to-test accuracy gap appears in ViT No Pos (23.58 pp), worth calling out during generalization discussion.
-- Early stopping summary: ViT No Pos: stopped early; ViT Baseline: stopped early; ViT Row-wise: stopped early
+- Primary comparison metric: Test ACC. Best final result is ViT Learnable Position with 78.03%.
+- Against reference run ViT Baseline (No Pos), ViT Learnable Position changes Test ACC by +6.61 pp.
+- Largest train-to-test accuracy gap appears in ViT Baseline (No Pos) (23.58 pp), worth calling out during generalization discussion.
+- Early stopping summary: ViT Baseline (No Pos): stopped early; ViT Learnable Position: stopped early; ViT Row-wise Sinusoidal: stopped early
 
 ## Runs
 
-- `ViT No Pos` (`vit_no_pos_cifar10_seed42`), model: `ViT No Pos`, family: `vit`, variant: `no_pos`, position encoding: `none`, epochs completed: `59`, device: `cuda`
-- `ViT Baseline` (`vit_baseline_cifar10_seed42`), model: `ViT Baseline`, family: `vit`, variant: `baseline`, position encoding: `absolute`, epochs completed: `66`, device: `cuda`
-- `ViT Row-wise` (`vit_row_cifar10_seed42`), model: `ViT Row-wise Sinusoidal`, family: `vit`, variant: `row_sinusoidal`, position encoding: `row_sinusoidal`, epochs completed: `61`, device: `cuda`
-- `ViT Column-wise` (`vit_col_cifar10_seed42`), model: `ViT Column-wise Sinusoidal`, family: `vit`, variant: `col_sinusoidal`, position encoding: `col_sinusoidal`, epochs completed: `50`, device: `cuda`
-- `ViT Additive` (`vit_additive_cifar10_seed42`), model: `ViT Additive Sinusoidal`, family: `vit`, variant: `additive_sinusoidal`, position encoding: `additive_sinusoidal`, epochs completed: `70`, device: `cuda`
-- `ViT Additive Shifted` (`vit_additive_shifted_cifar10_seed42`), model: `ViT Additive Sinusoidal Shifted`, family: `vit`, variant: `additive_sinusoidal_shifted`, position encoding: `additive_sinusoidal_shifted`, epochs completed: `67`, device: `cuda`
-- `ViT Multiplicative` (`vit_multi_cifar10_seed42`), model: `ViT Multiplicative Sinusoidal`, family: `vit`, variant: `multiplicative_sinusoidal`, position encoding: `multiplicative_sinusoidal`, epochs completed: `48`, device: `cuda`
-- `ViT Multiplicative Shifted` (`vit_multi_shifted_cifar10_seed42`), model: `ViT Multiplicative Sinusoidal Shifted`, family: `vit`, variant: `multiplicative_sinusoidal_shifted`, position encoding: `multiplicative_sinusoidal_shifted`, epochs completed: `70`, device: `cuda`
+- `ViT Baseline (No Pos)` (`vit_baseline_cifar10_seed42`), model: `ViT Baseline (No Pos)`, family: `vit`, variant: `baseline`, position encoding: `none`, epochs completed: `59`, device: `cuda`
+- `ViT Learnable Position` (`vit_learnable_position_cifar10_seed42`), model: `ViT Learnable Position`, family: `vit`, variant: `learnable_position`, position encoding: `absolute`, epochs completed: `66`, device: `cuda`
+- `ViT Row-wise Sinusoidal` (`vit_row_cifar10_seed42`), model: `ViT Row-wise Sinusoidal`, family: `vit`, variant: `row_sinusoidal`, position encoding: `row_sinusoidal`, epochs completed: `61`, device: `cuda`
+- `ViT Column-wise Sinusoidal` (`vit_col_cifar10_seed42`), model: `ViT Column-wise Sinusoidal`, family: `vit`, variant: `col_sinusoidal`, position encoding: `col_sinusoidal`, epochs completed: `50`, device: `cuda`
+- `ViT Additive Sinusoidal` (`vit_additive_cifar10_seed42`), model: `ViT Additive Sinusoidal`, family: `vit`, variant: `additive_sinusoidal`, position encoding: `additive_sinusoidal`, epochs completed: `70`, device: `cuda`
+- `ViT Additive Sinusoidal Shifted` (`vit_additive_shifted_cifar10_seed42`), model: `ViT Additive Sinusoidal Shifted`, family: `vit`, variant: `additive_sinusoidal_shifted`, position encoding: `additive_sinusoidal_shifted`, epochs completed: `67`, device: `cuda`
+- `ViT Multiplicative Sinusoidal` (`vit_multi_cifar10_seed42`), model: `ViT Multiplicative Sinusoidal`, family: `vit`, variant: `multiplicative_sinusoidal`, position encoding: `multiplicative_sinusoidal`, epochs completed: `48`, device: `cuda`
+- `ViT Multiplicative Sinusoidal Shifted` (`vit_multi_shifted_cifar10_seed42`), model: `ViT Multiplicative Sinusoidal Shifted`, family: `vit`, variant: `multiplicative_sinusoidal_shifted`, position encoding: `multiplicative_sinusoidal_shifted`, epochs completed: `70`, device: `cuda`
 
 ## Key Metrics
 
-### ViT No Pos
+### ViT Baseline (No Pos)
 - Test ACC: final 71.42%, best 71.62% at epoch 58
 - Val ACC: final 71.36%, best 71.84% at epoch 49
 - Test Loss: final 1.1672, best 0.8904 at epoch 32
@@ -38,7 +38,7 @@ Reference run: `ViT No Pos`
 - Selected Val Macro Precision: 71.71%
 - Selected Val Macro Recall: 71.63%
 
-### ViT Baseline
+### ViT Learnable Position
 - Test ACC: final 78.03%, best 78.88% at epoch 56
 - Val ACC: final 78.88%, best 79.24% at epoch 60
 - Test Loss: final 0.9615, best 0.6784 at epoch 30
@@ -52,7 +52,7 @@ Reference run: `ViT No Pos`
 - Selected Val Macro Precision: 79.03%
 - Selected Val Macro Recall: 78.98%
 
-### ViT Row-wise
+### ViT Row-wise Sinusoidal
 - Test ACC: final 74.62%, best 74.90% at epoch 60
 - Val ACC: final 74.92%, best 75.18% at epoch 58
 - Test Loss: final 1.1507, best 0.7810 at epoch 27
@@ -66,7 +66,7 @@ Reference run: `ViT No Pos`
 - Selected Val Macro Precision: 75.25%
 - Selected Val Macro Recall: 75.03%
 
-### ViT Column-wise
+### ViT Column-wise Sinusoidal
 - Test ACC: final 74.21%, best 74.33% at epoch 40
 - Val ACC: final 74.78%, best 75.56% at epoch 44
 - Test Loss: final 0.8657, best 0.7819 at epoch 40
@@ -80,7 +80,7 @@ Reference run: `ViT No Pos`
 - Selected Val Macro Precision: 75.49%
 - Selected Val Macro Recall: 75.32%
 
-### ViT Additive
+### ViT Additive Sinusoidal
 - Test ACC: final 76.05%, best 77.68% at epoch 52
 - Val ACC: final 77.14%, best 77.70% at epoch 64
 - Test Loss: final 0.8797, best 0.6946 at epoch 44
@@ -94,7 +94,7 @@ Reference run: `ViT No Pos`
 - Selected Val Macro Precision: 77.65%
 - Selected Val Macro Recall: 77.49%
 
-### ViT Additive Shifted
+### ViT Additive Sinusoidal Shifted
 - Test ACC: final 77.19%, best 77.62% at epoch 58
 - Val ACC: final 77.58%, best 77.78% at epoch 57
 - Test Loss: final 0.8616, best 0.7090 at epoch 44
@@ -108,7 +108,7 @@ Reference run: `ViT No Pos`
 - Selected Val Macro Precision: 77.81%
 - Selected Val Macro Recall: 77.66%
 
-### ViT Multiplicative
+### ViT Multiplicative Sinusoidal
 - Test ACC: final 76.18%, best 76.86% at epoch 47
 - Val ACC: final 77.14%, best 77.72% at epoch 43
 - Test Loss: final 0.7343, best 0.6938 at epoch 43
@@ -122,7 +122,7 @@ Reference run: `ViT No Pos`
 - Selected Val Macro Precision: 77.51%
 - Selected Val Macro Recall: 77.37%
 
-### ViT Multiplicative Shifted
+### ViT Multiplicative Sinusoidal Shifted
 - Test ACC: final 77.56%, best 78.18% at epoch 69
 - Val ACC: final 78.48%, best 79.18% at epoch 62
 - Test Loss: final 0.8706, best 0.6965 at epoch 36
@@ -138,7 +138,7 @@ Reference run: `ViT No Pos`
 
 ## Suggested Meeting Conclusion
 
-- Current headline result: ViT Baseline leads on Test ACC with 78.03%.
-- When presenting baseline vs comparison, use ViT No Pos as reference and report ViT Baseline at +6.61 pp on Test ACC.
+- Current headline result: ViT Learnable Position leads on Test ACC with 78.03%.
+- When presenting baseline vs comparison, use ViT Baseline (No Pos) as reference and report ViT Learnable Position at +6.61 pp on Test ACC.
 - Per-class pages are now included when selected-checkpoint classwise metrics exist, so class imbalance or hard classes can be discussed directly in meetings.
 - The deck is now organized for weekly reporting: setup, overview, key metrics, curves, error analysis, and a conclusion slide instead of raw log-style export.

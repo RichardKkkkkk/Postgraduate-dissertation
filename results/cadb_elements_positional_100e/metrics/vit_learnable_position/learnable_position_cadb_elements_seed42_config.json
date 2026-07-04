@@ -1,0 +1,63 @@
+{
+  "command": "train_cifar10_experiment.py --model vit_learnable_position --dataset cadb_elements --cadb-root data/CADB_Dataset --results-dir results/cadb_elements_positional_100e --checkpoint-dir checkpoints/cadb_elements_positional_100e --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name learnable_position_cadb_elements_seed42",
+  "device": "cuda",
+  "dataset": {
+    "name": "cadb_elements",
+    "train_size": 4626,
+    "val_size": 513,
+    "test_size": 523,
+    "data_dir": "data",
+    "image_size": 96
+  },
+  "training": {
+    "epochs": 100,
+    "batch_size": 128,
+    "lr": 0.0003,
+    "weight_decay": 0.05,
+    "lr_plateau_patience": 5,
+    "lr_plateau_factor": 0.5,
+    "lr_plateau_min_lr": 1e-06,
+    "train_subset": null,
+    "val_subset": null,
+    "test_subset": null,
+    "val_ratio": 0.1,
+    "seed": 42,
+    "num_workers": 2,
+    "early_stopping_patience": 15,
+    "early_stopping_min_delta": 0.001,
+    "early_stopping_metric": "val_macro_f1"
+  },
+  "synthetic_dataset": {
+    "train_size": 2400,
+    "val_size": 600,
+    "test_size": 600,
+    "line_width": 3,
+    "noise_std": 0.08,
+    "max_stripes": 4
+  },
+  "cadb_dataset": {
+    "cadb_root": "data\\CADB_Dataset",
+    "test_ratio": 0.2,
+    "label_mode": "exclusive",
+    "balance_mode": "none"
+  },
+  "model": {
+    "img_size": 96,
+    "patch_size": 4,
+    "in_channels": 3,
+    "num_classes": 6,
+    "embed_dim": 128,
+    "num_blocks": 4,
+    "num_heads": 4,
+    "mlp_hidden_dim": 512,
+    "embedding_dropout": 0.0,
+    "attention_dropout": 0.0,
+    "projection_dropout": 0.0,
+    "mlp_dropout": 0.0
+  },
+  "outputs": {
+    "results_dir": "results\\cadb_elements_positional_100e",
+    "checkpoint_dir": "checkpoints\\cadb_elements_positional_100e",
+    "run_name": "learnable_position_cadb_elements_seed42"
+  }
+}

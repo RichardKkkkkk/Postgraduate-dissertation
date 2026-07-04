@@ -16,6 +16,7 @@ from experiment_utils import (
     maybe_update_early_stopping,
     plot_confusion_matrix,
     plot_curves,
+    plot_selected_per_class_metrics,
     save_best_checkpoint,
     save_config_json,
     save_confusion_matrix_csv,
@@ -266,11 +267,12 @@ def save_run_outputs(
     confusion_figure_path = artifact_paths["confusion_figure_path"]
     checkpoint_path = artifact_paths["checkpoint_path"]
 
-    loss_path, acc_path = plot_curves(
+    curve_paths = plot_curves(
         history=history,
         figure_dir=figure_dir,
         run_name=args.run_name,
         title_prefix=f"{get_dataset_display_name(args.dataset)} {spec.plot_title_prefix}",
+        selected_epoch=best_epoch,
     )
     task_type = metadata.get("task_type", "single_label")
     if task_type == "single_label":
@@ -283,7 +285,7 @@ def save_run_outputs(
             confusion_matrix=selected_test_metrics["confusion_matrix"],
             class_names=class_names,
             path=confusion_figure_path,
-            title=f"{args.run_name} Test Confusion Matrix",
+            title=f"{get_dataset_display_name(args.dataset)} {spec.plot_title_prefix} Test Confusion Matrix",
         )
     save_best_checkpoint(
         path=checkpoint_path,
@@ -318,6 +320,7 @@ def save_run_outputs(
     }
     selected_model_metrics = {
         "epoch": best_epoch,
+        "label_names": list(class_names),
         "val_loss": selected_val_metrics["loss"],
         "val_acc": selected_val_metrics["acc"],
         "val_macro_precision": selected_val_metrics["macro_precision"],
@@ -346,6 +349,21 @@ def save_run_outputs(
     if task_type == "single_label":
         selected_model_metrics["test_confusion_matrix_csv"] = str(confusion_csv_path)
         selected_model_metrics["test_confusion_matrix_figure"] = str(confusion_figure_path)
+    per_class_figure_paths = plot_selected_per_class_metrics(
+        selected_model_metrics=selected_model_metrics,
+        class_names=class_names,
+        figure_dir=figure_dir,
+        run_name=args.run_name,
+        title_prefix=f"{get_dataset_display_name(args.dataset)} {spec.plot_title_prefix}",
+    )
+    if per_class_figure_paths:
+        selected_model_metrics["per_class_figure_paths"] = {
+            key: str(path) for key, path in per_class_figure_paths.items()
+        }
+    selected_model_metrics["loss_figure"] = str(curve_paths["loss"])
+    selected_model_metrics["accuracy_figure"] = str(curve_paths["accuracy"])
+    if "macro_f1" in curve_paths:
+        selected_model_metrics["macro_f1_figure"] = str(curve_paths["macro_f1"])
     save_summary_json(
         args,
         history,
@@ -357,11 +375,15 @@ def save_run_outputs(
     print(f"Saved metrics: {metrics_path}")
     print(f"Saved config: {config_path}")
     print(f"Saved summary: {summary_path}")
-    print(f"Saved loss plot: {loss_path}")
-    print(f"Saved accuracy plot: {acc_path}")
+    print(f"Saved loss plot: {curve_paths['loss']}")
+    print(f"Saved accuracy plot: {curve_paths['accuracy']}")
+    if "macro_f1" in curve_paths:
+        print(f"Saved macro F1 plot: {curve_paths['macro_f1']}")
     if task_type == "single_label":
         print(f"Saved confusion matrix CSV: {confusion_csv_path}")
         print(f"Saved confusion matrix figure: {confusion_figure_path}")
+    for metric_name, figure_path in per_class_figure_paths.items():
+        print(f"Saved per-class figure ({metric_name}): {figure_path}")
     print(f"Saved best checkpoint: {checkpoint_path}")
 
 

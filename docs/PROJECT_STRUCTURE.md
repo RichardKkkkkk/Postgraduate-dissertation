@@ -31,7 +31,7 @@
   模型注册表，也是统一入口背后的总开关。
 - `vit.py`
   原始 baseline ViT，带 learnable positional embedding。
-- `vit_no_pos.py`
+- `vit_baseline.py`
   不加位置编码的 ViT baseline。
 - `vit_axis_sinusoidal.py`
   row-wise / column-wise / additive / multiplicative 等 sinusoidal 变体。
@@ -113,6 +113,6 @@ checkpoints/
 4. `result_paths.py`
 5. `experiment_utils.py`
 6. `models/vit.py`
-7. `models/vit_no_pos.py`
+7. `models/vit_baseline.py`
 8. `models/vit_axis_sinusoidal.py`
 9. `datasets/cadb_data.py`

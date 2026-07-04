@@ -107,12 +107,12 @@ for images, labels in loader:
 
 ## 6. 当前模型分支怎么理解
 
-### `vit_no_pos`
+### `vit_baseline`
 
 - 没有 positional encoding
 - 用来回答“位置编码本身有没有帮助”
 
-### `vit_baseline`
+### `vit_learnable_position`
 
 - learned absolute positional embedding
 - 这是当前标准 ViT baseline

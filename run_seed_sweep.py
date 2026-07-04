@@ -7,9 +7,10 @@ from models.registry import EXPERIMENT_REGISTRY
 from result_paths import resolve_run_artifact_paths
 
 
-DEFAULT_MODELS = ["vit_baseline", "vit_rope", "vit_rope_2d"]
+DEFAULT_MODELS = ["vit_baseline", "vit_learnable_position", "vit_rope"]
 MODEL_LABELS = {
-    "vit_baseline": "ViT Baseline",
+    "vit_baseline": "ViT Baseline (No Pos)",
+    "vit_learnable_position": "ViT Learnable Position",
     "vit_rope": "ViT RoPE",
     "vit_rope_2d": "ViT RoPE 2D",
     "resnet18_scratch": "ResNet18 Scratch",
