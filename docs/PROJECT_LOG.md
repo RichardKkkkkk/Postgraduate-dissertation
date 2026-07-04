@@ -69,3 +69,20 @@
 - [ ] 检查 comparison report 是否完整落在同一个 experiment 文件夹下
 - [ ] 决定哪些旧结果需要保留，哪些可以清理
 - [ ] 继续推进老师要求的新 positional encoding 实验
+
+## 2026-07-04 Multi-Seed Summary Plot Update
+
+### 已完成
+
+- `summarize_seed_sweep.py` 现在除了最终 mean/std 表格外，还会输出按 `epoch` 聚合的 mean ± std 曲线
+- 新图会对每个模型画均值曲线，并用阴影显示标准差
+- 这些曲线直接从每个 run 的 `metrics.csv` 聚合得到
+- 后续 multi-seed 汇总不再保留旧版柱状图和按 seed 折线图，主图改为 epoch-wise mean ± std
+
+### 当前认识
+
+- 对老师汇报来说，`epoch-wise mean ± std` 比只看最终柱状图更有解释力
+- 这样能直接看到：
+  - 收敛速度
+  - 波动大小
+  - 不同模型是否稳定

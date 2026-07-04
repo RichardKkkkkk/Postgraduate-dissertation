@@ -16,6 +16,16 @@ from result_paths import build_report_artifact_dirs, resolve_run_artifact_paths
 
 DEFAULT_MODELS = ["vit_baseline", "vit_rope", "vit_rope_2d"]
 DEFAULT_METRICS = ["best_val_acc", "test_acc", "macro_f1"]
+CURVE_METRICS = [
+    "train_loss",
+    "val_loss",
+    "test_loss",
+    "train_acc",
+    "val_acc",
+    "test_acc",
+    "val_macro_f1",
+    "test_macro_f1",
+]
 MODEL_LABELS = {
     "vit_baseline": "ViT Baseline",
     "vit_rope": "ViT RoPE",
@@ -27,6 +37,30 @@ METRIC_LABELS = {
     "best_val_acc": "Best Validation Accuracy",
     "test_acc": "Selected Test Accuracy",
     "macro_f1": "Selected Test Macro F1",
+}
+CURVE_METRIC_LABELS = {
+    "train_loss": "Train Loss",
+    "val_loss": "Validation Loss",
+    "test_loss": "Test Loss",
+    "train_acc": "Train Accuracy",
+    "val_acc": "Validation Accuracy",
+    "test_acc": "Test Accuracy",
+    "val_macro_f1": "Validation Macro F1",
+    "test_macro_f1": "Test Macro F1",
+}
+MODEL_COLORS = {
+    "vit_no_pos": "#1d4ed8",
+    "vit_baseline": "#ea580c",
+    "vit_row_sinusoidal": "#16a34a",
+    "vit_col_sinusoidal": "#dc2626",
+    "vit_additive_sinusoidal": "#7c3aed",
+    "vit_additive_sinusoidal_shifted": "#a16207",
+    "vit_multiplicative_sinusoidal": "#db2777",
+    "vit_multiplicative_sinusoidal_shifted": "#0f766e",
+    "vit_rope": "#2563eb",
+    "vit_rope_2d": "#0891b2",
+    "resnet18_scratch": "#4b5563",
+    "resnet18_imagenet": "#111827",
 }
 SUMMARY_METRIC_EXTRACTORS = {
     "best_val_acc": lambda summary: float(summary["best_val_acc"]),
@@ -102,6 +136,24 @@ def load_json(path: Path):
         return json.load(handle)
 
 
+def load_history(path: Path):
+    rows = []
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            parsed = {}
+            for key, value in row.items():
+                if value is None or value == "":
+                    parsed[key] = value
+                    continue
+                try:
+                    parsed[key] = float(value)
+                except ValueError:
+                    parsed[key] = value
+            rows.append(parsed)
+    return rows
+
+
 def safe_mean(values):
     return mean(values) if values else math.nan
 
@@ -116,17 +168,23 @@ def format_float(value):
 
 def collect_run_rows(args):
     rows = []
+    histories = []
     for model_name in args.models:
         for seed in args.seeds:
             run_name = build_run_name(model_name, seed, args.run_prefix)
-            summary_path = resolve_run_artifact_paths(
+            artifact_paths = resolve_run_artifact_paths(
                 args.results_dir,
                 run_name,
                 experiment_name=args.experiment_name,
-            )["summary_path"]
+            )
+            summary_path = artifact_paths["summary_path"]
+            metrics_path = artifact_paths["metrics_path"]
             if summary_path is None:
                 raise FileNotFoundError(f"Missing summary file for run: {run_name}")
+            if metrics_path is None:
+                raise FileNotFoundError(f"Missing metrics file for run: {run_name}")
             summary = load_json(summary_path)
+            history = load_history(metrics_path)
             row = {
                 "model": model_name,
                 "model_label": MODEL_LABELS.get(model_name, model_name),
@@ -138,7 +196,16 @@ def collect_run_rows(args):
                 "best_epoch": SUMMARY_METRIC_EXTRACTORS["best_epoch"](summary),
             }
             rows.append(row)
-    return rows
+            histories.append(
+                {
+                    "model": model_name,
+                    "model_label": MODEL_LABELS.get(model_name, model_name),
+                    "seed": seed,
+                    "run_name": run_name,
+                    "history": history,
+                }
+            )
+    return rows, histories
 
 
 def summarize_by_model(rows, metrics):
@@ -249,51 +316,89 @@ def write_csv(path: Path, fieldnames, rows):
         writer.writerows(rows)
 
 
-def plot_metric_error_bars(figures_dir: Path, summary_rows, metric):
-    labels = [row["model_label"] for row in summary_rows]
-    means = [row[f"{metric}_mean"] for row in summary_rows]
-    stds = [row[f"{metric}_std"] for row in summary_rows]
+def determine_available_curve_metrics(histories):
+    available = []
+    for metric in CURVE_METRICS:
+        if any(
+            any(metric in row and isinstance(row.get(metric), (int, float)) for row in item["history"])
+            for item in histories
+        ):
+            available.append(metric)
+    return available
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    x = range(len(labels))
-    ax.bar(x, means, yerr=stds, capsize=6, color=["#2563eb", "#0891b2", "#16a34a", "#f59e0b"][: len(labels)])
-    ax.set_xticks(list(x))
-    ax.set_xticklabels(labels, rotation=12, ha="right")
-    ax.set_ylabel(metric)
-    ax.set_title(f"{METRIC_LABELS.get(metric, metric)} Across Seeds")
-    ax.grid(axis="y", linestyle="--", alpha=0.3)
-    fig.tight_layout()
 
-    path = figures_dir / f"{metric}_mean_std.png"
-    fig.savefig(path, dpi=200, bbox_inches="tight")
-    plt.close(fig)
+def build_epoch_curve_rows(histories, metric):
+    grouped = {}
+    for item in histories:
+        grouped.setdefault(item["model"], []).append(item)
+
+    rows = []
+    for model_name, model_histories in grouped.items():
+        by_epoch = {}
+        for history_item in model_histories:
+            for row in history_item["history"]:
+                epoch = row.get("epoch")
+                value = row.get(metric)
+                if not isinstance(epoch, (int, float)) or not isinstance(value, (int, float)):
+                    continue
+                epoch_index = int(epoch)
+                by_epoch.setdefault(epoch_index, []).append(float(value))
+
+        for epoch_index in sorted(by_epoch.keys()):
+            values = by_epoch[epoch_index]
+            rows.append(
+                {
+                    "model": model_name,
+                    "model_label": MODEL_LABELS.get(model_name, model_name),
+                    "epoch": epoch_index,
+                    "count": len(values),
+                    "mean": safe_mean(values),
+                    "std": safe_stdev(values),
+                    "min": min(values),
+                    "max": max(values),
+                }
+            )
+    return rows
+
+
+def write_epoch_curve_csv(report_dir: Path, metric: str, rows):
+    path = report_dir / f"{metric}_epoch_mean_std.csv"
+    fieldnames = ["model", "model_label", "epoch", "count", "mean", "std", "min", "max"]
+    write_csv(path, fieldnames, rows)
     return path
 
 
-def plot_seed_lines(figures_dir: Path, rows, metric):
-    fig, ax = plt.subplots(figsize=(8, 5))
+def plot_epoch_mean_std(figures_dir: Path, metric: str, rows):
+    fig, ax = plt.subplots(figsize=(9, 5.5))
     grouped = {}
     for row in rows:
         grouped.setdefault(row["model"], []).append(row)
 
     for model_name, model_rows in grouped.items():
-        model_rows = sorted(model_rows, key=lambda item: item["seed"])
-        ax.plot(
-            [item["seed"] for item in model_rows],
-            [item[metric] for item in model_rows],
-            marker="o",
-            linewidth=2,
-            label=MODEL_LABELS.get(model_name, model_name),
-        )
+        model_rows = sorted(model_rows, key=lambda item: item["epoch"])
+        epochs = [item["epoch"] for item in model_rows]
+        means = [item["mean"] for item in model_rows]
+        stds = [item["std"] for item in model_rows]
+        color = MODEL_COLORS.get(model_name, "#2563eb")
+        label = MODEL_LABELS.get(model_name, model_name)
+        lower = [mean_value - std_value for mean_value, std_value in zip(means, stds)]
+        upper = [mean_value + std_value for mean_value, std_value in zip(means, stds)]
 
-    ax.set_xlabel("Seed")
-    ax.set_ylabel(metric)
-    ax.set_title(f"{METRIC_LABELS.get(metric, metric)} by Seed")
+        ax.plot(epochs, means, linewidth=2.2, label=label, color=color)
+        ax.fill_between(epochs, lower, upper, color=color, alpha=0.16)
+
+    ylabel = CURVE_METRIC_LABELS.get(metric, metric)
+    if metric.endswith("acc") or metric.endswith("f1"):
+        ax.set_ylabel(f"{ylabel} (mean +/- std)")
+    else:
+        ax.set_ylabel(f"{ylabel} (mean +/- std)")
+    ax.set_xlabel("Epoch")
+    ax.set_title(f"{ylabel} Across Epochs")
     ax.grid(True, linestyle="--", alpha=0.3)
     ax.legend()
     fig.tight_layout()
 
-    path = figures_dir / f"{metric}_by_seed.png"
+    path = figures_dir / f"{metric}_epoch_mean_std.png"
     fig.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -305,6 +410,7 @@ def write_overview(
     summary_rows,
     delta_rows,
     insights,
+    curve_metrics,
 ):
     metric_headers = args.metrics
     with path.open("w", encoding="utf-8") as handle:
@@ -312,6 +418,7 @@ def write_overview(
         handle.write(f"- Seeds: {', '.join(str(seed) for seed in args.seeds)}\n")
         handle.write(f"- Models: {', '.join(args.models)}\n")
         handle.write(f"- Reference model: {args.reference_model}\n\n")
+        handle.write(f"- Epoch curve metrics: {', '.join(curve_metrics)}\n\n")
 
         handle.write("## Headline Insights\n\n")
         for insight in insights:
@@ -352,10 +459,11 @@ def write_overview(
 def main():
     args = parse_args()
     report_name = args.report_name or make_default_report_name(args)
-    rows = collect_run_rows(args)
+    rows, histories = collect_run_rows(args)
     summary_rows = summarize_by_model(rows, args.metrics)
     delta_rows = build_delta_rows(summary_rows, args.reference_model, args.metrics)
     insights = build_headline_insights(rows, summary_rows, args.reference_model)
+    curve_metrics = determine_available_curve_metrics(histories)
 
     report_dir, figures_dir = ensure_report_dirs(
         args.results_dir,
@@ -386,12 +494,14 @@ def main():
     ]
     write_csv(delta_csv, delta_fieldnames, delta_rows)
 
-    metric_figures = {}
-    for metric in args.metrics:
-        metric_figures[f"{metric}_mean_std"] = str(plot_metric_error_bars(figures_dir, summary_rows, metric))
-        metric_figures[f"{metric}_by_seed"] = str(plot_seed_lines(figures_dir, rows, metric))
+    epoch_curve_csvs = {}
+    epoch_curve_figures = {}
+    for metric in curve_metrics:
+        epoch_rows = build_epoch_curve_rows(histories, metric)
+        epoch_curve_csvs[metric] = str(write_epoch_curve_csv(report_dir, metric, epoch_rows))
+        epoch_curve_figures[metric] = str(plot_epoch_mean_std(figures_dir, metric, epoch_rows))
 
-    write_overview(overview_md, args, summary_rows, delta_rows, insights)
+    write_overview(overview_md, args, summary_rows, delta_rows, insights, curve_metrics)
 
     manifest = {
         "report_name": report_name,
@@ -403,7 +513,8 @@ def main():
         "per_seed_csv": str(per_seed_csv),
         "delta_csv": str(delta_csv),
         "overview_md": str(overview_md),
-        "figures": metric_figures,
+        "epoch_curve_csvs": epoch_curve_csvs,
+        "epoch_curve_figures": epoch_curve_figures,
         "headline_insights": insights,
     }
 
@@ -416,8 +527,8 @@ def main():
     print(f"Delta CSV: {delta_csv}")
     print(f"Overview Markdown: {overview_md}")
     print(f"Manifest JSON: {manifest_json}")
-    for key, path in metric_figures.items():
-        print(f"Figure ({key}): {path}")
+    for key, path in epoch_curve_figures.items():
+        print(f"Epoch Figure ({key}): {path}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,64 @@
+{
+  "command": "train_cifar10_experiment.py --model vit_col_sinusoidal --seed 44 --epochs 100 --data-dir data --results-dir results --checkpoint-dir checkpoints --val-ratio 0.1 --num-workers 2 --embedding-dropout 0.0 --attention-dropout 0.0 --projection-dropout 0.0 --mlp-dropout 0.0 --rope-base 10000.0 --early-stopping-patience 10 --early-stopping-min-delta 0.001 --early-stopping-metric val_acc --run-name cifar10pos_vit_col_sinusoidal_seed44 --experiment-name cifar10_positional_8models_5seeds",
+  "device": "cuda",
+  "dataset": {
+    "name": "cifar10",
+    "train_size": 45000,
+    "val_size": 5000,
+    "test_size": 10000,
+    "data_dir": "data",
+    "image_size": 32
+  },
+  "training": {
+    "epochs": 100,
+    "batch_size": 128,
+    "lr": 0.0003,
+    "weight_decay": 0.05,
+    "lr_plateau_patience": 5,
+    "lr_plateau_factor": 0.5,
+    "lr_plateau_min_lr": 1e-06,
+    "train_subset": null,
+    "val_subset": null,
+    "test_subset": null,
+    "val_ratio": 0.1,
+    "seed": 44,
+    "num_workers": 2,
+    "early_stopping_patience": 10,
+    "early_stopping_min_delta": 0.001,
+    "early_stopping_metric": "val_acc"
+  },
+  "synthetic_dataset": {
+    "train_size": 2400,
+    "val_size": 600,
+    "test_size": 600,
+    "line_width": 3,
+    "noise_std": 0.08,
+    "max_stripes": 4
+  },
+  "cadb_dataset": {
+    "cadb_root": "",
+    "test_ratio": 0.2,
+    "label_mode": "exclusive",
+    "balance_mode": "none"
+  },
+  "model": {
+    "img_size": 32,
+    "patch_size": 4,
+    "in_channels": 3,
+    "num_classes": 10,
+    "embed_dim": 128,
+    "num_blocks": 4,
+    "num_heads": 4,
+    "mlp_hidden_dim": 512,
+    "embedding_dropout": 0.0,
+    "attention_dropout": 0.0,
+    "projection_dropout": 0.0,
+    "mlp_dropout": 0.0
+  },
+  "outputs": {
+    "experiment_name": "cifar10_positional_8models_5seeds",
+    "results_dir": "results",
+    "checkpoint_dir": "checkpoints",
+    "run_name": "cifar10pos_vit_col_sinusoidal_seed44"
+  }
+}

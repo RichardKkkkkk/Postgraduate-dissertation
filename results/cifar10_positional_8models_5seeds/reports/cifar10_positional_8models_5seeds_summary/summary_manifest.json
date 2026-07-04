@@ -1,0 +1,69 @@
+{
+  "report_name": "cifar10_positional_8models_5seeds_summary",
+  "seeds": [
+    42,
+    43,
+    44,
+    45,
+    46
+  ],
+  "models": [
+    "vit_no_pos",
+    "vit_baseline",
+    "vit_row_sinusoidal",
+    "vit_col_sinusoidal",
+    "vit_additive_sinusoidal",
+    "vit_additive_sinusoidal_shifted",
+    "vit_multiplicative_sinusoidal",
+    "vit_multiplicative_sinusoidal_shifted"
+  ],
+  "reference_model": "vit_baseline",
+  "metrics": [
+    "best_val_acc",
+    "test_acc",
+    "macro_f1"
+  ],
+  "aggregate_csv": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\aggregate_summary.csv",
+  "per_seed_csv": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\per_seed_metrics.csv",
+  "delta_csv": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\delta_vs_reference.csv",
+  "overview_md": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\overview.md",
+  "figures": {
+    "best_val_acc_mean_std": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\best_val_acc_mean_std.png",
+    "best_val_acc_by_seed": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\best_val_acc_by_seed.png",
+    "test_acc_mean_std": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\test_acc_mean_std.png",
+    "test_acc_by_seed": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\test_acc_by_seed.png",
+    "macro_f1_mean_std": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\macro_f1_mean_std.png",
+    "macro_f1_by_seed": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\macro_f1_by_seed.png"
+  },
+  "epoch_curve_csvs": {
+    "train_loss": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\train_loss_epoch_mean_std.csv",
+    "val_loss": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\val_loss_epoch_mean_std.csv",
+    "test_loss": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\test_loss_epoch_mean_std.csv",
+    "train_acc": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\train_acc_epoch_mean_std.csv",
+    "val_acc": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\val_acc_epoch_mean_std.csv",
+    "test_acc": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\test_acc_epoch_mean_std.csv",
+    "val_macro_f1": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\val_macro_f1_epoch_mean_std.csv",
+    "test_macro_f1": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\test_macro_f1_epoch_mean_std.csv"
+  },
+  "epoch_curve_figures": {
+    "train_loss": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\train_loss_epoch_mean_std.png",
+    "val_loss": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\val_loss_epoch_mean_std.png",
+    "test_loss": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\test_loss_epoch_mean_std.png",
+    "train_acc": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\train_acc_epoch_mean_std.png",
+    "val_acc": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\val_acc_epoch_mean_std.png",
+    "test_acc": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\test_acc_epoch_mean_std.png",
+    "val_macro_f1": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\val_macro_f1_epoch_mean_std.png",
+    "test_macro_f1": "results\\cifar10_positional_8models_5seeds\\reports\\cifar10_positional_8models_5seeds_summary\\figures\\test_macro_f1_epoch_mean_std.png"
+  },
+  "headline_insights": [
+    "ViT Baseline has the highest mean test accuracy: 0.7885 +- 0.0041.",
+    "vit_no_pos changes mean test accuracy by -0.0746 versus ViT Baseline.",
+    "vit_row_sinusoidal changes mean test accuracy by -0.0394 versus ViT Baseline.",
+    "vit_col_sinusoidal changes mean test accuracy by -0.0428 versus ViT Baseline.",
+    "vit_additive_sinusoidal changes mean test accuracy by -0.0230 versus ViT Baseline.",
+    "vit_additive_sinusoidal_shifted changes mean test accuracy by -0.0203 versus ViT Baseline.",
+    "vit_multiplicative_sinusoidal changes mean test accuracy by -0.0140 versus ViT Baseline.",
+    "vit_multiplicative_sinusoidal_shifted changes mean test accuracy by -0.0122 versus ViT Baseline.",
+    "ViT Baseline wins 5/5 seeds on test accuracy."
+  ]
+}
