@@ -151,6 +151,19 @@ for images, labels in loader:
 - 但 row 和 column 使用错开的 wavelength
 - 用来测试“错开频率后再耦合”是否更稳定
 
+### `vit_squared_multiplicative_sinusoidal`
+
+- 先计算普通 multiplicative PE：`row_pe * col_pe`
+- 再对每一维平方：`(row_pe * col_pe) ** 2`
+- 在 PyTorch 里写成 `.pow(2)`
+- 这个版本会丢掉原始乘积的正负号，只保留强度大小
+
+### `vit_squared_multiplicative_sinusoidal_shifted`
+
+- 先使用 shifted multiplicative PE
+- 再做逐元素平方
+- 用来测试“错开频率 + 更强耦合强度”是否比普通 shifted multiplicative 更好
+
 ## 7. `registry.py` 的角色
 
 `models/registry.py` 可以理解成项目的“接线板”。
@@ -188,5 +201,24 @@ for images, labels in loader:
 作用：
 
 - 记录研究路线
+
+## 9. 小 subset smoke test 的 confusion matrix
+
+做很小的 CIFAR-10 smoke test 时，`val-subset` 或 `test-subset` 可能没有覆盖 10 个类别。  
+所以 confusion matrix 不能用当前 subset 里出现过几个 label 来决定大小。
+
+更稳的方式是从模型输出读类别数：
+
+```python
+num_classes = logits.shape[1]
+```
+
+例如 CIFAR-10 的 logits shape 是：
+
+```text
+(batch_size, 10)
+```
+
+所以即使某个小 subset 里没有出现第 9 类，confusion matrix 也仍然应该是 `10 x 10`。
 - 记录项目状态
 - 作为跨设备共享记忆

@@ -89,6 +89,10 @@ pip install -r requirements.txt
   先分别生成 row / column sinusoidal embedding，再逐元素相乘
 - `vit_multiplicative_sinusoidal_shifted`
   multiplicative 版本，但 row / column 使用错开的 wavelength
+- `vit_squared_multiplicative_sinusoidal`
+  squared multiplicative 版本，对 `row_pe * col_pe` 再逐元素平方
+- `vit_squared_multiplicative_sinusoidal_shifted`
+  shifted squared multiplicative 版本
 - `vit_rope`
   1D RoPE 版本
 - `vit_rope_2d`

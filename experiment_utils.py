@@ -105,6 +105,7 @@ def evaluate(model, loader, criterion, device, task_type="single_label", thresho
     all_targets = []
     total_acc_numerator = 0.0
     total_acc_denominator = 0
+    num_classes = None
 
     for images, labels in loader:
         images = images.to(device)
@@ -124,6 +125,8 @@ def evaluate(model, loader, criterion, device, task_type="single_label", thresho
             total_acc_numerator += (predictions == labels).sum().item()
             total_acc_denominator += labels.numel()
         else:
+            if num_classes is None:
+                num_classes = logits.shape[1]
             predictions = logits.argmax(dim=1)
             total_acc_numerator += (predictions == labels).sum().item()
             total_acc_denominator += batch_size
@@ -140,7 +143,7 @@ def evaluate(model, loader, criterion, device, task_type="single_label", thresho
         confusion_matrix = compute_confusion_matrix(
             targets=targets.tolist(),
             predictions=predictions.tolist(),
-            num_classes=len(torch.unique(targets)),
+            num_classes=num_classes,
         )
         metrics = compute_classification_metrics(confusion_matrix)
 

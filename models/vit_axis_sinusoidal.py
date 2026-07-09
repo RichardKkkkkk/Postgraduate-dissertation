@@ -48,6 +48,10 @@ def build_multiplicative_2d_embedding(row_positions, col_positions, embed_dim):
     return row_embed * col_embed
 
 
+def build_squared_multiplicative_2d_embedding(row_positions, col_positions, embed_dim):
+    return build_multiplicative_2d_embedding(row_positions, col_positions, embed_dim).pow(2)
+
+
 def build_shifted_sinusoidal_components(row_positions, col_positions, embed_dim):
     if embed_dim % 2 != 0:
         raise ValueError("embed_dim must be even when using sinusoidal positional embeddings")
@@ -80,6 +84,10 @@ def build_additive_shifted_2d_embedding(row_positions, col_positions, embed_dim)
 def build_multiplicative_shifted_2d_embedding(row_positions, col_positions, embed_dim):
     row_embed, col_embed = build_shifted_sinusoidal_components(row_positions, col_positions, embed_dim)
     return row_embed * col_embed
+
+
+def build_squared_multiplicative_shifted_2d_embedding(row_positions, col_positions, embed_dim):
+    return build_multiplicative_shifted_2d_embedding(row_positions, col_positions, embed_dim).pow(2)
 
 
 class ViTAxisSinusoidal(nn.Module):
@@ -243,17 +251,25 @@ class ViTMultiplicativeSinusoidal(nn.Module):
         projection_dropout=0.0,
         mlp_dropout=0.0,
         shifted_wavelength=False,
+        squared=False,
     ):
         super().__init__()
         self.shifted_wavelength = shifted_wavelength
+        self.squared = squared
         self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_dropout = nn.Dropout(embedding_dropout)
 
         grid_size = self.patch_embed.img_size // self.patch_embed.patch_size
         row_positions, col_positions = build_grid_positions(grid_size)
-        if shifted_wavelength:
+        if shifted_wavelength and squared:
+            patch_pos_embed = build_squared_multiplicative_shifted_2d_embedding(
+                row_positions, col_positions, embed_dim
+            )
+        elif shifted_wavelength:
             patch_pos_embed = build_multiplicative_shifted_2d_embedding(row_positions, col_positions, embed_dim)
+        elif squared:
+            patch_pos_embed = build_squared_multiplicative_2d_embedding(row_positions, col_positions, embed_dim)
         else:
             patch_pos_embed = build_multiplicative_2d_embedding(row_positions, col_positions, embed_dim)
         cls_pos_embed = torch.zeros((1, embed_dim), dtype=torch.float32)
@@ -297,6 +313,16 @@ class ViTMultiplicativeSinusoidal(nn.Module):
 class ViTMultiplicativeSinusoidalShifted(ViTMultiplicativeSinusoidal):
     def __init__(self, **kwargs):
         super().__init__(shifted_wavelength=True, **kwargs)
+
+
+class ViTSquaredMultiplicativeSinusoidal(ViTMultiplicativeSinusoidal):
+    def __init__(self, **kwargs):
+        super().__init__(squared=True, **kwargs)
+
+
+class ViTSquaredMultiplicativeSinusoidalShifted(ViTMultiplicativeSinusoidal):
+    def __init__(self, **kwargs):
+        super().__init__(shifted_wavelength=True, squared=True, **kwargs)
 
 
 if __name__ == "__main__":
@@ -390,8 +416,38 @@ if __name__ == "__main__":
         projection_dropout=0.1,
         mlp_dropout=0.1,
     )
+    squared_multiplicative_model = ViTSquaredMultiplicativeSinusoidal(
+        img_size=32,
+        patch_size=4,
+        in_channels=3,
+        num_classes=2,
+        embed_dim=128,
+        num_blocks=4,
+        num_heads=4,
+        mlp_hidden_dim=512,
+        embedding_dropout=0.1,
+        attention_dropout=0.1,
+        projection_dropout=0.1,
+        mlp_dropout=0.1,
+    )
+    squared_multiplicative_shifted_model = ViTSquaredMultiplicativeSinusoidalShifted(
+        img_size=32,
+        patch_size=4,
+        in_channels=3,
+        num_classes=2,
+        embed_dim=128,
+        num_blocks=4,
+        num_heads=4,
+        mlp_hidden_dim=512,
+        embedding_dropout=0.1,
+        attention_dropout=0.1,
+        projection_dropout=0.1,
+        mlp_dropout=0.1,
+    )
 
     print("Additive logits shape:", additive_model(x).shape)
     print("Additive shifted logits shape:", additive_shifted_model(x).shape)
     print("Multiplicative logits shape:", multiplicative_model(x).shape)
     print("Multiplicative shifted logits shape:", multiplicative_shifted_model(x).shape)
+    print("Squared multiplicative logits shape:", squared_multiplicative_model(x).shape)
+    print("Squared multiplicative shifted logits shape:", squared_multiplicative_shifted_model(x).shape)

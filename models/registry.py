@@ -27,6 +27,8 @@ from .vit_axis_sinusoidal import (
     ViTMultiplicativeSinusoidal,
     ViTMultiplicativeSinusoidalShifted,
     ViTRowSinusoidal,
+    ViTSquaredMultiplicativeSinusoidal,
+    ViTSquaredMultiplicativeSinusoidalShifted,
 )
 from .vit_baseline import ViTBaseline
 from .vit_rope import ViTRoPE
@@ -177,6 +179,16 @@ def build_vit_multiplicative_sinusoidal_model(args):
 def build_vit_multiplicative_sinusoidal_shifted_model(args):
     model_config = build_vit_model_config(args)
     return ViTMultiplicativeSinusoidalShifted(**model_config), model_config
+
+
+def build_vit_squared_multiplicative_sinusoidal_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTSquaredMultiplicativeSinusoidal(**model_config), model_config
+
+
+def build_vit_squared_multiplicative_sinusoidal_shifted_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTSquaredMultiplicativeSinusoidalShifted(**model_config), model_config
 
 
 def build_vit_family_dataloaders(args):
@@ -655,6 +667,32 @@ register_experiment(
         build_model=build_vit_multiplicative_sinusoidal_shifted_model,
         build_dataloaders=build_vit_family_dataloaders,
         extra_summary_fields={"position_encoding": "multiplicative_sinusoidal_shifted"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_squared_multiplicative_sinusoidal",
+        architecture="vit",
+        variant="squared_multiplicative_sinusoidal",
+        plot_title_prefix="ViT Squared Multiplicative Sinusoidal",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_squared_multiplicative_sinusoidal_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "squared_multiplicative_sinusoidal"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_squared_multiplicative_sinusoidal_shifted",
+        architecture="vit",
+        variant="squared_multiplicative_sinusoidal_shifted",
+        plot_title_prefix="ViT Squared Multiplicative Sinusoidal Shifted",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_squared_multiplicative_sinusoidal_shifted_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "squared_multiplicative_sinusoidal_shifted"},
     )
 )
 

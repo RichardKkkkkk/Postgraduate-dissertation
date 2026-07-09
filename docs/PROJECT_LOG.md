@@ -86,3 +86,23 @@
   - 收敛速度
   - 波动大小
   - 不同模型是否稳定
+
+## 2026-07-08 Teacher Method Expansion: Squared Multiplicative PE
+
+### 已完成
+
+- 根据老师的新实验建议，新增两个 CIFAR-10 positional encoding 候选模型：
+  - `vit_squared_multiplicative_sinusoidal`
+  - `vit_squared_multiplicative_sinusoidal_shifted`
+- 两个模型都通过 `models/registry.py` 接入统一训练入口
+- 修复 `experiment_utils.evaluate()` 在 very small subset smoke test 上的 confusion matrix 类别数推断问题
+- squared multiplicative 的核心定义是对 multiplicative PE 再逐元素平方：
+  - normal: `(row_pe * col_pe) ** 2`
+  - shifted: `(shifted_row_pe * shifted_col_pe) ** 2`
+
+### 当前认识
+
+- 这是对之前 “multiplicative 优于 additive” 结果的直接外推实验
+- 平方会去掉乘积的正负号，因此它测试的是更强的 row/column 耦合强度，而不是相位符号
+- 两个新模型已经通过 1-epoch CIFAR-10 subset smoke test
+- 下一步可以在 CIFAR-10 上跑正式对比
