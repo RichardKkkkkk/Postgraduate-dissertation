@@ -51,6 +51,16 @@
 - `vit_multiplicative_sinusoidal`
 - `vit_multiplicative_sinusoidal_shifted`
 
+老师新一轮建议中的 radial positional encoding 也已接入：
+
+- `vit_radial_sinusoidal`
+
+它使用左上角为原点的 radial distance：
+
+```text
+r = sqrt(row^2 + col^2)
+```
+
 ## 当前主线数据集
 
 当前主线优先任务是：

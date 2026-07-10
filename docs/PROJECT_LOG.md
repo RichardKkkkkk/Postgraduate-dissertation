@@ -106,3 +106,18 @@
 - 平方会去掉乘积的正负号，因此它测试的是更强的 row/column 耦合强度，而不是相位符号
 - 两个新模型已经通过 1-epoch CIFAR-10 subset smoke test
 - 下一步可以在 CIFAR-10 上跑正式对比
+
+## 2026-07-10 Teacher Method Expansion: Radial PE
+
+### 已完成
+
+- 新增 `vit_radial_sinusoidal`
+- 按老师邮件原文实现 radial distance：
+  - `r = sqrt(row^2 + col^2)`
+  - 原点是 patch grid 左上角 `(0, 0)`
+- 模型已接入 `models/registry.py`，可通过统一训练入口运行
+
+### 下一步
+
+- 先跑 CIFAR-10 seed42 单实验
+- 如果结果接近或超过 multiplicative / squared multiplicative，再考虑 multi-seed

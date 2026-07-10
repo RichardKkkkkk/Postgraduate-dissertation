@@ -26,6 +26,7 @@ from .vit_axis_sinusoidal import (
     ViTColSinusoidal,
     ViTMultiplicativeSinusoidal,
     ViTMultiplicativeSinusoidalShifted,
+    ViTRadialSinusoidal,
     ViTRowSinusoidal,
     ViTSquaredMultiplicativeSinusoidal,
     ViTSquaredMultiplicativeSinusoidalShifted,
@@ -159,6 +160,11 @@ def build_vit_row_sinusoidal_model(args):
 def build_vit_col_sinusoidal_model(args):
     model_config = build_vit_model_config(args)
     return ViTColSinusoidal(**model_config), model_config
+
+
+def build_vit_radial_sinusoidal_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTRadialSinusoidal(**model_config), model_config
 
 
 def build_vit_additive_sinusoidal_model(args):
@@ -615,6 +621,19 @@ register_experiment(
         build_model=build_vit_col_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
         extra_summary_fields={"position_encoding": "col_sinusoidal"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_radial_sinusoidal",
+        architecture="vit",
+        variant="radial_sinusoidal",
+        plot_title_prefix="ViT Radial Sinusoidal",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_radial_sinusoidal_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={"position_encoding": "radial_sinusoidal"},
     )
 )
 

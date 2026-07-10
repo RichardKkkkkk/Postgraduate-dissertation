@@ -81,6 +81,8 @@ pip install -r requirements.txt
   只按 row 注入 sinusoidal positional embedding
 - `vit_col_sinusoidal`
   只按 column 注入 sinusoidal positional embedding
+- `vit_radial_sinusoidal`
+  使用 `sqrt(row^2 + col^2)` 生成 radial sinusoidal positional embedding
 - `vit_additive_sinusoidal`
   先分别生成 row / column sinusoidal embedding，再逐元素相加
 - `vit_additive_sinusoidal_shifted`

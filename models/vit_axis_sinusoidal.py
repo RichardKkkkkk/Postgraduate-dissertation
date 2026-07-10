@@ -48,6 +48,13 @@ def build_multiplicative_2d_embedding(row_positions, col_positions, embed_dim):
     return row_embed * col_embed
 
 
+def build_radial_2d_embedding(row_positions, col_positions, embed_dim):
+    row_positions = row_positions.to(dtype=torch.float32)
+    col_positions = col_positions.to(dtype=torch.float32)
+    radial_positions = torch.sqrt(row_positions.pow(2) + col_positions.pow(2))
+    return build_sinusoidal_embedding(radial_positions, embed_dim)
+
+
 def build_squared_multiplicative_2d_embedding(row_positions, col_positions, embed_dim):
     return build_multiplicative_2d_embedding(row_positions, col_positions, embed_dim).pow(2)
 
@@ -161,6 +168,68 @@ class ViTRowSinusoidal(ViTAxisSinusoidal):
 class ViTColSinusoidal(ViTAxisSinusoidal):
     def __init__(self, **kwargs):
         super().__init__(axis="col", **kwargs)
+
+
+class ViTRadialSinusoidal(nn.Module):
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=16,
+        in_channels=3,
+        embed_dim=768,
+        num_heads=8,
+        mlp_hidden_dim=None,
+        num_blocks=12,
+        num_classes=10,
+        embedding_dropout=0.0,
+        attention_dropout=0.0,
+        projection_dropout=0.0,
+        mlp_dropout=0.0,
+    ):
+        super().__init__()
+        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.pos_dropout = nn.Dropout(embedding_dropout)
+
+        grid_size = self.patch_embed.img_size // self.patch_embed.patch_size
+        row_positions, col_positions = build_grid_positions(grid_size)
+        patch_pos_embed = build_radial_2d_embedding(row_positions, col_positions, embed_dim)
+        cls_pos_embed = torch.zeros((1, embed_dim), dtype=torch.float32)
+        full_pos_embed = torch.cat([cls_pos_embed, patch_pos_embed], dim=0).unsqueeze(0)
+        self.register_buffer("pos_embed", full_pos_embed, persistent=False)
+
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    embed_dim,
+                    num_heads,
+                    mlp_hidden_dim,
+                    attention_dropout=attention_dropout,
+                    projection_dropout=projection_dropout,
+                    mlp_dropout=mlp_dropout,
+                )
+                for _ in range(num_blocks)
+            ]
+        )
+        self.norm = nn.LayerNorm(embed_dim)
+        self.head = nn.Linear(embed_dim, num_classes)
+
+    def forward(self, x):
+        B = x.shape[0]
+        x = self.patch_embed(x)
+
+        cls_tokens = self.cls_token.expand(B, -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+        x = x + self.pos_embed.to(dtype=x.dtype, device=x.device)
+        x = self.pos_dropout(x)
+
+        for block in self.blocks:
+            x = block(x)
+
+        x = self.norm(x)
+        cls_output = x[:, 0]
+        logits = self.head(cls_output)
+        return logits
 
 
 class ViTAdditiveSinusoidal(nn.Module):
@@ -444,6 +513,20 @@ if __name__ == "__main__":
         projection_dropout=0.1,
         mlp_dropout=0.1,
     )
+    radial_model = ViTRadialSinusoidal(
+        img_size=32,
+        patch_size=4,
+        in_channels=3,
+        num_classes=2,
+        embed_dim=128,
+        num_blocks=4,
+        num_heads=4,
+        mlp_hidden_dim=512,
+        embedding_dropout=0.1,
+        attention_dropout=0.1,
+        projection_dropout=0.1,
+        mlp_dropout=0.1,
+    )
 
     print("Additive logits shape:", additive_model(x).shape)
     print("Additive shifted logits shape:", additive_shifted_model(x).shape)
@@ -451,3 +534,4 @@ if __name__ == "__main__":
     print("Multiplicative shifted logits shape:", multiplicative_shifted_model(x).shape)
     print("Squared multiplicative logits shape:", squared_multiplicative_model(x).shape)
     print("Squared multiplicative shifted logits shape:", squared_multiplicative_shifted_model(x).shape)
+    print("Radial logits shape:", radial_model(x).shape)

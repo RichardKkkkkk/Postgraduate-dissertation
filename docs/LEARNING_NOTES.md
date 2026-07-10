@@ -127,6 +127,28 @@ for images, labels in loader:
 - patch token 的位置只看 column
 - 同一列共享位置向量
 
+### `vit_radial_sinusoidal`
+
+- patch token 的位置不再分别看 row / column
+- 先计算每个 patch 到左上角原点 `(0, 0)` 的距离：
+
+```python
+radial_positions = torch.sqrt(row_positions.pow(2) + col_positions.pow(2))
+```
+
+- 再把这个距离送进 sinusoidal PE：
+
+```text
+PE_2i   = sin(radial_position / scale_i)
+PE_2i+1 = cos(radial_position / scale_i)
+```
+
+- 对 CIFAR-10 来说，`image_size=32`、`patch_size=4`，所以 patch grid 是 `8 x 8`
+- `row_positions` shape 是 `(64,)`
+- `col_positions` shape 是 `(64,)`
+- `radial_positions` shape 也是 `(64,)`
+- 最终 patch positional embedding shape 是 `(64, embed_dim)`
+
 ### `vit_additive_sinusoidal`
 
 - patch token 的位置同时看 row 和 column
