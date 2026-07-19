@@ -9,37 +9,79 @@
 
 ## 当前主线
 
-当前统一主线是：
+当前统一工程主线是：
 
 - 一个训练入口：`train_cifar10_experiment.py`
 - 一个模型与数据集注册表：`models/registry.py`
 - 一个训练工具模块：`experiment_utils.py`
 - 一个结果对比入口：`generate_comparison_report.py`
 
-当前主线模型：
+当前已经完成正式多 seed 对比的模型：
 
 - `vit_baseline`
 - `vit_learnable_position`
 - `vit_row_sinusoidal`
 - `vit_col_sinusoidal`
+- `vit_additive_sinusoidal`
+- `vit_additive_sinusoidal_shifted`
+- `vit_multiplicative_sinusoidal`
+- `vit_multiplicative_sinusoidal_shifted`
 
-当前主线任务：
+当前主要证据来自：
 
-- `cadb_elements`
+- `cifar10`：8 个位置编码模型、5 个 seed（42-46）的正式对比
+- `cadb_elements`：8 个模型、seed 42 的探索性 multi-label 对比
+
+当前待验证的老师方法扩展：
+
+- `vit_squared_multiplicative_sinusoidal`
+- `vit_squared_multiplicative_sinusoidal_shifted`
+- `vit_radial_sinusoidal`
+
+这三个模型已经实现并注册，但还没有正式训练结果。
 
 ## 环境
 
-统一使用 conda 环境：
+统一使用 conda 环境 `vit_research`，不要为本项目创建 `.venv`。
+
+首次创建：
+
+```bash
+conda env create -f environment.yml
+conda activate vit_research
+```
+
+如果本机 Conda 默认频道要求额外接受条款，也可以只使用项目指定的 `conda-forge` 创建基础环境：
+
+```bash
+conda create -n vit_research --override-channels -c conda-forge python=3.11 pip
+conda activate vit_research
+python -m pip install -r requirements.txt
+```
+
+已有环境时：
 
 ```bash
 conda activate vit_research
 ```
 
-安装依赖：
+### Windows + NVIDIA GPU
+
+`requirements.txt` 从默认 PyPI 安装时可能得到 CPU 版 PyTorch。Windows NVIDIA 机器应在安装常规依赖后，把 PyTorch 替换为官方 CUDA wheel：
 
 ```bash
-pip install -r requirements.txt
+python -m pip install --force-reinstall --no-deps torch==2.12.0 torchvision==0.27.0 --index-url https://download.pytorch.org/whl/cu130
 ```
+
+当前 Windows 工作站已经验证：
+
+- Python `3.11.15`
+- PyTorch `2.12.0+cu130`
+- Torchvision `0.27.0+cu130`
+- NVIDIA GeForce RTX 5070 Ti
+- `torch.cuda.is_available() == True`
+
+macOS 继续使用 `requirements.txt` 的标准 wheel；训练入口会优先选择 MPS，其次选择 CUDA，最后回退到 CPU。
 
 ## 项目结构
 
@@ -58,18 +100,18 @@ pip install -r requirements.txt
 
 关键文件：
 
-- [train_cifar10_experiment.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/train_cifar10_experiment.py:1)
+- [train_cifar10_experiment.py](train_cifar10_experiment.py)
   统一训练入口
-- [models/registry.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/models/registry.py:1)
+- [models/registry.py](models/registry.py)
   模型注册、数据集路由、默认超参数
-- [experiment_utils.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/experiment_utils.py:1)
+- [experiment_utils.py](experiment_utils.py)
   训练、评估、早停、指标、画图、保存
-- [datasets/cadb_data.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/datasets/cadb_data.py:1)
+- [datasets/cadb_data.py](datasets/cadb_data.py)
   CADB 任务定义和 dataloader
-- [generate_comparison_report.py](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/generate_comparison_report.py:1)
+- [generate_comparison_report.py](generate_comparison_report.py)
   对比图和报告生成
 
-更详细的结构说明见 [PROJECT_STRUCTURE.md](/D:/UCL/UCL-dissertation/Postgraduate-dissertation/docs/PROJECT_STRUCTURE.md:1)。
+更详细的结构说明见 [PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)。
 
 ## 支持的模型
 
@@ -108,7 +150,7 @@ pip install -r requirements.txt
 
 ### `cadb_elements`
 
-这是当前最重要的 multi-label classification 任务。  
+这是已经完成正式探索性对比的 multi-label classification 任务。
 每张图对应一个多标签向量，表示多个构图元素是否出现。
 
 当前标签集合：
@@ -160,7 +202,50 @@ python train_cifar10_experiment.py --model vit_baseline
 - metrics / summary / checkpoint 保存逻辑只维护一份
 - 新模型通过注册表接入，不再新建单独的 `train_xxx.py`
 
-## 当前主线实验命令
+## 当前 CIFAR-10 实验协议
+
+已经完成的 8 模型、5 seed 实验使用：
+
+- `dataset = cifar10`
+- `seeds = 42, 43, 44, 45, 46`
+- `epochs = 100`
+- `batch_size = 128`
+- `lr = 3e-4`
+- `weight_decay = 0.05`
+- `val_ratio = 0.1`
+- `early_stopping_metric = val_acc`
+- `early_stopping_patience = 10`
+- `early_stopping_min_delta = 0.001`
+- `lr_plateau_patience = 5`
+- `lr_plateau_factor = 0.5`
+
+现有汇总位于：
+
+```text
+results/cifar10_positional_8models_5seeds/reports/cifar10_positional_8models_5seeds_summary/
+```
+
+五 seed 的核心结果是：
+
+- `vit_learnable_position`: test accuracy `78.854% ± 0.409 pp`
+- `vit_multiplicative_sinusoidal_shifted`: `77.638% ± 0.388 pp`
+- `vit_multiplicative_sinusoidal`: `77.458% ± 0.485 pp`
+- `vit_baseline`: `71.390% ± 0.567 pp`
+- `vit_learnable_position` 在 5/5 个 seed 上取得最高 test accuracy
+
+## 当前下一组正式实验
+
+老师提出的 squared multiplicative 和 radial 变体先统一跑 CIFAR-10 seed 42：
+
+```bash
+python train_cifar10_experiment.py --model vit_squared_multiplicative_sinusoidal --dataset cifar10 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --experiment-name cifar10_teacher_extensions --run-name cifar10ext_vit_squared_multiplicative_sinusoidal_seed42
+python train_cifar10_experiment.py --model vit_squared_multiplicative_sinusoidal_shifted --dataset cifar10 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --experiment-name cifar10_teacher_extensions --run-name cifar10ext_vit_squared_multiplicative_sinusoidal_shifted_seed42
+python train_cifar10_experiment.py --model vit_radial_sinusoidal --dataset cifar10 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --experiment-name cifar10_teacher_extensions --run-name cifar10ext_vit_radial_sinusoidal_seed42
+```
+
+只有当某个新变体接近或超过现有 `vit_multiplicative_sinusoidal_shifted`，才扩展到 seed 43-46。
+
+## 已完成的 CADB Elements 实验命令
 
 ### `vit_baseline`
 
@@ -210,7 +295,7 @@ python train_cifar10_experiment.py --model vit_multiplicative_sinusoidal --datas
 python train_cifar10_experiment.py --model vit_multiplicative_sinusoidal_shifted --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name multiplicative_shifted_cadb_elements_seed42
 ```
 
-### 四模型对比报告
+### CADB 四模型核心对比报告
 
 ```bash
 python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Baseline (No Pos)" --run learnable_position_cadb_elements_seed42="ViT Learnable Position" --run row_cadb_elements_seed42="ViT Row-wise" --run col_cadb_elements_seed42="ViT Column-wise" --report-name cadb_elements_positional_controls --title "CADB Elements: Baseline vs Learnable Position vs Row-wise vs Column-wise" --skip-ppt
@@ -229,7 +314,7 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 - `results/<experiment_name>/reports/<report_name>/...`
 - `checkpoints/<experiment_name>/<model>/<run_name>_best.pt`
 
-濡傛灉涓嶆樉寮忎紶 `--experiment-name`锛岀郴缁熼粯璁や細浣跨敤 `dataset` 鍚嶇О浣滀负瀹為獙鐩綍銆?
+如果不显式传 `--experiment-name`，系统默认使用 `dataset` 名称作为实验目录。
 
 单标签任务还会额外保存 confusion matrix。
 
@@ -237,6 +322,8 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 
 - `validation` 用于 early stopping 和 model selection
 - `test` 用于最终报告
+
+已知待修正项：当前训练循环仍会在每个 epoch 计算 test 并保存 test 曲线。下一组论文正式实验前，应改成只在 validation 选定 checkpoint 后评估一次 test；详见 [RESEARCH_PLAN.md](docs/RESEARCH_PLAN.md)。
 
 ## 常用 CLI 参数
 
@@ -321,12 +408,21 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 ## 结果管理
 
 - `results/`
-  放原始实验输出，主要用于本地分析
+  放原始实验输出、图和报告
+- `checkpoints/`
+  放最佳模型参数
 - `docs/`
   放长期保留的项目说明、研究计划、日志和学习笔记
 
-现在默认不把整个 `results/` 目录当作长期文档区。  
-如果有少量必须长期保留的结果图，后续再单独决定单独目录，而不是默认把结果和文档混放。
+当前仓库已经追踪了三组历史实验：
+
+- `cadb_elements_positional_100e`
+- `cifar10_positional_8models`
+- `cifar10_positional_8models_5seeds`
+
+历史上为了跨设备备份，已有结果和 56 个 checkpoint 被提交进 Git；因此 `.gitignore` 只会阻止新增的未追踪 checkpoint，不能自动取消已有文件的追踪。后续在决定 Git LFS、外部实验存储或清理方案之前，不要直接删除这些历史产物。
+
+长期研究结论仍应写入 `docs/`，不能只存在于 `results/` 或聊天记录中。
 
 
 ## Git 工作流

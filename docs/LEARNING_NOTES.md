@@ -214,6 +214,8 @@ PE_2i+1 = cos(radial_position / scale_i)
 - 中间产物
 - 可以随时重跑
 
+注意：历史上为了跨设备备份，当前三组正式实验和 56 个 checkpoint 已经被 Git 追踪。`.gitignore` 不会自动取消已追踪文件；不要未经确认直接清理。
+
 ### 长期文档
 
 放在：
@@ -242,5 +244,22 @@ num_classes = logits.shape[1]
 ```
 
 所以即使某个小 subset 里没有出现第 9 类，confusion matrix 也仍然应该是 `10 x 10`。
-- 记录项目状态
-- 作为跨设备共享记忆
+
+## 10. Validation 和 Test 的职责
+
+- `train` 用来更新模型参数
+- `validation` 用来选择 checkpoint、early stopping 和调整学习率
+- `test` 只用来评估已经由 validation 选定的模型
+
+如果每个 epoch 都查看 test 曲线或报告 `best_test_epoch`，即使代码没有直接用 test 做 early stopping，也可能在人工分析时形成 test leakage。
+
+论文正式协议应当是：
+
+```text
+train each epoch
+-> evaluate validation
+-> select one checkpoint from validation
+-> evaluate test once
+```
+
+当前训练代码还会每个 epoch 计算 test，这是已经记录在研究计划中的待修正事项。

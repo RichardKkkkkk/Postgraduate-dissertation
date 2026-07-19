@@ -1,5 +1,7 @@
 # 项目结构
 
+最近对齐：2026-07-20
+
 这个文档只回答一件事：
 
 当前仓库里，每个目录和关键文件分别负责什么。
@@ -20,6 +22,12 @@
   多 seed 结果聚合与汇总。
 - `result_paths.py`
   统一管理训练结果、图、报告、checkpoint 的路径规则。
+- `refresh_single_run_figures.py`
+  从已有 metrics / summary 重新生成单次实验图。
+- `requirements.txt`
+  Python 依赖的锁定版本。
+- `environment.yml`
+  `vit_research` Conda 环境入口，Python 固定为 3.11。
 
 一句英文解释：
 
@@ -34,7 +42,7 @@
 - `vit_baseline.py`
   不加位置编码的 ViT baseline。
 - `vit_axis_sinusoidal.py`
-  row-wise / column-wise / additive / multiplicative 等 sinusoidal 变体。
+  row-wise / column-wise / radial / additive / multiplicative / squared multiplicative 等 sinusoidal 变体。
 - `vit_rope.py`
   1D RoPE 版本。
 - `vit_rope_2d.py`
@@ -68,6 +76,19 @@
   实验结果、图和报告。
 - `checkpoints/`
   保存最佳模型参数。
+
+当前仓库中的正式实验目录：
+
+- `results/cadb_elements_positional_100e/`
+  CADB Elements 八模型、seed 42。
+- `results/cifar10_positional_8models/`
+  CIFAR-10 八模型、seed 42。
+- `results/cifar10_positional_8models_5seeds/`
+  CIFAR-10 八模型、seed 42-46，以及 mean ± std 汇总。
+
+`vit_squared_multiplicative_sinusoidal`、shifted 版本和 `vit_radial_sinusoidal` 目前只有实现，没有对应的正式结果目录。
+
+历史上已有 56 个 checkpoint 和上述结果被 Git 追踪。不要因为 `checkpoints/` 出现在 `.gitignore` 中就假设这些历史文件未被追踪；清理前必须先制定跨设备保留方案。
 
 ## 当前统一的实验目录结构
 
@@ -103,6 +124,13 @@ checkpoints/
 
 如果不显式传 `--experiment-name`，默认会用 `dataset` 名字作为实验目录名。
 
+下一组老师方法扩展统一使用：
+
+```text
+results/cifar10_teacher_extensions/
+checkpoints/cifar10_teacher_extensions/
+```
+
 ## 推荐理解顺序
 
 如果你想熟悉整个项目，建议按这个顺序看：
@@ -116,3 +144,4 @@ checkpoints/
 7. `models/vit_baseline.py`
 8. `models/vit_axis_sinusoidal.py`
 9. `datasets/cadb_data.py`
+10. `docs/RESEARCH_PLAN.md` 中的当前证据、协议问题和下一步

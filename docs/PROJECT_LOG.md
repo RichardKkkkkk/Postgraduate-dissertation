@@ -63,12 +63,13 @@
 - 你真正想要的是“每次实验一个总文件夹”，不是再往里面加一层很深的 run 目录
 - 这样和之前 `cadb_elements_positional_100e` 的使用习惯一致，也更容易人工查看
 
-## 当前待办
+## 2026-07-02 当时待办（后续状态已更新）
 
-- [ ] 用新的 `experiment_name` 口径重新跑一组 CIFAR-10 对比
-- [ ] 检查 comparison report 是否完整落在同一个 experiment 文件夹下
+- [x] 用新的 `experiment_name` 口径重新跑一组 CIFAR-10 对比
+- [x] 检查 comparison report 是否完整落在同一个 experiment 文件夹下
 - [ ] 决定哪些旧结果需要保留，哪些可以清理
-- [ ] 继续推进老师要求的新 positional encoding 实验
+- [x] 接入老师要求的 squared multiplicative 和 radial positional encoding
+- [ ] 为 squared multiplicative 和 radial positional encoding 生成正式结果
 
 ## 2026-07-04 Multi-Seed Summary Plot Update
 
@@ -121,3 +122,48 @@
 
 - 先跑 CIFAR-10 seed42 单实验
 - 如果结果接近或超过 multiplicative / squared multiplicative，再考虑 multi-seed
+
+## 2026-07-20 Windows 工作站环境与文档对齐
+
+### 新工作站环境
+
+- 已创建 Conda 环境 `vit_research`
+- Python `3.11.15`
+- PyTorch `2.12.0+cu130`
+- Torchvision `0.27.0+cu130`
+- GPU 为 NVIDIA GeForce RTX 5070 Ti
+- 已验证 `torch.cuda.is_available() == True`
+- 已在 CUDA 上完成基础 ViT 前向测试，输入 `(8, 3, 32, 32)`，输出 `(8, 10)`
+- 15 个注册模型均可正常导入
+- 当前 Windows 工作站尚未放置 `data/` 数据目录
+
+### 文档与实际状态的不一致
+
+- README 和研究计划仍把 CADB 四模型写成当前主线，但实际上已经完成 CIFAR-10 八模型、五 seed 对比
+- squared multiplicative 和 radial 已实现，但还没有正式结果
+- 研究计划中的 `no_pos` / `baseline` 命名与代码现状混用
+- README 包含旧电脑绝对路径和一行乱码
+- 历史 checkpoint 与 results 实际已被 Git 追踪，与“checkpoint 不提交”的后续规则不完全一致
+- 训练代码每个 epoch 都计算 test；虽然 checkpoint 只按 validation 选择，但这不符合最严格的最终 holdout 叙事
+
+### 本次选择的对齐方案
+
+- 当前主要证据改为 CIFAR-10 八模型五 seed 结果
+- CADB 改为探索性补充证据，并明确不能用逐标签位 accuracy 作为主结论
+- `vit_baseline` 统一表示无位置编码，`vit_learnable_position` 表示标准 learned position baseline
+- 下一组实验统一归档到 `cifar10_teacher_extensions`
+- 在跑下一组正式实验前，优先修正 test 只在 selected checkpoint 上评估一次的流程
+- 未制定 Git LFS 或外部存储方案前，不清理历史结果与 checkpoint
+
+### 当前五 seed 结论
+
+- `vit_learnable_position` 平均 test accuracy 为 `78.854% ± 0.409 pp`，并赢得 5/5 个 seed
+- `vit_multiplicative_sinusoidal_shifted` 为 `77.638% ± 0.388 pp`，是当前最接近 learned position 的固定位置编码
+- `vit_baseline` 为 `71.390% ± 0.567 pp`
+- 当前证据支持位置编码有效，也支持继续研究 multiplicative coupling，但还不支持“自定义固定 PE 超过 learned PE”
+
+### 下一步
+
+1. 修正 test holdout 流程并运行 smoke test
+2. 正式运行 squared multiplicative、shifted squared multiplicative 和 radial 的 CIFAR-10 seed 42
+3. 只把有竞争力的新模型扩展到 seed 43-46
