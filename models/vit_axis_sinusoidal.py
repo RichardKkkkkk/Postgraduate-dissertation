@@ -113,10 +113,11 @@ class ViTAxisSinusoidal(nn.Module):
         attention_dropout=0.0,
         projection_dropout=0.0,
         mlp_dropout=0.0,
+        unfolding="normal_row",
     ):
         super().__init__()
         self.axis = axis
-        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
+        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_dropout = nn.Dropout(embedding_dropout)
 
@@ -142,7 +143,7 @@ class ViTAxisSinusoidal(nn.Module):
         self.norm = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, num_classes)
 
-    def forward(self, x):
+    def forward_features(self, x):
         B = x.shape[0]
         x = self.patch_embed(x)
 
@@ -156,6 +157,10 @@ class ViTAxisSinusoidal(nn.Module):
 
         x = self.norm(x)
         cls_output = x[:, 0]
+        return cls_output
+
+    def forward(self, x):
+        cls_output = self.forward_features(x)
         logits = self.head(cls_output)
         return logits
 
@@ -185,9 +190,10 @@ class ViTRadialSinusoidal(nn.Module):
         attention_dropout=0.0,
         projection_dropout=0.0,
         mlp_dropout=0.0,
+        unfolding="normal_row",
     ):
         super().__init__()
-        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
+        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_dropout = nn.Dropout(embedding_dropout)
 
@@ -248,10 +254,11 @@ class ViTAdditiveSinusoidal(nn.Module):
         projection_dropout=0.0,
         mlp_dropout=0.0,
         shifted_wavelength=False,
+        unfolding="normal_row",
     ):
         super().__init__()
         self.shifted_wavelength = shifted_wavelength
-        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
+        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_dropout = nn.Dropout(embedding_dropout)
 
@@ -321,11 +328,12 @@ class ViTMultiplicativeSinusoidal(nn.Module):
         mlp_dropout=0.0,
         shifted_wavelength=False,
         squared=False,
+        unfolding="normal_row",
     ):
         super().__init__()
         self.shifted_wavelength = shifted_wavelength
         self.squared = squared
-        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
+        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_dropout = nn.Dropout(embedding_dropout)
 
@@ -392,6 +400,131 @@ class ViTSquaredMultiplicativeSinusoidal(ViTMultiplicativeSinusoidal):
 class ViTSquaredMultiplicativeSinusoidalShifted(ViTMultiplicativeSinusoidal):
     def __init__(self, **kwargs):
         super().__init__(shifted_wavelength=True, squared=True, **kwargs)
+
+
+class ViTLearnableMultiplicativeSinusoidal(nn.Module):
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=16,
+        in_channels=3,
+        embed_dim=768,
+        num_heads=8,
+        mlp_hidden_dim=None,
+        num_blocks=12,
+        num_classes=10,
+        embedding_dropout=0.0,
+        attention_dropout=0.0,
+        projection_dropout=0.0,
+        mlp_dropout=0.0,
+        unfolding="normal_row",
+    ):
+        super().__init__()
+        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, self.patch_embed.num_patches + 1, embed_dim))
+        self.fixed_pos_scale = nn.Parameter(torch.zeros(1))
+        self.pos_dropout = nn.Dropout(embedding_dropout)
+
+        grid_size = self.patch_embed.img_size // self.patch_embed.patch_size
+        row_positions, col_positions = build_grid_positions(grid_size)
+        patch_pos_embed = build_multiplicative_2d_embedding(row_positions, col_positions, embed_dim)
+        cls_pos_embed = torch.zeros((1, embed_dim), dtype=torch.float32)
+        full_fixed_pos_embed = torch.cat([cls_pos_embed, patch_pos_embed], dim=0).unsqueeze(0)
+        self.register_buffer("fixed_pos_embed", full_fixed_pos_embed, persistent=False)
+
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    embed_dim,
+                    num_heads,
+                    mlp_hidden_dim,
+                    attention_dropout=attention_dropout,
+                    projection_dropout=projection_dropout,
+                    mlp_dropout=mlp_dropout,
+                )
+                for _ in range(num_blocks)
+            ]
+        )
+        self.norm = nn.LayerNorm(embed_dim)
+        self.head = nn.Linear(embed_dim, num_classes)
+
+    def forward(self, x):
+        B = x.shape[0]
+        x = self.patch_embed(x)
+
+        cls_tokens = self.cls_token.expand(B, -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+        fixed_pos_embed = self.fixed_pos_embed.to(dtype=x.dtype, device=x.device)
+        x = x + self.pos_embed + self.fixed_pos_scale.to(dtype=x.dtype) * fixed_pos_embed
+        x = self.pos_dropout(x)
+
+        for block in self.blocks:
+            x = block(x)
+
+        x = self.norm(x)
+        cls_output = x[:, 0]
+        logits = self.head(cls_output)
+        return logits
+
+
+class ViTRowColLatentFusion(nn.Module):
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=16,
+        in_channels=3,
+        embed_dim=768,
+        num_heads=8,
+        mlp_hidden_dim=None,
+        num_blocks=12,
+        num_classes=10,
+        embedding_dropout=0.0,
+        attention_dropout=0.0,
+        projection_dropout=0.0,
+        mlp_dropout=0.0,
+        unfolding="normal_row",
+    ):
+        super().__init__()
+        fusion_hidden_dim = mlp_hidden_dim or embed_dim * 4
+        encoder_kwargs = {
+            "img_size": img_size,
+            "patch_size": patch_size,
+            "in_channels": in_channels,
+            "embed_dim": embed_dim,
+            "num_heads": num_heads,
+            "mlp_hidden_dim": mlp_hidden_dim,
+            "num_blocks": num_blocks,
+            "num_classes": num_classes,
+            "embedding_dropout": embedding_dropout,
+            "attention_dropout": attention_dropout,
+            "projection_dropout": projection_dropout,
+            "mlp_dropout": mlp_dropout,
+            "unfolding": unfolding,
+        }
+
+        self.row_encoder = ViTAxisSinusoidal(axis="row", **encoder_kwargs)
+        self.col_encoder = ViTAxisSinusoidal(axis="col", **encoder_kwargs)
+        self.row_encoder.head = nn.Identity()
+        self.col_encoder.head = nn.Identity()
+
+        self.fusion = nn.Sequential(
+            nn.LayerNorm(embed_dim * 2),
+            nn.Linear(embed_dim * 2, fusion_hidden_dim),
+            nn.GELU(),
+            nn.Dropout(mlp_dropout),
+            nn.Linear(fusion_hidden_dim, embed_dim),
+            nn.Dropout(projection_dropout),
+        )
+        self.head = nn.Linear(embed_dim, num_classes)
+
+    def forward(self, x):
+        row_latent = self.row_encoder.forward_features(x)
+        col_latent = self.col_encoder.forward_features(x)
+        fused_latent = torch.cat([row_latent, col_latent], dim=1)
+        fused_latent = self.fusion(fused_latent)
+        logits = self.head(fused_latent)
+        return logits
 
 
 if __name__ == "__main__":
@@ -527,6 +660,35 @@ if __name__ == "__main__":
         projection_dropout=0.1,
         mlp_dropout=0.1,
     )
+    learnable_multiplicative_model = ViTLearnableMultiplicativeSinusoidal(
+        img_size=32,
+        patch_size=4,
+        in_channels=3,
+        num_classes=2,
+        embed_dim=128,
+        num_blocks=4,
+        num_heads=4,
+        mlp_hidden_dim=512,
+        embedding_dropout=0.1,
+        attention_dropout=0.1,
+        projection_dropout=0.1,
+        mlp_dropout=0.1,
+        unfolding="normal_col",
+    )
+    row_col_fusion_model = ViTRowColLatentFusion(
+        img_size=32,
+        patch_size=4,
+        in_channels=3,
+        num_classes=2,
+        embed_dim=128,
+        num_blocks=4,
+        num_heads=4,
+        mlp_hidden_dim=512,
+        embedding_dropout=0.1,
+        attention_dropout=0.1,
+        projection_dropout=0.1,
+        mlp_dropout=0.1,
+    )
 
     print("Additive logits shape:", additive_model(x).shape)
     print("Additive shifted logits shape:", additive_shifted_model(x).shape)
@@ -535,3 +697,5 @@ if __name__ == "__main__":
     print("Squared multiplicative logits shape:", squared_multiplicative_model(x).shape)
     print("Squared multiplicative shifted logits shape:", squared_multiplicative_shifted_model(x).shape)
     print("Radial logits shape:", radial_model(x).shape)
+    print("Learnable + multiplicative logits shape:", learnable_multiplicative_model(x).shape)
+    print("Row/column latent fusion logits shape:", row_col_fusion_model(x).shape)

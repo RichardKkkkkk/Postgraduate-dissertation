@@ -137,6 +137,12 @@ macOS 继续使用 `requirements.txt` 的标准 wheel；训练入口会优先选
   squared multiplicative 版本，对 `row_pe * col_pe` 再逐元素平方
 - `vit_squared_multiplicative_sinusoidal_shifted`
   shifted squared multiplicative 版本
+- `vit_normal_col_learnable_multiplicative_sinusoidal`
+  hybrid PE 小实验：`normal_col` unfolding 下，将可学习 absolute PE 与 multiplicative fixed PE 相加，
+  fixed 分支由一个可学习标量控制
+- `vit_row_col_latent_fusion`
+  双 encoder latent fusion：row-wise encoder 和 column-wise encoder 分别输出 cls latent，
+  拼接后通过 fusion MLP，再用一个 shared prediction head 输出最终预测
 - `vit_rope`
   1D RoPE 版本
 - `vit_rope_2d`
@@ -145,6 +151,33 @@ macOS 继续使用 `requirements.txt` 的标准 wheel；训练入口会优先选
   不带 pretrained weights 的 CNN baseline
 - `resnet18_imagenet`
   可选的 ImageNet pretrained 参考模型
+
+### Unfolding variants
+
+当前支持 4 种 patch unfolding / flatten 方式：
+
+- `normal_row`
+  当前默认方式，逐行从左到右展开
+- `normal_col`
+  逐列从上到下展开
+- `proper_row`
+  逐行蛇形展开，偶数行左到右，奇数行右到左
+- `proper_col`
+  逐列蛇形展开，偶数列上到下，奇数列下到上
+
+已有的原始模型名使用 `normal_row`。另外 3 种 unfolding 使用：
+
+```text
+vit_<unfolding>_<base_model>
+```
+
+例如：
+
+```text
+vit_proper_row_multiplicative_sinusoidal
+vit_normal_col_learnable_position
+vit_proper_col_row_sinusoidal
+```
 
 ## 支持的数据集
 
@@ -293,6 +326,18 @@ python train_cifar10_experiment.py --model vit_multiplicative_sinusoidal --datas
 
 ```bash
 python train_cifar10_experiment.py --model vit_multiplicative_sinusoidal_shifted --dataset cadb_elements --cadb-root data/CADB_Dataset --image-size 96 --epochs 100 --seed 42 --early-stopping-patience 15 --early-stopping-metric val_macro_f1 --early-stopping-min-delta 0.001 --lr-plateau-patience 5 --lr-plateau-factor 0.5 --run-name multiplicative_shifted_cadb_elements_seed42
+```
+
+### `vit_normal_col_learnable_multiplicative_sinusoidal`
+
+```bash
+python train_cifar10_experiment.py --model vit_normal_col_learnable_multiplicative_sinusoidal --dataset cifar10 --experiment-name cifar10_hybrid_seed42 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name normal_col_learnable_multiplicative_seed42
+```
+
+### `vit_row_col_latent_fusion`
+
+```bash
+python train_cifar10_experiment.py --model vit_row_col_latent_fusion --dataset cifar10 --experiment-name cifar10_latent_fusion_seed42 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_col_latent_fusion_seed42
 ```
 
 ### CADB 四模型核心对比报告

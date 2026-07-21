@@ -198,7 +198,49 @@ PE_2i+1 = cos(radial_position / scale_i)
 
 如果以后要加新模型，通常都要先改这里。
 
-## 8. 当前结果管理约定
+## 8. Patch unfolding / flatten 方式
+
+当前 `PatchEmbedding` 先用卷积把图片切成 patch tokens：
+
+```python
+x = self.proj(x)
+x = x.flatten(2)
+x = x.transpose(1, 2)
+```
+
+这一步默认得到的是 `normal_row` 顺序。之后如果需要其他 unfolding，会用：
+
+```python
+x = x.index_select(1, patch_order)
+```
+
+这里 `x` 的 shape 是：
+
+```text
+(batch_size, num_patches, embed_dim)
+```
+
+`dim=1` 表示重排 patch token 这一维。
+
+对一个 `4 x 4` patch grid，四种顺序是：
+
+```text
+normal_row:
+0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+
+normal_col:
+0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15
+
+proper_row:
+0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12
+
+proper_col:
+0, 4, 8, 12, 13, 9, 5, 1, 2, 6, 10, 14, 15, 11, 7, 3
+```
+
+这里的 proper 指蛇形展开，目的是减少一行或一列结束后跳回另一侧造成的大距离跳跃。
+
+## 9. 当前结果管理约定
 
 现在项目里区分两类结果。
 
@@ -226,7 +268,7 @@ PE_2i+1 = cos(radial_position / scale_i)
 
 - 记录研究路线
 
-## 9. 小 subset smoke test 的 confusion matrix
+## 10. 小 subset smoke test 的 confusion matrix
 
 做很小的 CIFAR-10 smoke test 时，`val-subset` 或 `test-subset` 可能没有覆盖 10 个类别。  
 所以 confusion matrix 不能用当前 subset 里出现过几个 label 来决定大小。
@@ -245,7 +287,7 @@ num_classes = logits.shape[1]
 
 所以即使某个小 subset 里没有出现第 9 类，confusion matrix 也仍然应该是 `10 x 10`。
 
-## 10. Validation 和 Test 的职责
+## 11. Validation 和 Test 的职责
 
 - `train` 用来更新模型参数
 - `validation` 用来选择 checkpoint、early stopping 和调整学习率
@@ -263,3 +305,110 @@ train each epoch
 ```
 
 当前训练代码还会每个 epoch 计算 test，这是已经记录在研究计划中的待修正事项。
+
+## 12. Learnable + fixed PE 的写法
+
+新的 hybrid PE 写法是：
+
+```python
+x = x + self.pos_embed + self.fixed_pos_scale * fixed_pos_embed
+```
+
+这里三个张量/参数的含义是：
+
+- `x`
+  token 序列，shape 是 `(batch_size, num_patches + 1, embed_dim)`
+- `self.pos_embed`
+  可学习 positional embedding，shape 是 `(1, num_patches + 1, embed_dim)`
+- `fixed_pos_embed`
+  固定的 multiplicative sinusoidal PE，shape 也是 `(1, num_patches + 1, embed_dim)`
+- `self.fixed_pos_scale`
+  一个可学习标量，shape 是 `(1,)`
+
+PyTorch 会自动 broadcast：
+
+```text
+(1,) -> (1, 1, 1)
+```
+
+所以 `fixed_pos_scale * fixed_pos_embed` 会给整个 fixed PE 乘上同一个可学习权重。
+
+这个标量初始化为 0：
+
+```python
+self.fixed_pos_scale = nn.Parameter(torch.zeros(1))
+```
+
+这表示模型一开始几乎等价于普通 learnable PE。训练过程中，如果 fixed PE 有帮助，反向传播会更新
+`fixed_pos_scale`，让 fixed PE 分支参与更多；如果没帮助，它可以继续接近 0。
+
+`register_buffer` 的作用是把 fixed PE 放进模型状态里，但不让 optimizer 更新它：
+
+```python
+self.register_buffer("fixed_pos_embed", full_fixed_pos_embed, persistent=False)
+```
+
+它和 `nn.Parameter` 的区别是：
+
+- `nn.Parameter` 会被训练
+- `register_buffer` 会跟着模型移动到 CPU/GPU，但默认不参与训练
+
+## 13. Row/Column latent fusion 的张量流
+
+`vit_row_col_latent_fusion` 不是让 row encoder 只看图片的行、column encoder 只看图片的列。
+两个 encoder 都看完整图片，区别只在 positional encoding：
+
+```text
+row encoder:    image + row-wise PE
+column encoder: image + column-wise PE
+```
+
+为了拿到 prediction head 之前的表示，`ViTAxisSinusoidal` 新增了：
+
+```python
+def forward_features(self, x):
+    ...
+    cls_output = x[:, 0]
+    return cls_output
+```
+
+这里 `cls_output` 是整张图片的 latent representation。
+
+在当前 CIFAR-10 默认设置中：
+
+```text
+input image:    (B, 3, 32, 32)
+row_latent:     (B, 128)
+col_latent:     (B, 128)
+```
+
+拼接使用：
+
+```python
+fused_latent = torch.cat([row_latent, col_latent], dim=1)
+```
+
+因为 `dim=1` 是 feature 维，所以：
+
+```text
+(B, 128) + (B, 128) -> (B, 256)
+```
+
+然后 fusion MLP 做 projection：
+
+```text
+(B, 256) -> (B, 512) -> (B, 128)
+```
+
+最后 prediction head 输出：
+
+```text
+(B, 128) -> (B, 10)
+```
+
+训练时只要不写 `detach()`，也不包 `torch.no_grad()`，最终 loss 会自动反向传播到：
+
+- row encoder
+- column encoder
+- fusion MLP
+- final prediction head

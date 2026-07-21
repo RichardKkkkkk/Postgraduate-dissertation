@@ -42,7 +42,10 @@
 - `vit_baseline.py`
   不加位置编码的 ViT baseline。
 - `vit_axis_sinusoidal.py`
-  row-wise / column-wise / radial / additive / multiplicative / squared multiplicative 等 sinusoidal 变体。
+  row-wise / column-wise / radial / additive / multiplicative / squared multiplicative、
+  hybrid PE、row/column latent fusion 等 sinusoidal 变体。
+- `unfolding.py`
+  patch flatten / unfolding 顺序工具，支持 normal row、normal column、proper row、proper column。
 - `vit_rope.py`
   1D RoPE 版本。
 - `vit_rope_2d.py`

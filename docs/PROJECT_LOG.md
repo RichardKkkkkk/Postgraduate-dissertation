@@ -167,3 +167,154 @@
 1. 修正 test holdout 流程并运行 smoke test
 2. 正式运行 squared multiplicative、shifted squared multiplicative 和 radial 的 CIFAR-10 seed 42
 3. 只把有竞争力的新模型扩展到 seed 43-46
+
+## 2026-07-12 Teacher Method Expansion: Unfolding Variants
+
+### 已完成
+
+- 新增 `models/unfolding.py`
+- 支持 4 种 patch unfolding / flatten 顺序：
+  - `normal_row`
+  - `normal_col`
+  - `proper_row`
+  - `proper_col`
+- `proper_row` 和 `proper_col` 按老师图片实现为 snake / serpentine 顺序
+- 将 unfolding 接入 5 个模型族：
+  - baseline
+  - learnable position
+  - row sinusoidal
+  - column sinusoidal
+  - multiplicative sinusoidal
+- 新增 15 个非默认 unfolding 模型名，原始 5 个模型继续表示 `normal_row`
+
+### 当前认识
+
+- `normal_row` 是当前默认 ViT patch flatten
+- baseline 无 positional encoding，理论上对 token 顺序不敏感，可作为 sanity check
+- 有 PE 的模型才是 unfolding 实验的主要观察对象
+
+## 2026-07-13 CIFAR-10 Unfolding Seed42 Result Summary
+
+### 已完成
+
+- `cifar10_unfolding_15_seed42` 的 15 个新增 unfolding 实验已完成
+- 生成对比报告：
+  - `results/cifar10_unfolding_15_seed42/reports/unfolding_seed42_comparison/overview.md`
+  - `results/cifar10_unfolding_15_seed42/reports/unfolding_seed42_comparison/comparison_summary.csv`
+  - `results/cifar10_unfolding_15_seed42/reports/unfolding_seed42_comparison/figures/`
+
+### 当前认识
+
+- `normal_col` 在这组 seed42 实验里整体最好，特别是 multiplicative PE：
+  - normal row multiplicative: 76.61%
+  - normal col multiplicative: 77.91%
+- proper / snake unfolding 没有稳定提升：
+  - proper row multiplicative: 76.17%
+  - proper col multiplicative: 75.74%
+- baseline 和 learnable position 对 unfolding 顺序基本不敏感，符合 Transformer 对 token permutation 较强不敏感性的预期
+- fixed sinusoidal PE 对 unfolding 更敏感，说明 unfolding 主要影响“patch token 和固定 PE 的对应关系”
+
+### 下一步
+
+- 若要继续 unfolding，优先考虑 `normal_col_multiplicative_sinusoidal` 做 multi-seed
+- proper row / proper col 暂时不作为优先 multi-seed 候选
+
+## 2026-07-16 Hybrid PE Seed42 Candidate
+
+### 已完成
+
+- 新增 `vit_normal_col_learnable_multiplicative_sinusoidal`
+- 该模型组合：
+  - `normal_col` patch unfolding
+  - learnable absolute positional embedding
+  - fixed multiplicative sinusoidal positional embedding
+  - 可学习标量 `fixed_pos_scale`
+- `fixed_pos_scale` 初始化为 0，因此模型初始状态接近普通 `vit_learnable_position`
+
+### 当前认识
+
+- 这个实验不是假设 fixed PE 一定强于 learnable PE
+- 它测试的是：表现最好的 fixed spatial prior 能否作为辅助项，帮助 learnable PE
+- 如果 seed42 结果没有接近或超过 learnable baseline，则暂时不扩大到 multi-seed
+
+### 下一步
+
+- 先在 CIFAR-10 上跑 seed42：
+  - `vit_normal_col_learnable_multiplicative_sinusoidal`
+  - 100 epochs
+  - 与已有 `vit_learnable_position` 和 `vit_normal_col_multiplicative_sinusoidal` 对比
+
+## 2026-07-20 Teacher Method: Row/Column Latent Fusion
+
+### 已完成
+
+- 新增 `vit_row_col_latent_fusion`
+- 给 `ViTAxisSinusoidal` 增加 `forward_features()`，用于返回 prediction head 之前的 cls latent
+- 已通过 `python -m models.vit_axis_sinusoidal` 和 1-epoch CIFAR-10 tiny smoke test
+- 新模型包含：
+  - row-wise sinusoidal encoder
+  - column-wise sinusoidal encoder
+  - concat fusion MLP
+  - 单个最终 prediction head
+
+### 当前认识
+
+- 两个 encoder 都输入完整图片，并端到端同时训练
+- row branch 和 column branch 不分别预测；它们只提供 latent representation
+- 当前默认 `embed_dim=128`，因此 concat 后是 `256`，fusion MLP 再压回 `128`
+- 该模型参数量大于单 encoder ViT：
+  - single row/column sinusoidal ViT: about 0.80M parameters
+  - learnable ViT: about 0.81M parameters
+  - row/column latent fusion ViT: about 1.80M parameters
+- 若结果提升，需要后续做参数量公平性讨论
+
+### 下一步
+
+- 跑 CIFAR-10 seed42：
+  - `vit_row_col_latent_fusion`
+  - 100 epochs
+  - 与 row-wise、column-wise、multiplicative、learnable position 对比
+
+## 2026-07-21 CIFAR-10 Low-Data Seed42 Result Summary
+
+### 已完成
+
+- 完成 `cifar10_low_data_seed42`
+- 生成 low-data vs full-data 对比图：
+  - `results/cifar10_low_data_seed42/reports/low_data_vs_full_comparison/figures/low_data_vs_full_selected_test_accuracy.png`
+- 训练集大小：
+  - 1000
+  - 5000
+  - 10000
+- 对比模型：
+  - `vit_learnable_position`
+  - `vit_normal_col_multiplicative_sinusoidal`
+  - `vit_row_col_latent_fusion`
+
+### Selected test accuracy
+
+| train subset | learnable | normal_col multiplicative | row/column latent fusion |
+| --- | ---: | ---: | ---: |
+| 1000 | 36.10% | 40.62% | 40.92% |
+| 5000 | 54.16% | 56.55% | 54.69% |
+| 10000 | 63.06% | 62.74% | 63.01% |
+
+### 当前认识
+
+- 低数据量下 fixed structural PE 确实更有竞争力：
+  - 1000 samples 时，normal_col multiplicative 和 latent fusion 都明显超过 learnable
+  - 5000 samples 时，normal_col multiplicative 仍明显超过 learnable
+  - 10000 samples 时三者基本打平
+- 这支持一个更清楚的研究问题：
+  - learnable PE 在 full-data setting 很强
+  - structured 2D PE 可能在 low-data setting 提供更有用的 inductive bias
+- 目前只有 seed42，不能直接作为最终结论，需要 multi-seed 验证
+
+### 下一步
+
+- 优先对 low-data CIFAR-10 做 multi-seed，而不是继续新增模型
+- 建议先扩大：
+  - `vit_learnable_position`
+  - `vit_normal_col_multiplicative_sinusoidal`
+  - 可选 `vit_row_col_latent_fusion`
+- 若算力有限，优先 multi-seed 1000 和 5000 两档，因为这两档最能体现 structured PE 的潜在优势

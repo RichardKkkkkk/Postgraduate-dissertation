@@ -46,6 +46,23 @@
 r = sqrt(row^2 + col^2)
 ```
 
+老师新一轮建议中的 unfolding 实验也已接入。当前将 patch flatten 顺序作为独立变量：
+
+- `normal_row`
+- `normal_col`
+- `proper_row`
+- `proper_col`
+
+第一轮 unfolding 实验只覆盖 5 个模型族：
+
+- baseline
+- learnable position
+- row sinusoidal
+- column sinusoidal
+- multiplicative sinusoidal
+
+这样可以先判断 flatten 顺序本身是否值得继续扩展，再决定是否加入 additive、squared multiplicative、radial 等更多 PE。
+
 以下模型保留为可选扩展，目前不属于下一组主线实验：
 
 - `vit_rope`
@@ -178,3 +195,95 @@ run_name = cifar10ext_<model_name>_seed42
 - 直接转向复杂医疗数据集
 - 在没有先解决 holdout 和 CADB 指标解释问题前继续扩展大量模型
 - 未制定保留策略前删除历史结果或 checkpoint
+
+## 当前结果解释原则
+
+对于 `cadb_elements`，优先看：
+
+- `val_macro_f1`
+- `test_macro_f1`
+- `per_class_f1`
+- `subset_accuracy`
+
+不要只看：
+
+- `acc`
+
+原因是当前 `acc` 在 multi-label 任务里更接近逐标签位准确率，容易因为负样本太多而偏高。
+
+## Hybrid PE 小实验
+
+当前 CIFAR-10 结果显示：
+
+- `vit_learnable_position` 很稳定
+- fixed PE 里相对最强的是 `normal_col + multiplicative`
+- 但纯 fixed PE 仍然没有稳定超过 learnable PE
+
+因此下一步不直接假设 fixed PE 会超过 learnable PE，而是做一个低成本 hybrid sanity check：
+
+```text
+learnable_pos + alpha * fixed_multiplicative_pos
+```
+
+其中：
+
+- `learnable_pos` 仍然是标准 ViT 的可学习 positional embedding
+- `fixed_multiplicative_pos` 使用之前表现较好的 multiplicative PE
+- unfolding 使用之前 fixed PE 里表现最好的 `normal_col`
+- `alpha` 是一个可学习标量，并初始化为 0
+
+这样设计的含义是：
+
+- 初始状态等价于普通 learnable PE
+- 如果 fixed 2D prior 有帮助，模型可以把 `alpha` 学到非零
+- 如果 fixed 2D prior 没有帮助，模型可以接近退回普通 learnable PE
+
+当前新增模型：
+
+- `vit_normal_col_learnable_multiplicative_sinusoidal`
+
+先只跑 CIFAR-10 seed42。若没有超过或接近 `vit_learnable_position`，暂时不扩展 multi-seed。
+
+## Row/Column Latent Fusion
+
+老师下一步建议是把 row-wise 和 column-wise 信息放到 latent representation 层面融合，而不是继续只在
+positional encoding 层面手写 `row + col` 或 `row * col`。
+
+第一版模型：
+
+- `vit_row_col_latent_fusion`
+
+结构：
+
+```text
+image -> row-wise encoder -> row latent
+image -> column-wise encoder -> column latent
+concat(row latent, column latent) -> fusion MLP -> fused latent -> prediction head
+```
+
+当前 CIFAR-10 默认维度：
+
+```text
+row latent:     (B, 128)
+column latent:  (B, 128)
+concat latent:  (B, 256)
+fusion output:  (B, 128)
+logits:         (B, 10)
+```
+
+训练方式：
+
+- 两个 encoder 都看完整同一张图片
+- 两个 encoder、fusion MLP、final head 端到端同时训练
+- 每个 batch 只从最终 prediction 计算一个 loss
+
+第一轮只跑 CIFAR-10 seed42。主要比较对象：
+
+- `vit_row_sinusoidal`
+- `vit_col_sinusoidal`
+- `vit_additive_sinusoidal`
+- `vit_multiplicative_sinusoidal`
+- `vit_learnable_position`
+
+需要注意：该模型包含两个 ViT encoder，参数量明显大于单 encoder ViT。若结果提升，后续需要考虑参数量
+fairness 对照，例如 larger single-encoder ViT。

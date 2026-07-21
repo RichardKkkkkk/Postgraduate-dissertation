@@ -21,9 +21,10 @@ class ViTBaseline(nn.Module):
         attention_dropout=0.0,
         projection_dropout=0.0,
         mlp_dropout=0.0,
+        unfolding="normal_row",
     ):
         super().__init__()
-        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
+        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.token_dropout = nn.Dropout(embedding_dropout)
         self.blocks = nn.ModuleList(

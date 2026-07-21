@@ -24,9 +24,11 @@ from .vit_axis_sinusoidal import (
     ViTAdditiveSinusoidal,
     ViTAdditiveSinusoidalShifted,
     ViTColSinusoidal,
+    ViTLearnableMultiplicativeSinusoidal,
     ViTMultiplicativeSinusoidal,
     ViTMultiplicativeSinusoidalShifted,
     ViTRadialSinusoidal,
+    ViTRowColLatentFusion,
     ViTRowSinusoidal,
     ViTSquaredMultiplicativeSinusoidal,
     ViTSquaredMultiplicativeSinusoidalShifted,
@@ -130,6 +132,12 @@ def build_vit_model_config(args):
     }
 
 
+def build_vit_model_config_with_unfolding(args, unfolding):
+    model_config = build_vit_model_config(args)
+    model_config["unfolding"] = unfolding
+    return model_config
+
+
 def build_vit_learnable_position_model(args):
     model_config = build_vit_model_config(args)
     return ViT(**model_config), model_config
@@ -195,6 +203,65 @@ def build_vit_squared_multiplicative_sinusoidal_model(args):
 def build_vit_squared_multiplicative_sinusoidal_shifted_model(args):
     model_config = build_vit_model_config(args)
     return ViTSquaredMultiplicativeSinusoidalShifted(**model_config), model_config
+
+
+def build_vit_normal_col_learnable_multiplicative_sinusoidal_model(args):
+    model_config = build_vit_model_config_with_unfolding(args, "normal_col")
+    return ViTLearnableMultiplicativeSinusoidal(**model_config), model_config
+
+
+def build_vit_row_col_latent_fusion_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTRowColLatentFusion(**model_config), model_config
+
+
+UNFOLDING_MODEL_CLASSES = {
+    "baseline": {
+        "class": ViTBaseline,
+        "variant": "baseline",
+        "plot_title": "ViT Baseline (No Pos)",
+        "position_encoding": "none",
+    },
+    "learnable_position": {
+        "class": ViT,
+        "variant": "learnable_position",
+        "plot_title": "ViT Learnable Position",
+        "position_encoding": "absolute",
+    },
+    "row_sinusoidal": {
+        "class": ViTRowSinusoidal,
+        "variant": "row_sinusoidal",
+        "plot_title": "ViT Row-wise Sinusoidal",
+        "position_encoding": "row_sinusoidal",
+    },
+    "col_sinusoidal": {
+        "class": ViTColSinusoidal,
+        "variant": "col_sinusoidal",
+        "plot_title": "ViT Column-wise Sinusoidal",
+        "position_encoding": "col_sinusoidal",
+    },
+    "multiplicative_sinusoidal": {
+        "class": ViTMultiplicativeSinusoidal,
+        "variant": "multiplicative_sinusoidal",
+        "plot_title": "ViT Multiplicative Sinusoidal",
+        "position_encoding": "multiplicative_sinusoidal",
+    },
+}
+
+
+UNFOLDING_DISPLAY_NAMES = {
+    "normal_col": "Normal Column",
+    "proper_row": "Proper Row",
+    "proper_col": "Proper Column",
+}
+
+
+def make_unfolding_model_builder(model_class, unfolding):
+    def build_model(args):
+        model_config = build_vit_model_config_with_unfolding(args, unfolding)
+        return model_class(**model_config), model_config
+
+    return build_model
 
 
 def build_vit_family_dataloaders(args):
@@ -568,7 +635,7 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_baseline_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "none"},
+        extra_summary_fields={"position_encoding": "none", "unfolding": "normal_row"},
     )
 )
 
@@ -581,7 +648,7 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_learnable_position_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "absolute"},
+        extra_summary_fields={"position_encoding": "absolute", "unfolding": "normal_row"},
     )
 )
 
@@ -607,7 +674,7 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_row_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "row_sinusoidal"},
+        extra_summary_fields={"position_encoding": "row_sinusoidal", "unfolding": "normal_row"},
     )
 )
 
@@ -620,7 +687,7 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_col_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "col_sinusoidal"},
+        extra_summary_fields={"position_encoding": "col_sinusoidal", "unfolding": "normal_row"},
     )
 )
 
@@ -672,7 +739,7 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_multiplicative_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "multiplicative_sinusoidal"},
+        extra_summary_fields={"position_encoding": "multiplicative_sinusoidal", "unfolding": "normal_row"},
     )
 )
 
@@ -688,6 +755,26 @@ register_experiment(
         extra_summary_fields={"position_encoding": "multiplicative_sinusoidal_shifted"},
     )
 )
+
+for unfolding_name, unfolding_display_name in UNFOLDING_DISPLAY_NAMES.items():
+    for model_suffix, model_info in UNFOLDING_MODEL_CLASSES.items():
+        register_experiment(
+            ExperimentSpec(
+                model_name=f"vit_{unfolding_name}_{model_suffix}",
+                architecture="vit",
+                variant=f"{unfolding_name}_{model_info['variant']}",
+                plot_title_prefix=model_info["plot_title"].replace(
+                    "ViT ", f"ViT {unfolding_display_name} ", 1
+                ),
+                defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+                build_model=make_unfolding_model_builder(model_info["class"], unfolding_name),
+                build_dataloaders=build_vit_family_dataloaders,
+                extra_summary_fields={
+                    "position_encoding": model_info["position_encoding"],
+                    "unfolding": unfolding_name,
+                },
+            )
+        )
 
 register_experiment(
     ExperimentSpec(
@@ -712,6 +799,39 @@ register_experiment(
         build_model=build_vit_squared_multiplicative_sinusoidal_shifted_model,
         build_dataloaders=build_vit_family_dataloaders,
         extra_summary_fields={"position_encoding": "squared_multiplicative_sinusoidal_shifted"},
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_normal_col_learnable_multiplicative_sinusoidal",
+        architecture="vit",
+        variant="normal_col_learnable_multiplicative_sinusoidal",
+        plot_title_prefix="ViT Normal Column Learnable + Multiplicative Sinusoidal",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_normal_col_learnable_multiplicative_sinusoidal_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={
+            "position_encoding": "learnable_plus_multiplicative_sinusoidal",
+            "unfolding": "normal_col",
+        },
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_row_col_latent_fusion",
+        architecture="vit",
+        variant="row_col_latent_fusion",
+        plot_title_prefix="ViT Row/Column Latent Fusion",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_row_col_latent_fusion_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={
+            "position_encoding": "row_col_latent_fusion",
+            "fusion": "concat_mlp",
+            "unfolding": "normal_row",
+        },
     )
 )
 
