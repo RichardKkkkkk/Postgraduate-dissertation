@@ -1,0 +1,13 @@
+training_size,model,selected_epoch,selected_val_acc,selected_test_acc,best_test_acc
+1000,Learnable PE,76,37.059999999999995,36.1,36.54
+5000,Learnable PE,35,56.06,54.16,54.779999999999994
+10000,Learnable PE,39,64.64,63.06,63.06
+Full,Learnable PE,56,79.14,78.88,78.83
+1000,Normal-col multiplicative PE,41,39.98,40.62,40.62
+5000,Normal-col multiplicative PE,58,57.940000000000005,56.55,57.18
+10000,Normal-col multiplicative PE,46,64.56,62.739999999999995,63.21
+Full,Normal-col multiplicative PE,47,79.17999999999999,77.91,78.49000000000001
+1000,Row/column latent fusion,54,41.46,40.92,41.18
+5000,Row/column latent fusion,37,55.900000000000006,54.690000000000005,54.690000000000005
+10000,Row/column latent fusion,45,64.36,63.01,63.260000000000005
+Full,Row/column latent fusion,34,76.25999999999999,75.48,75.79
