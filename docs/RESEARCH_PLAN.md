@@ -252,6 +252,8 @@ positional encoding 层面手写 `row + col` 或 `row * col`。
 第一版模型：
 
 - `vit_row_col_latent_fusion`
+- `vit_row_col_mean_fusion`
+- `vit_row_col_mean_mlp_fusion`
 
 结构：
 
@@ -259,6 +261,22 @@ positional encoding 层面手写 `row + col` 或 `row * col`。
 image -> row-wise encoder -> row latent
 image -> column-wise encoder -> column latent
 concat(row latent, column latent) -> fusion MLP -> fused latent -> prediction head
+```
+
+Mean fusion baseline:
+
+```text
+image -> row-wise encoder -> row latent
+image -> column-wise encoder -> column latent
+mean(row latent, column latent) -> prediction head
+```
+
+Mean + NN fusion baseline:
+
+```text
+image -> row-wise encoder -> row latent
+image -> column-wise encoder -> column latent
+mean(row latent, column latent) -> fusion MLP -> fused latent -> prediction head
 ```
 
 当前 CIFAR-10 默认维度：
@@ -271,10 +289,29 @@ fusion output:  (B, 128)
 logits:         (B, 10)
 ```
 
+Mean fusion 默认维度：
+
+```text
+row latent:     (B, 128)
+column latent:  (B, 128)
+mean latent:    (B, 128)
+logits:         (B, 10)
+```
+
+Mean + NN fusion 默认维度：
+
+```text
+row latent:     (B, 128)
+column latent:  (B, 128)
+mean latent:    (B, 128)
+fusion output:  (B, 128)
+logits:         (B, 10)
+```
+
 训练方式：
 
 - 两个 encoder 都看完整同一张图片
-- 两个 encoder、fusion MLP、final head 端到端同时训练
+- 两个 encoder、fusion module、final head 端到端同时训练
 - 每个 batch 只从最终 prediction 计算一个 loss
 
 第一轮只跑 CIFAR-10 seed42。主要比较对象：

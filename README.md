@@ -143,6 +143,12 @@ macOS 继续使用 `requirements.txt` 的标准 wheel；训练入口会优先选
 - `vit_row_col_latent_fusion`
   双 encoder latent fusion：row-wise encoder 和 column-wise encoder 分别输出 cls latent，
   拼接后通过 fusion MLP，再用一个 shared prediction head 输出最终预测
+- `vit_row_col_mean_fusion`
+  双 encoder mean fusion：row-wise encoder 和 column-wise encoder 分别输出 cls latent，
+  对两个 latent 逐元素取平均后直接用 shared prediction head 输出最终预测
+- `vit_row_col_mean_mlp_fusion`
+  双 encoder mean + NN fusion：先对 row/column cls latent 取平均，
+  再通过一个输入输出维度相同的 fusion MLP，最后输出最终预测
 - `vit_rope`
   1D RoPE 版本
 - `vit_rope_2d`
@@ -338,6 +344,18 @@ python train_cifar10_experiment.py --model vit_normal_col_learnable_multiplicati
 
 ```bash
 python train_cifar10_experiment.py --model vit_row_col_latent_fusion --dataset cifar10 --experiment-name cifar10_latent_fusion_seed42 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_col_latent_fusion_seed42
+```
+
+### `vit_row_col_mean_fusion`
+
+```bash
+python train_cifar10_experiment.py --model vit_row_col_mean_fusion --dataset cifar10 --experiment-name cifar10_fusion_variants_seed42 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_col_mean_fusion_seed42
+```
+
+### `vit_row_col_mean_mlp_fusion`
+
+```bash
+python train_cifar10_experiment.py --model vit_row_col_mean_mlp_fusion --dataset cifar10 --experiment-name cifar10_fusion_variants_seed42 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_col_mean_mlp_fusion_seed42
 ```
 
 ### CADB 四模型核心对比报告

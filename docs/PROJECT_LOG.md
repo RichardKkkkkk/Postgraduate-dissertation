@@ -318,3 +318,102 @@
   - `vit_normal_col_multiplicative_sinusoidal`
   - 可选 `vit_row_col_latent_fusion`
 - 若算力有限，优先 multi-seed 1000 和 5000 两档，因为这两档最能体现 structured PE 的潜在优势
+
+## 2026-07-23 Teacher Fusion Variant: Mean + Prediction
+
+### 已完成
+
+- 新增 `vit_row_col_mean_fusion`
+- 该模型复用 row-wise encoder 和 column-wise encoder
+- 两个 encoder 都输出 prediction head 之前的 cls latent
+- fusion 方式从 concat/MLP 改为逐元素平均：
+  - `fused_latent = (row_latent + col_latent) / 2`
+- 平均后的 latent 直接进入 shared prediction head
+
+### 当前认识
+
+- 当前默认 `embed_dim=128`
+- row latent 和 column latent 都是 `(B, 128)`
+- mean fusion 后仍是 `(B, 128)`，不会像 concat fusion 一样变成 `(B, 256)`
+- 这个模型参数量会小于 `vit_row_col_latent_fusion`，适合作为 fusion 方法的简单 baseline
+
+### 下一步
+
+- 先跑 CIFAR-10 seed42：
+  - `vit_row_col_mean_fusion`
+  - 100 epochs
+  - 与 no PE、row、column、learnable、concat fusion 放在同一张 validation loss 图里比较
+- 后续再实现：
+  - mean + NN + prediction
+  - bidirectional cross-attention + prediction
+
+### CIFAR-10 seed42 result
+
+- Experiment: `cifar10_fusion_variants_seed42`
+- Run: `row_col_mean_fusion_seed42`
+- Early stopped at epoch 50
+- Selected checkpoint epoch: 40
+- Selected validation accuracy: 77.04%
+- Selected test accuracy: 76.14%
+- Best observed test accuracy: 76.68%
+
+Initial interpretation:
+
+- Mean fusion improves over the previous concat + MLP latent fusion result:
+  - concat + MLP selected test acc: 75.48%
+  - mean fusion selected test acc: 76.14%
+- It also improves over individual row-wise and column-wise PE models:
+  - row-wise selected test acc: 74.79%
+  - column-wise selected test acc: 74.33%
+- It is still below learnable PE:
+  - learnable selected test acc: 78.88%
+- This suggests row/column fusion is useful, but simple mean fusion is not enough to replace learnable PE on full CIFAR-10.
+
+## 2026-07-23 Teacher Fusion Variant: Mean + NN + Prediction
+
+### 已完成
+
+- 新增 `vit_row_col_mean_mlp_fusion`
+- 该模型先复用 mean fusion：
+  - `fused_latent = (row_latent + col_latent) / 2`
+- 然后把平均后的 latent 送入一个 fusion MLP：
+  - `LayerNorm(128)`
+  - `Linear(128, 512)`
+  - `GELU`
+  - `Linear(512, 128)`
+- 最后用 shared prediction head 输出最终预测
+
+### 当前认识
+
+- 这是老师提出的第二个 fusion variant
+- 它测试的问题是：直接平均 row/column latent 后，再用一个小 NN 做非线性重整，是否比 pure mean fusion 更好
+- 与 concat + MLP fusion 相比，它不会把 fusion 输入扩大到 256 维，因此参数更少，也更公平
+
+### 下一步
+
+- 跑 CIFAR-10 seed42：
+  - `vit_row_col_mean_mlp_fusion`
+  - 100 epochs
+  - 与 `vit_row_col_mean_fusion` 和 `vit_row_col_latent_fusion` 比较 validation loss、training loss、training accuracy、validation accuracy
+
+### CIFAR-10 seed42 result
+
+- Experiment: `cifar10_fusion_variants_seed42`
+- Run: `row_col_mean_mlp_fusion_seed42`
+- Early stopped at epoch 52
+- Selected checkpoint epoch: 42
+- Selected validation accuracy: 76.90%
+- Selected test accuracy: 76.40%
+- Best observed test accuracy: 76.56%
+
+Initial interpretation:
+
+- Mean + NN fusion is close to pure mean fusion, but does not clearly improve it:
+  - mean fusion selected test acc: 76.14%
+  - mean + NN selected test acc: 76.40%
+  - mean fusion best test acc: 76.68%
+  - mean + NN best test acc: 76.56%
+- Mean + NN has higher selected validation loss than pure mean fusion:
+  - mean fusion selected val loss: 0.7541
+  - mean + NN selected val loss: 0.8237
+- The extra MLP may add flexibility, but the current single-seed result does not show a stable advantage over simple averaging.

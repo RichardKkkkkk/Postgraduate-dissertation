@@ -412,3 +412,106 @@ fused_latent = torch.cat([row_latent, col_latent], dim=1)
 - column encoder
 - fusion MLP
 - final prediction head
+
+## 14. Row/Column mean fusion 的张量流
+
+`vit_row_col_mean_fusion` 是老师提出的第一个新 fusion baseline：
+
+```text
+image -> row encoder -> row_latent
+image -> column encoder -> col_latent
+mean(row_latent, col_latent) -> prediction head
+```
+
+当前 CIFAR-10 默认维度：
+
+```text
+row_latent:    (B, 128)
+col_latent:    (B, 128)
+fused_latent:  (B, 128)
+logits:        (B, 10)
+```
+
+代码里的 mean fusion 是：
+
+```python
+fused_latent = (row_latent + col_latent) / 2
+```
+
+这里不是 batch 维度取平均，而是 feature 逐元素平均。比如第 `j` 个 feature：
+
+```text
+fused_latent[:, j] = (row_latent[:, j] + col_latent[:, j]) / 2
+```
+
+因为输出仍然是 `(B, 128)`，所以它可以直接进入：
+
+```python
+self.head = nn.Linear(embed_dim, num_classes)
+```
+
+相比 concat fusion：
+
+```python
+torch.cat([row_latent, col_latent], dim=1)
+```
+
+mean fusion 不会把 feature 维度从 `128` 增加到 `256`，因此它参数更少，也更适合作为 fusion 方法的简单 baseline。
+
+## 15. Row/Column mean + MLP fusion 的张量流
+
+`vit_row_col_mean_mlp_fusion` 对应老师说的第二个模型：
+
+```text
+Mean & NN & Prediction
+```
+
+它先和 mean fusion 一样得到平均 latent：
+
+```python
+fused_latent = (row_latent + col_latent) / 2
+```
+
+此时：
+
+```text
+fused_latent: (B, 128)
+```
+
+然后进入一个小的 fusion MLP：
+
+```python
+self.fusion = nn.Sequential(
+    nn.LayerNorm(embed_dim),
+    nn.Linear(embed_dim, fusion_hidden_dim),
+    nn.GELU(),
+    nn.Dropout(mlp_dropout),
+    nn.Linear(fusion_hidden_dim, embed_dim),
+    nn.Dropout(projection_dropout),
+)
+```
+
+当前 CIFAR-10 默认设置下：
+
+```text
+(B, 128) -> LayerNorm(128) -> (B, 128)
+(B, 128) -> Linear(128, 512) -> (B, 512)
+(B, 512) -> GELU -> (B, 512)
+(B, 512) -> Linear(512, 128) -> (B, 128)
+(B, 128) -> prediction head -> (B, 10)
+```
+
+`nn.Sequential` 的作用是把多个层按顺序串起来。调用：
+
+```python
+fused_latent = self.fusion(fused_latent)
+```
+
+就等价于依次执行 LayerNorm、Linear、GELU、Dropout、Linear、Dropout。
+
+这个模型和 concat + MLP fusion 的区别是：
+
+- concat + MLP：`(B, 128) + (B, 128) -> (B, 256) -> MLP -> (B, 128)`
+- mean + MLP：`(B, 128) 和 (B, 128) 先平均 -> (B, 128) -> MLP -> (B, 128)`
+
+所以 mean + MLP 的 fusion network 输入更小，参数也更少。
