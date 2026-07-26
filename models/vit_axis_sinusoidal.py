@@ -527,6 +527,112 @@ class ViTRowColLatentFusion(nn.Module):
         return logits
 
 
+class ViTRowColMeanFusion(nn.Module):
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=16,
+        in_channels=3,
+        embed_dim=768,
+        num_heads=8,
+        mlp_hidden_dim=None,
+        num_blocks=12,
+        num_classes=10,
+        embedding_dropout=0.0,
+        attention_dropout=0.0,
+        projection_dropout=0.0,
+        mlp_dropout=0.0,
+        unfolding="normal_row",
+    ):
+        super().__init__()
+        encoder_kwargs = {
+            "img_size": img_size,
+            "patch_size": patch_size,
+            "in_channels": in_channels,
+            "embed_dim": embed_dim,
+            "num_heads": num_heads,
+            "mlp_hidden_dim": mlp_hidden_dim,
+            "num_blocks": num_blocks,
+            "num_classes": num_classes,
+            "embedding_dropout": embedding_dropout,
+            "attention_dropout": attention_dropout,
+            "projection_dropout": projection_dropout,
+            "mlp_dropout": mlp_dropout,
+            "unfolding": unfolding,
+        }
+
+        self.row_encoder = ViTAxisSinusoidal(axis="row", **encoder_kwargs)
+        self.col_encoder = ViTAxisSinusoidal(axis="col", **encoder_kwargs)
+        self.row_encoder.head = nn.Identity()
+        self.col_encoder.head = nn.Identity()
+        self.head = nn.Linear(embed_dim, num_classes)
+
+    def forward(self, x):
+        row_latent = self.row_encoder.forward_features(x)
+        col_latent = self.col_encoder.forward_features(x)
+        fused_latent = (row_latent + col_latent) / 2
+        logits = self.head(fused_latent)
+        return logits
+
+
+class ViTRowColMeanMLPFusion(nn.Module):
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=16,
+        in_channels=3,
+        embed_dim=768,
+        num_heads=8,
+        mlp_hidden_dim=None,
+        num_blocks=12,
+        num_classes=10,
+        embedding_dropout=0.0,
+        attention_dropout=0.0,
+        projection_dropout=0.0,
+        mlp_dropout=0.0,
+        unfolding="normal_row",
+    ):
+        super().__init__()
+        fusion_hidden_dim = mlp_hidden_dim or embed_dim * 4
+        encoder_kwargs = {
+            "img_size": img_size,
+            "patch_size": patch_size,
+            "in_channels": in_channels,
+            "embed_dim": embed_dim,
+            "num_heads": num_heads,
+            "mlp_hidden_dim": mlp_hidden_dim,
+            "num_blocks": num_blocks,
+            "num_classes": num_classes,
+            "embedding_dropout": embedding_dropout,
+            "attention_dropout": attention_dropout,
+            "projection_dropout": projection_dropout,
+            "mlp_dropout": mlp_dropout,
+            "unfolding": unfolding,
+        }
+
+        self.row_encoder = ViTAxisSinusoidal(axis="row", **encoder_kwargs)
+        self.col_encoder = ViTAxisSinusoidal(axis="col", **encoder_kwargs)
+        self.row_encoder.head = nn.Identity()
+        self.col_encoder.head = nn.Identity()
+        self.fusion = nn.Sequential(
+            nn.LayerNorm(embed_dim),
+            nn.Linear(embed_dim, fusion_hidden_dim),
+            nn.GELU(),
+            nn.Dropout(mlp_dropout),
+            nn.Linear(fusion_hidden_dim, embed_dim),
+            nn.Dropout(projection_dropout),
+        )
+        self.head = nn.Linear(embed_dim, num_classes)
+
+    def forward(self, x):
+        row_latent = self.row_encoder.forward_features(x)
+        col_latent = self.col_encoder.forward_features(x)
+        fused_latent = (row_latent + col_latent) / 2
+        fused_latent = self.fusion(fused_latent)
+        logits = self.head(fused_latent)
+        return logits
+
+
 if __name__ == "__main__":
     x = torch.randn(8, 3, 32, 32)
 
@@ -689,6 +795,34 @@ if __name__ == "__main__":
         projection_dropout=0.1,
         mlp_dropout=0.1,
     )
+    row_col_mean_fusion_model = ViTRowColMeanFusion(
+        img_size=32,
+        patch_size=4,
+        in_channels=3,
+        num_classes=2,
+        embed_dim=128,
+        num_blocks=4,
+        num_heads=4,
+        mlp_hidden_dim=512,
+        embedding_dropout=0.1,
+        attention_dropout=0.1,
+        projection_dropout=0.1,
+        mlp_dropout=0.1,
+    )
+    row_col_mean_mlp_fusion_model = ViTRowColMeanMLPFusion(
+        img_size=32,
+        patch_size=4,
+        in_channels=3,
+        num_classes=2,
+        embed_dim=128,
+        num_blocks=4,
+        num_heads=4,
+        mlp_hidden_dim=512,
+        embedding_dropout=0.1,
+        attention_dropout=0.1,
+        projection_dropout=0.1,
+        mlp_dropout=0.1,
+    )
 
     print("Additive logits shape:", additive_model(x).shape)
     print("Additive shifted logits shape:", additive_shifted_model(x).shape)
@@ -699,3 +833,5 @@ if __name__ == "__main__":
     print("Radial logits shape:", radial_model(x).shape)
     print("Learnable + multiplicative logits shape:", learnable_multiplicative_model(x).shape)
     print("Row/column latent fusion logits shape:", row_col_fusion_model(x).shape)
+    print("Row/column mean fusion logits shape:", row_col_mean_fusion_model(x).shape)
+    print("Row/column mean MLP fusion logits shape:", row_col_mean_mlp_fusion_model(x).shape)

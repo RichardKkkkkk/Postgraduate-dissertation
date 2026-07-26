@@ -29,6 +29,8 @@ from .vit_axis_sinusoidal import (
     ViTMultiplicativeSinusoidalShifted,
     ViTRadialSinusoidal,
     ViTRowColLatentFusion,
+    ViTRowColMeanFusion,
+    ViTRowColMeanMLPFusion,
     ViTRowSinusoidal,
     ViTSquaredMultiplicativeSinusoidal,
     ViTSquaredMultiplicativeSinusoidalShifted,
@@ -213,6 +215,16 @@ def build_vit_normal_col_learnable_multiplicative_sinusoidal_model(args):
 def build_vit_row_col_latent_fusion_model(args):
     model_config = build_vit_model_config(args)
     return ViTRowColLatentFusion(**model_config), model_config
+
+
+def build_vit_row_col_mean_fusion_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTRowColMeanFusion(**model_config), model_config
+
+
+def build_vit_row_col_mean_mlp_fusion_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTRowColMeanMLPFusion(**model_config), model_config
 
 
 UNFOLDING_MODEL_CLASSES = {
@@ -830,6 +842,40 @@ register_experiment(
         extra_summary_fields={
             "position_encoding": "row_col_latent_fusion",
             "fusion": "concat_mlp",
+            "unfolding": "normal_row",
+        },
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_row_col_mean_fusion",
+        architecture="vit",
+        variant="row_col_mean_fusion",
+        plot_title_prefix="ViT Row/Column Mean Fusion",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_row_col_mean_fusion_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={
+            "position_encoding": "row_col_mean_fusion",
+            "fusion": "mean",
+            "unfolding": "normal_row",
+        },
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_row_col_mean_mlp_fusion",
+        architecture="vit",
+        variant="row_col_mean_mlp_fusion",
+        plot_title_prefix="ViT Row/Column Mean MLP Fusion",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_row_col_mean_mlp_fusion_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={
+            "position_encoding": "row_col_mean_mlp_fusion",
+            "fusion": "mean_mlp",
             "unfolding": "normal_row",
         },
     )
