@@ -139,7 +139,6 @@ def train_and_collect_history(
     model,
     train_loader,
     val_loader,
-    test_loader,
     criterion,
     optimizer,
     scheduler,
@@ -170,17 +169,9 @@ def train_and_collect_history(
             device=device,
             task_type=task_type,
         )
-        test_metrics = evaluate(
-            model=model,
-            loader=test_loader,
-            criterion=criterion,
-            device=device,
-            task_type=task_type,
-        )
         print(
             f"  train loss={train_metrics['loss']:.4f} acc={train_metrics['acc'] * 100:.2f}% | "
-            f"val loss={val_metrics['loss']:.4f} acc={val_metrics['acc'] * 100:.2f}% | "
-            f"test loss={test_metrics['loss']:.4f} acc={test_metrics['acc'] * 100:.2f}%"
+            f"val loss={val_metrics['loss']:.4f} acc={val_metrics['acc'] * 100:.2f}%"
         )
         epoch_metrics = {
             "epoch": epoch,
@@ -188,13 +179,9 @@ def train_and_collect_history(
             "train_acc": train_metrics["acc"],
             "val_loss": val_metrics["loss"],
             "val_acc": val_metrics["acc"],
-            "test_loss": test_metrics["loss"],
-            "test_acc": test_metrics["acc"],
         }
         if "macro_f1" in val_metrics:
             epoch_metrics["val_macro_f1"] = val_metrics["macro_f1"]
-        if "macro_f1" in test_metrics:
-            epoch_metrics["test_macro_f1"] = test_metrics["macro_f1"]
         history.append(epoch_metrics)
 
         previous_lr = optimizer.param_groups[0]["lr"]
@@ -423,7 +410,6 @@ def main():
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
-        test_loader=test_loader,
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,

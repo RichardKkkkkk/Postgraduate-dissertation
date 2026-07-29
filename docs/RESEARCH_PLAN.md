@@ -1,6 +1,6 @@
 # 研究计划
 
-最近对齐：2026-07-20
+最近对齐：2026-07-29
 
 这个文档回答三个问题：
 
@@ -125,6 +125,12 @@ CADB Elements 是已经完成的探索性 multi-label 对比，不再作为当�
 results/cifar10_positional_8models_5seeds/
 ```
 
+证据完整性说明：
+
+- 当前仓库可直接审计的完整主线是上述八模型五 seed 结果。
+- `PROJECT_LOG.md` 记录的 unfolding、hybrid、fusion 和 low-data 实验中，部分原始 metrics/checkpoint 未被 Git 追踪。
+- 缺少原始产物的日志结果只能作为方向性记录，不能与完整主线使用同等级证据措辞。
+
 ## 当前主要结果
 
 五 seed 平均 test accuracy：
@@ -160,26 +166,25 @@ experiment_name = cifar10_teacher_extensions
 run_name = cifar10ext_<model_name>_seed42
 ```
 
-## 已知实验协议问题
+## 实验协议状态
 
 文档原则仍然是：
 
 `Validation is for model selection, test is for final reporting.`
 
-当前训练代码虽然只用 validation 指标做 early stopping 和 checkpoint selection，但仍会在每个 epoch 计算 test，并在 summary 中记录 best test epoch。正式论文实验不应根据这些中间 test 指标选择或描述模型。
-
-在下一轮正式实验前，优先把协议收紧为：
+2026-07-29 已将训练代码收紧为：
 
 1. 每个 epoch 只计算 train 和 validation 指标。
 2. 用 validation 选择唯一 checkpoint。
 3. 训练结束后只对该 checkpoint 计算一次 test 指标。
-4. 报告不再突出 `best_test_epoch` 或按 epoch 的 test 曲线。
+4. 新 metrics CSV 不再包含逐 epoch test 曲线，summary 不再写 `best_test_epoch`。
+5. summary 记录 `evaluation_protocol`，config 记录 `test_evaluation`。
 
-旧结果仍可作为开发与方向判断依据，但论文最终表格应清楚说明旧协议，或在新协议下重跑核心对比。
+旧版 CIFAR-10 八模型五 seed 结果仍包含逐 epoch test 指标。它们只能使用 validation 选定 checkpoint 后记录在 `selected_model` 中的 test 指标，不能按 `best_test_epoch` 选模型。论文最终表格应清楚说明旧协议；若新增方法接近主线结果，再决定是否用新协议重跑核心八模型。
 
 ## 下一步
 
-1. 先修正 test holdout 流程，并做小 subset smoke test。
+1. 对新 holdout 流程做小 subset smoke test。
 2. 在 CIFAR-10 seed 42 上正式运行：
    - `vit_squared_multiplicative_sinusoidal`
    - `vit_squared_multiplicative_sinusoidal_shifted`

@@ -14,17 +14,23 @@ from models.registry import EXPERIMENT_REGISTRY
 from result_paths import build_report_artifact_dirs, resolve_run_artifact_paths
 
 
-DEFAULT_MODELS = ["vit_baseline", "vit_learnable_position", "vit_rope"]
+DEFAULT_MODELS = [
+    "vit_baseline",
+    "vit_learnable_position",
+    "vit_row_sinusoidal",
+    "vit_col_sinusoidal",
+    "vit_additive_sinusoidal",
+    "vit_additive_sinusoidal_shifted",
+    "vit_multiplicative_sinusoidal",
+    "vit_multiplicative_sinusoidal_shifted",
+]
 DEFAULT_METRICS = ["best_val_acc", "test_acc", "macro_f1"]
 CURVE_METRICS = [
     "train_loss",
     "val_loss",
-    "test_loss",
     "train_acc",
     "val_acc",
-    "test_acc",
     "val_macro_f1",
-    "test_macro_f1",
 ]
 MODEL_LABELS = {
     "vit_baseline": "ViT Baseline (No Pos)",

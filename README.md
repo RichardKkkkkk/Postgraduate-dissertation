@@ -272,6 +272,8 @@ results/cifar10_positional_8models_5seeds/reports/cifar10_positional_8models_5se
 - `vit_baseline`: `71.390% ± 0.567 pp`
 - `vit_learnable_position` 在 5/5 个 seed 上取得最高 test accuracy
 
+`run_seed_sweep.py` 和 `summarize_seed_sweep.py` 的默认模型列表已经与这 8 个主线模型对齐。正式运行仍建议显式传入 `--models`、`--seeds`、`--experiment-name` 和 `--run-prefix`，使命令本身完整记录实验协议。
+
 ## 当前下一组正式实验
 
 老师提出的 squared multiplicative 和 radial 变体先统一跑 CIFAR-10 seed 42：
@@ -358,11 +360,25 @@ python train_cifar10_experiment.py --model vit_row_col_mean_fusion --dataset cif
 python train_cifar10_experiment.py --model vit_row_col_mean_mlp_fusion --dataset cifar10 --experiment-name cifar10_fusion_variants_seed42 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_col_mean_mlp_fusion_seed42
 ```
 
-### CADB 四模型核心对比报告
+### CADB 八模型探索性对比报告
 
 ```bash
-python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Baseline (No Pos)" --run learnable_position_cadb_elements_seed42="ViT Learnable Position" --run row_cadb_elements_seed42="ViT Row-wise" --run col_cadb_elements_seed42="ViT Column-wise" --report-name cadb_elements_positional_controls --title "CADB Elements: Baseline vs Learnable Position vs Row-wise vs Column-wise" --skip-ppt
+python generate_comparison_report.py \
+  --experiment-name cadb_elements_positional_100e \
+  --run baseline_cadb_elements_seed42="ViT Baseline (No Pos)" \
+  --run learnable_position_cadb_elements_seed42="ViT Learnable Position" \
+  --run row_cadb_elements_seed42="ViT Row-wise" \
+  --run col_cadb_elements_seed42="ViT Column-wise" \
+  --run additive_cadb_elements_seed42="ViT Additive" \
+  --run additive_shifted_cadb_elements_seed42="ViT Additive Shifted" \
+  --run multiplicative_cadb_elements_seed42="ViT Multiplicative" \
+  --run multiplicative_shifted_cadb_elements_seed42="ViT Multiplicative Shifted" \
+  --report-name cadb_elements_positional_8models_report \
+  --title "CADB Elements: Eight Positional Encoding Variants" \
+  --skip-ppt
 ```
+
+对 `cadb_elements`，报告默认把 validation macro F1 放在逐 epoch 指标首位；最终解释仍优先使用 selected-checkpoint 的 test macro F1、per-class F1 和 subset accuracy。
 
 
 ## 训练输出
@@ -381,12 +397,13 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 
 单标签任务还会额外保存 confusion matrix。
 
-核心实验原则：
+核心实验原则（2026-07-29 起的新实验）：
 
 - `validation` 用于 early stopping 和 model selection
-- `test` 用于最终报告
+- 每个 epoch 只计算 train / validation
+- `test` 只在 validation 选定 checkpoint 后评估一次，用于最终报告
 
-已知待修正项：当前训练循环仍会在每个 epoch 计算 test 并保存 test 曲线。下一组论文正式实验前，应改成只在 validation 选定 checkpoint 后评估一次 test；详见 [RESEARCH_PLAN.md](docs/RESEARCH_PLAN.md)。
+历史结果（包括 CIFAR-10 八模型五 seed）由旧版代码生成，其中 metrics CSV 含逐 epoch test 曲线；这些结果只能按 validation 选定 checkpoint 对应的 `selected_model` test 指标解释，不能使用 `best_test_epoch` 选择模型。新训练输出不再保存逐 epoch test 指标或 `best_test_epoch`。详见 [RESEARCH_PLAN.md](docs/RESEARCH_PLAN.md)。
 
 ## 常用 CLI 参数
 
@@ -482,6 +499,8 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 - `cadb_elements_positional_100e`
 - `cifar10_positional_8models`
 - `cifar10_positional_8models_5seeds`
+
+`PROJECT_LOG.md` 还记录了 unfolding、hybrid、fusion 和 low-data 的单 seed 实验，但其中部分原始 metrics/checkpoint 没有进入当前仓库；这些日志数值不能视为可从本仓库完整复现的正式证据。当前最完整、可审计的论文主证据仍是 CIFAR-10 八模型五 seed。
 
 历史上为了跨设备备份，已有结果和 56 个 checkpoint 被提交进 Git；因此 `.gitignore` 只会阻止新增的未追踪 checkpoint，不能自动取消已有文件的追踪。后续在决定 Git LFS、外部实验存储或清理方案之前，不要直接删除这些历史产物。
 

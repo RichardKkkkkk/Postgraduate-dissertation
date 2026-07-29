@@ -396,9 +396,14 @@ def _draw_selected_epoch(axis, selected_epoch):
 def _plot_history_lines(history, path, title, ylabel, series_specs, selected_epoch=None):
     setup_plot_style()
     epochs = [int(row["epoch"]) for row in history]
+    available_series = [
+        series_spec
+        for series_spec in series_specs
+        if all(series_spec[0] in row for row in history)
+    ]
 
     figure, axis = plt.subplots(figsize=(8.6, 5.3))
-    for key, label, color, scale in series_specs:
+    for key, label, color, scale in available_series:
         values = [float(row[key]) * scale for row in history]
         axis.plot(
             epochs,
@@ -519,6 +524,7 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
             "batch_size": args.batch_size,
             "lr": args.lr,
             "weight_decay": args.weight_decay,
+            "test_evaluation": "once_after_validation_checkpoint_selection",
             "lr_plateau_patience": getattr(args, "lr_plateau_patience", None),
             "lr_plateau_factor": getattr(args, "lr_plateau_factor", None),
             "lr_plateau_min_lr": getattr(args, "lr_plateau_min_lr", None),
@@ -562,16 +568,17 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
 def save_summary_json(args, history, path, early_stopping_info, selected_model_metrics):
     path.parent.mkdir(parents=True, exist_ok=True)
     best_val_key = "val_macro_f1" if "val_macro_f1" in history[0] else "val_acc"
-    best_test_key = "test_macro_f1" if "test_macro_f1" in history[0] else "test_acc"
     best_val_epoch = max(history, key=lambda row: row[best_val_key])
-    best_test_epoch = max(history, key=lambda row: row[best_test_key])
     summary = {
         "best_val_epoch": best_val_epoch["epoch"],
         "best_val_acc": best_val_epoch["val_acc"],
-        "best_test_epoch": best_test_epoch["epoch"],
-        "best_test_acc": best_test_epoch["test_acc"],
         "final_epoch": history[-1],
         "selected_model": selected_model_metrics,
+        "evaluation_protocol": {
+            "checkpoint_selection": "validation_only",
+            "test_evaluations": 1,
+            "test_timing": "after_checkpoint_selection",
+        },
         "early_stopping": early_stopping_info,
         "config": vars(args),
     }

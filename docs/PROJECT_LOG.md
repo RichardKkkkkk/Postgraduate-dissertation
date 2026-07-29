@@ -417,3 +417,28 @@ Initial interpretation:
   - mean fusion selected val loss: 0.7541
   - mean + NN selected val loss: 0.8237
 - The extra MLP may add flexibility, but the current single-seed result does not show a stable advantage over simple averaging.
+
+## 2026-07-29 文档、代码与实验协议对齐
+
+### 已完成
+
+- 全仓库核对 PE 模型实现、注册表、训练入口、报告脚本、结果目录和文档。
+- 训练循环不再逐 epoch 评估 test；test 只在 validation 选定 checkpoint 后评估一次。
+- 新 metrics CSV 只保存 train / validation 曲线，新 summary 不再保存 `best_test_epoch`，并新增 `evaluation_protocol`。
+- 单次曲线绘图兼容新旧 history：旧结果可继续读取，新结果不会要求不存在的 test 曲线。
+- seed sweep 的默认模型列表从旧的 baseline / learnable / RoPE 对齐为当前 CIFAR-10 八模型主线。
+- CADB 对比报告默认优先展示 validation macro F1，不再把逐标签位 test accuracy 当作 headline。
+- 报告模型名称映射补齐 squared、radial、hybrid 和 fusion 变体。
+- README、研究计划、项目结构和学习笔记同步到当前实现。
+
+### 证据边界
+
+- 当前仓库最完整、可审计的正式证据仍是 CIFAR-10 八模型五 seed。
+- 这组历史结果由旧协议生成，metrics 中存在逐 epoch test 列；只能引用 validation 选定 checkpoint 对应的 `selected_model` test 指标。
+- unfolding、hybrid、fusion 和 low-data 的部分实验只保留在日志或汇总报告中，缺少仓库内完整原始产物，暂不提升为同等级正式证据。
+
+### 下一步
+
+1. 用小 subset 验证新 holdout 输出结构。
+2. 按新协议运行 squared multiplicative、shifted squared multiplicative 和 radial 的 CIFAR-10 seed 42。
+3. 只将接近或超过当前 strongest fixed PE 的候选扩展到 seed 43-46。
