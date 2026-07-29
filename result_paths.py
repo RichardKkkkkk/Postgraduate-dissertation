@@ -124,7 +124,14 @@ def _resolve_experiment_folder_paths(results_dir: Path, run_name: str, experimen
     if experiment_slug:
         candidate_roots.append(results_dir / experiment_slug)
     candidate_roots.append(results_dir)
+    if not experiment_slug and results_dir.exists():
+        candidate_roots.extend(
+            path
+            for path in sorted(results_dir.iterdir())
+            if path.is_dir() and (path / "metrics").is_dir()
+        )
 
+    resolved_candidates = []
     for root in candidate_roots:
         metrics_dir = root / "metrics"
         if not metrics_dir.exists():
@@ -133,22 +140,31 @@ def _resolve_experiment_folder_paths(results_dir: Path, run_name: str, experimen
         if metrics_path is None:
             continue
         figures_dir = root / "figures"
-        return {
-            "experiment_name": root.name if root != results_dir else experiment_slug,
-            "results_experiment_dir": root,
-            "metrics_dir": metrics_dir,
-            "figures_dir": figures_dir,
-            "checkpoint_dir": None,
-            "metrics_path": metrics_path,
-            "config_path": find_existing_artifact(metrics_dir, f"{run_slug}_config.json"),
-            "summary_path": find_existing_artifact(metrics_dir, f"{run_slug}_summary.json"),
-            "confusion_csv_path": find_existing_artifact(metrics_dir, f"{run_slug}_test_confusion_matrix.csv"),
-            "confusion_figure_path": find_existing_artifact(figures_dir, f"{run_slug}_test_confusion_matrix.png"),
-            "loss_figure_path": find_existing_artifact(figures_dir, f"{run_slug}_loss.png"),
-            "accuracy_figure_path": find_existing_artifact(figures_dir, f"{run_slug}_accuracy.png"),
-            "checkpoint_path": None,
-        }
-    return None
+        resolved_candidates.append(
+            {
+                "experiment_name": root.name if root != results_dir else experiment_slug,
+                "results_experiment_dir": root,
+                "metrics_dir": metrics_dir,
+                "figures_dir": figures_dir,
+                "checkpoint_dir": None,
+                "metrics_path": metrics_path,
+                "config_path": find_existing_artifact(metrics_dir, f"{run_slug}_config.json"),
+                "summary_path": find_existing_artifact(metrics_dir, f"{run_slug}_summary.json"),
+                "confusion_csv_path": find_existing_artifact(metrics_dir, f"{run_slug}_test_confusion_matrix.csv"),
+                "confusion_figure_path": find_existing_artifact(figures_dir, f"{run_slug}_test_confusion_matrix.png"),
+                "loss_figure_path": find_existing_artifact(figures_dir, f"{run_slug}_loss.png"),
+                "accuracy_figure_path": find_existing_artifact(figures_dir, f"{run_slug}_accuracy.png"),
+                "checkpoint_path": None,
+            }
+        )
+
+    if len(resolved_candidates) > 1:
+        matching_paths = ", ".join(str(item["metrics_path"]) for item in resolved_candidates)
+        raise ValueError(
+            f"Run name '{run_slug}' is ambiguous across experiments: {matching_paths}. "
+            "Pass --experiment-name or use unique run names."
+        )
+    return resolved_candidates[0] if resolved_candidates else None
 
 
 def _resolve_accidental_run_folder_paths(results_dir: Path, run_name: str, experiment_name: str | None = None):

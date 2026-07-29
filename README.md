@@ -115,6 +115,13 @@ macOS 继续使用 `requirements.txt` 的标准 wheel；训练入口会优先选
 
 ## 支持的模型
 
+训练入口 `--model` 的真实 choices 来自 `models/registry.py` 的 `EXPERIMENT_REGISTRY`。
+需要核对完整列表时运行：
+
+```bash
+python -c "from models.registry import EXPERIMENT_REGISTRY; print('\n'.join(EXPERIMENT_REGISTRY.keys()))"
+```
+
 - `vit_baseline`
   不带 positional encoding 的 ViT 对照模型
 - `vit_learnable_position`
@@ -149,6 +156,12 @@ macOS 继续使用 `requirements.txt` 的标准 wheel；训练入口会优先选
 - `vit_row_col_mean_mlp_fusion`
   双 encoder mean + NN fusion：先对 row/column cls latent 取平均，
   再通过一个输入输出维度相同的 fusion MLP，最后输出最终预测
+- `vit_row_col_cross_attention_fusion`
+  双 encoder bidirectional cross-attention fusion：row token sequence 用 column token sequence 做 K/V，
+  column token sequence 用 row token sequence 做 K/V，两个方向更新后的 cls token 拼接后预测
+- `vit_row_col_cross_attention_mlp_head_fusion`
+  cross-attention fusion 的 smoother-head refinement：主体与 cross-attention fusion 相同，
+  但最终分类头从 `Linear(256, num_classes)` 改为 `LayerNorm -> Linear(256, 128) -> GELU -> Linear(128, num_classes)`
 - `vit_rope`
   1D RoPE 版本
 - `vit_rope_2d`
@@ -358,6 +371,18 @@ python train_cifar10_experiment.py --model vit_row_col_mean_fusion --dataset cif
 python train_cifar10_experiment.py --model vit_row_col_mean_mlp_fusion --dataset cifar10 --experiment-name cifar10_fusion_variants_seed42 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_col_mean_mlp_fusion_seed42
 ```
 
+### `vit_row_col_cross_attention_fusion`
+
+```bash
+python train_cifar10_experiment.py --model vit_row_col_cross_attention_fusion --dataset cifar10 --experiment-name cifar10_fusion_variants_seed42 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_col_cross_attention_fusion_seed42
+```
+
+### `vit_row_col_cross_attention_mlp_head_fusion`
+
+```bash
+python train_cifar10_experiment.py --model vit_row_col_cross_attention_mlp_head_fusion --dataset cifar10 --experiment-name cifar10_fusion_variants_seed42 --epochs 100 --seed 42 --early-stopping-patience 10 --early-stopping-metric val_acc --early-stopping-min-delta 0.001 --run-name row_col_cross_attention_mlp_head_fusion_seed42
+```
+
 ### CADB 四模型核心对比报告
 
 ```bash
@@ -373,7 +398,9 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 - `results/<experiment_name>/metrics/<model>/<run_name>_config.json`
 - `results/<experiment_name>/metrics/<model>/<run_name>_summary.json`
 - `results/<experiment_name>/figures/<model>/<run_name>_loss.png`
+- `results/<experiment_name>/figures/<model>/<run_name>_loss.pdf`
 - `results/<experiment_name>/figures/<model>/<run_name>_accuracy.png`
+- `results/<experiment_name>/figures/<model>/<run_name>_accuracy.pdf`
 - `results/<experiment_name>/reports/<report_name>/...`
 - `checkpoints/<experiment_name>/<model>/<run_name>_best.pt`
 
@@ -385,8 +412,39 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 
 - `validation` 用于 early stopping 和 model selection
 - `test` 用于最终报告
+- 单模型和模型对比的 epoch 曲线默认只画 train / validation
+- PNG 使用 300 dpi，同时保存 PDF 矢量版本
 
-已知待修正项：当前训练循环仍会在每个 epoch 计算 test 并保存 test 曲线。下一组论文正式实验前，应改成只在 validation 选定 checkpoint 后评估一次 test；详见 [RESEARCH_PLAN.md](docs/RESEARCH_PLAN.md)。
+完整绘图规范见 [docs/FIGURE_STANDARD.md](docs/FIGURE_STANDARD.md)。
+
+已有 metrics 不需要重新训练即可刷新单模型图：
+
+```bash
+python refresh_single_run_figures.py --experiment-name <experiment_name>
+```
+
+模型对比报告默认生成 `val_loss`、`val_acc`、`train_loss`、`train_acc`。也可以用
+`--metrics` 显式指定：
+
+```bash
+python generate_comparison_report.py --run <run_a>="Model A" --run <run_b>="Model B" --metrics val_loss val_acc train_loss train_acc --report-name <report_name> --skip-ppt
+```
+
+每个 comparison report 还会额外生成一组更接近论文/一区文章结果展示习惯的文件：
+
+- `figures/val_loss_comparison.png` 和 `.pdf`
+- `figures/val_acc_comparison.png` 和 `.pdf`
+- `figures/train_loss_comparison.png` 和 `.pdf`
+- `figures/train_acc_comparison.png` 和 `.pdf`
+  - 每张图只比较一个指标，避免在探索阶段把多个结论挤到一张图里
+- `figures/paper_selected_test_accuracy.png` 和 `.pdf`
+  - validation-selected checkpoint 上的 test accuracy 汇总
+- `publication_selected_checkpoints.csv`
+  - 每个模型的 selected epoch 和 selected test metrics
+- `figure_captions.md`
+  - 可作为论文图注或 weekly email 草稿的 caption
+
+已知待修正项：当前训练循环仍会在每个 epoch 计算并记录 test 指标。新图不会展示这些 test 曲线，但下一组论文正式实验前仍应改成只在 validation 选定 checkpoint 后评估一次 test；详见 [RESEARCH_PLAN.md](docs/RESEARCH_PLAN.md)。
 
 ## 常用 CLI 参数
 
@@ -409,6 +467,7 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 - `--val-ratio`
 - `--num-workers`
 - `--seed`
+- `--image-size`
 - `--early-stopping-patience`
 - `--early-stopping-min-delta`
 - `--early-stopping-metric`
@@ -427,13 +486,21 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 
 - `--rope-base`
 
+### Synthetic dataset 参数
+
+- `--synthetic-train-size`
+- `--synthetic-val-size`
+- `--synthetic-test-size`
+- `--synthetic-line-width`
+- `--synthetic-noise-std`
+- `--synthetic-max-stripes`
+
 ### CADB 参数
 
 - `--cadb-root`
 - `--cadb-test-ratio`
 - `--cadb-label-mode`
 - `--cadb-balance-mode`
-- `--image-size`
 
 ## 默认值
 
@@ -468,6 +535,15 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 - `cadb_balance_mode = none`
 - `image_size = 96`
 
+### Synthetic dataset 默认值
+
+- `synthetic_train_size = 2400`
+- `synthetic_val_size = 600`
+- `synthetic_test_size = 600`
+- `synthetic_line_width = 3`
+- `synthetic_noise_std = 0.08`
+- `synthetic_max_stripes = 4`
+
 ## 结果管理
 
 - `results/`
@@ -482,6 +558,10 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 - `cadb_elements_positional_100e`
 - `cifar10_positional_8models`
 - `cifar10_positional_8models_5seeds`
+
+本地还可能存在 `cifar10_positional_squared_seed42`、`cifar10_positional_radial_seed42`、
+`cifar10_unfolding_15_seed42`、`cifar10_fusion_variants_seed42` 等探索性结果目录。
+这些目录用于筛选方向和调试图形规范，正式论文统计结果需要按最终协议重新 multi-seed 跑。
 
 历史上为了跨设备备份，已有结果和 56 个 checkpoint 被提交进 Git；因此 `.gitignore` 只会阻止新增的未追踪 checkpoint，不能自动取消已有文件的追踪。后续在决定 Git LFS、外部实验存储或清理方案之前，不要直接删除这些历史产物。
 

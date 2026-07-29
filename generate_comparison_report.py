@@ -1,27 +1,42 @@
 import argparse
 import csv
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from textwrap import shorten
+
+os.environ.setdefault("MPLCONFIGDIR", str(Path("results/matplotlib_cache")))
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from paper_plotting import (
+    FALLBACK_COLORS as PAPER_FALLBACK_COLORS,
+    MODEL_COLORS as PAPER_MODEL_COLORS,
+    PAPER_FIGSIZE,
+    finish_epoch_axis,
+    get_model_style,
+    mark_every,
+    place_comparison_legend,
+    save_figure_pair,
+    setup_paper_plot_style,
+)
 from result_paths import build_report_artifact_dirs, resolve_run_artifact_paths
 
 
 PRIORITY_METRICS = [
-    "test_acc",
-    "val_acc",
-    "test_loss",
     "val_loss",
-    "train_acc",
+    "val_acc",
     "train_loss",
+    "train_acc",
+    "test_loss",
+    "test_acc",
 ]
+DEFAULT_CURVE_METRICS = ["val_loss", "val_acc", "train_loss", "train_acc"]
 SUMMARY_METRIC_PRIORITY = [
     "test_macro_f1",
     "val_macro_f1",
@@ -157,30 +172,8 @@ COMPACT_PER_CLASS_PRIORITY = [
     "test_per_class_precision",
     "test_per_class_accuracy",
 ]
-RUN_COLOR_MAP = {
-    "vit_baseline": "#1d4ed8",
-    "vit_learnable_position": "#ea580c",
-    "vit_row_sinusoidal": "#16a34a",
-    "vit_col_sinusoidal": "#dc2626",
-    "vit_additive_sinusoidal": "#7c3aed",
-    "vit_additive_sinusoidal_shifted": "#a16207",
-    "vit_multiplicative_sinusoidal": "#db2777",
-    "vit_multiplicative_sinusoidal_shifted": "#0f766e",
-    "vit_rope": "#2563eb",
-    "vit_rope_2d": "#0891b2",
-    "resnet18_scratch": "#4b5563",
-    "resnet18_imagenet": "#111827",
-}
-FALLBACK_RUN_COLORS = [
-    "#1d4ed8",
-    "#ea580c",
-    "#16a34a",
-    "#dc2626",
-    "#7c3aed",
-    "#a16207",
-    "#db2777",
-    "#0f766e",
-]
+RUN_COLOR_MAP = dict(PAPER_MODEL_COLORS)
+FALLBACK_RUN_COLORS = list(PAPER_FALLBACK_COLORS)
 
 
 @dataclass
@@ -651,6 +644,9 @@ def determine_metrics(runs, explicit_metrics=None):
                 "These metrics are not present in every run: " + ", ".join(missing)
             )
         return order_metrics(explicit_metrics)
+    default_metrics = [metric for metric in DEFAULT_CURVE_METRICS if metric in shared_metrics]
+    if default_metrics:
+        return default_metrics
     return order_metrics([metric for metric in runs[0].available_metrics if metric in shared_metrics])
 
 
@@ -767,6 +763,16 @@ def scale_metric_value(metric_name: str, value):
 
 
 def metric_display_name(metric_name: str):
+    display_names = {
+        "train_loss": "Training Loss",
+        "val_loss": "Validation Loss",
+        "test_loss": "Test Loss",
+        "train_acc": "Training Accuracy",
+        "val_acc": "Validation Accuracy",
+        "test_acc": "Test Accuracy",
+    }
+    if metric_name in display_names:
+        return display_names[metric_name]
     tokens = metric_name.replace("_", " ").split()
     return " ".join(token.upper() if token in {"acc", "auc", "f1"} else token.capitalize() for token in tokens)
 
@@ -1598,7 +1604,7 @@ def load_per_class_report_data(args, project_root: Path):
 
 
 def setup_plot_style():
-    plt.style.use("seaborn-v0_8-whitegrid")
+    setup_paper_plot_style()
 
 
 def get_run_color(run, index: int):
@@ -1609,44 +1615,164 @@ def get_run_color(run, index: int):
 
 def plot_metric(figures_dir: Path, runs, metric_name: str):
     setup_plot_style()
-    figure, axis = plt.subplots(figsize=(8.2, 4.8))
+    figure, axis = plt.subplots(figsize=PAPER_FIGSIZE)
     dataset_name = get_shared_dataset_name(runs)
     for index, run in enumerate(runs):
-        color = get_run_color(run, index)
+        style = get_model_style(run.model_name, index)
         epochs = [int(row["epoch"]) for row in run.history]
         values = [scale_metric_value(metric_name, row[metric_name]) for row in run.history]
         axis.plot(
             epochs,
             values,
-            marker="o",
-            linewidth=2.4,
+            marker=style["marker"],
+            markevery=mark_every(len(epochs)),
+            linestyle=style["linestyle"],
+            linewidth=2.0,
             markersize=3.8,
             label=run.label,
-            color=color,
+            color=style["color"],
         )
 
-        final_value = values[-1]
-        axis.scatter([epochs[-1]], [final_value], s=45, color=color, zorder=3)
-
-    axis.set_xlabel("Epoch")
-    axis.set_ylabel("Percentage (%)" if is_percentage_metric(metric_name) else "Value")
-    direction = "Higher is better" if not is_lower_better(metric_name) else "Lower is better"
-    axis.set_title(
-        build_dataset_plot_title(
-            dataset_name,
-            f"{metric_display_name(metric_name)} Across Training ({direction})",
-        ),
-        fontsize=14,
-        pad=12,
+    finish_epoch_axis(
+        axis,
+        metric_name=metric_name,
+        title=build_dataset_plot_title(dataset_name, metric_display_name(metric_name)),
+        show_legend=False,
     )
-    axis.grid(True, alpha=0.25)
-    axis.legend(loc="best", frameon=True)
-    figure.tight_layout()
+    place_comparison_legend(axis, len(runs))
 
     figure_path = figures_dir / f"{metric_name}_comparison.png"
-    figure.savefig(figure_path, dpi=180)
+    save_figure_pair(figure, figure_path)
     plt.close(figure)
     return figure_path
+
+
+def write_publication_selected_checkpoint_table(report_dir: Path, runs, summary_rows, selected_metric_keys):
+    table_path = report_dir / "publication_selected_checkpoints.csv"
+    preferred_metrics = [
+        "test_acc",
+        "test_loss",
+        "test_macro_f1",
+        "val_acc",
+        "val_loss",
+        "val_macro_f1",
+    ]
+    metric_keys = [metric for metric in preferred_metrics if metric in selected_metric_keys]
+    fieldnames = ["label", "run_name", "selected_epoch"] + [f"selected_{metric}" for metric in metric_keys]
+    rows = []
+    for row in summary_rows:
+        output_row = {
+            "label": row["label"],
+            "run_name": row["run_name"],
+            "selected_epoch": row["selected_epoch"],
+        }
+        for metric in metric_keys:
+            value = row.get(f"selected_{metric}")
+            output_row[f"selected_{metric}"] = format_metric_value(metric, value) if value is not None else ""
+        rows.append(output_row)
+    write_csv(table_path, fieldnames, rows)
+    return table_path
+
+
+def plot_selected_test_accuracy_summary(figures_dir: Path, runs, summary_rows):
+    if not all("selected_test_acc" in row for row in summary_rows):
+        return None
+
+    setup_plot_style()
+    sorted_rows = sorted(summary_rows, key=lambda row: row["selected_test_acc"])
+    labels = [row["label"] for row in sorted_rows]
+    values = [row["selected_test_acc"] * 100.0 for row in sorted_rows]
+    y_positions = np.arange(len(sorted_rows))
+
+    height = max(3.2, 0.42 * len(sorted_rows) + 1.2)
+    figure, axis = plt.subplots(figsize=(7.2, height))
+    colors = [
+        get_model_style(
+            next((run.model_name for run in runs if run.label == row["label"]), row["model_name"]),
+            index,
+        )["color"]
+        for index, row in enumerate(sorted_rows)
+    ]
+    axis.scatter(values, y_positions, s=38, color=colors, zorder=3)
+    axis.hlines(y_positions, xmin=0.0, xmax=values, color="#d1d5db", linewidth=1.0, zorder=1)
+    for value, y_position in zip(values, y_positions):
+        axis.text(value + 0.35, y_position, f"{value:.2f}%", va="center", fontsize=8.5)
+
+    axis.set_yticks(y_positions)
+    axis.set_yticklabels(labels)
+    axis.set_xlabel("Selected Test Accuracy (%)")
+    lower_bound = max(0.0, min(values) - 1.0)
+    upper_bound = min(100.0, max(values) + 1.0)
+    axis.set_xlim(lower_bound, upper_bound)
+    axis.set_title("Selected-Checkpoint Test Accuracy", pad=10)
+    axis.grid(True, axis="x", linestyle="--", linewidth=0.7, alpha=0.35)
+    axis.grid(False, axis="y")
+    axis.spines["top"].set_visible(False)
+    axis.spines["right"].set_visible(False)
+
+    figure_path = figures_dir / "paper_selected_test_accuracy.png"
+    save_figure_pair(figure, figure_path)
+    plt.close(figure)
+    return figure_path
+
+
+def write_publication_captions(report_dir: Path, title: str, runs, metrics, selected_metric_keys, publication_paths):
+    dataset_name = format_dataset_display_name(get_shared_dataset_name(runs)) or "the dataset"
+    run_count = len(runs)
+    selected_list = ", ".join(metric_display_name(metric) for metric in selected_metric_keys[:4])
+    captions_path = report_dir / "figure_captions.md"
+
+    lines = [
+        f"# Figure Captions: {title}",
+        "",
+        "These captions are drafts for thesis figures or supervisor updates. Edit the final wording after the final multi-seed rerun.",
+        "",
+    ]
+    figure_number = 1
+    for metric in metrics:
+        metric_note = " Accuracy-style metrics are reported as percentages." if is_percentage_metric(metric) else ""
+        lines.extend(
+            [
+                f"## Figure {figure_number}. {metric_display_name(metric)} across compared models",
+                "",
+                (
+                    f"{metric_display_name(metric)} on {dataset_name} for {run_count} compared models. "
+                    "All curves use the same split, optimizer settings, and checkpoint-selection rule within this report."
+                    f"{metric_note}"
+                ),
+                "",
+            ]
+        )
+        figure_number += 1
+    if publication_paths.get("selected_test_accuracy"):
+        lines.extend(
+            [
+                f"## Figure {figure_number}. Selected-checkpoint test performance",
+                "",
+                (
+                    f"Test accuracy of each model at the checkpoint selected by validation performance on {dataset_name}. "
+                    "This figure summarizes final held-out performance and should be interpreted together with validation loss "
+                    "to separate peak accuracy from overfitting behaviour."
+                ),
+                "",
+            ]
+        )
+        figure_number += 1
+    if publication_paths.get("selected_checkpoint_table"):
+        lines.extend(
+            [
+                "## Table 1. Selected-checkpoint metrics",
+                "",
+                (
+                    f"Selected-checkpoint metrics for all compared models. "
+                    f"The table includes selected epoch and shared selected metrics"
+                    f"{': ' + selected_list if selected_list else ''}."
+                ),
+                "",
+            ]
+        )
+    captions_path.write_text("\n".join(lines), encoding="utf-8")
+    return captions_path
 
 
 def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
@@ -3396,6 +3522,22 @@ def main():
             headline_insights=context.headline_insights,
             conclusion_lines=context.conclusion_lines,
         )
+        publication_paths = {
+            "selected_checkpoint_table": write_publication_selected_checkpoint_table(
+                report_dir, context.runs, context.summary_rows, context.selected_metric_keys
+            ),
+            "selected_test_accuracy": plot_selected_test_accuracy_summary(
+                figures_dir, context.runs, context.summary_rows
+            ),
+        }
+        captions_path = write_publication_captions(
+            report_dir=report_dir,
+            title=context.title,
+            runs=context.runs,
+            metrics=context.metrics,
+            selected_metric_keys=context.selected_metric_keys,
+            publication_paths=publication_paths,
+        )
 
         print(f"Report directory: {report_dir}")
         print(f"Summary CSV: {summary_csv_path}")
@@ -3403,8 +3545,12 @@ def main():
         print(f"Overview Markdown: {overview_path}")
         print(f"Presentation Summary JSON: {presentation_summary_path}")
         print(f"Manifest JSON: {manifest_path}")
+        print(f"Publication selected-checkpoint table: {publication_paths['selected_checkpoint_table']}")
+        print(f"Publication captions: {captions_path}")
         for metric, path in context.metric_figure_paths.items():
             print(f"Figure ({metric}): {path}")
+        if publication_paths["selected_test_accuracy"]:
+            print(f"Publication Figure (selected test accuracy): {publication_paths['selected_test_accuracy']}")
         if context.macro_figure_payload:
             print(f"Macro Figure: {context.macro_figure_payload['path']}")
         for payload in context.per_class_figure_payloads:

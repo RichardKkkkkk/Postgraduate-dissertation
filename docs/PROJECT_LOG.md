@@ -417,3 +417,240 @@ Initial interpretation:
   - mean fusion selected val loss: 0.7541
   - mean + NN selected val loss: 0.8237
 - The extra MLP may add flexibility, but the current single-seed result does not show a stable advantage over simple averaging.
+
+## 2026-07-27 Teacher Fusion Variant: Bidirectional Cross Attention + Prediction
+
+### 已完成
+
+- 新增 `vit_row_col_cross_attention_fusion`
+- 给 `ViTAxisSinusoidal` 增加 `forward_tokens()`，用于返回完整 token sequence：
+  - CIFAR-10 默认 shape: `(B, 65, 128)`
+- 新增 `MultiHeadCrossAttention`
+- 新增 `CrossAttentionBlock`
+- 新模型包含：
+  - row-wise encoder
+  - column-wise encoder
+  - row-to-column cross-attention block
+  - column-to-row cross-attention block
+  - concatenated cls-token prediction head
+
+### 结构
+
+```text
+image -> row encoder -> row_tokens: (B, 65, 128)
+image -> col encoder -> col_tokens: (B, 65, 128)
+
+row_to_col:
+Q = row_tokens
+K = col_tokens
+V = col_tokens
+
+col_to_row:
+Q = col_tokens
+K = row_tokens
+V = row_tokens
+
+concat(row_cross_cls, col_cross_cls) -> (B, 256)
+prediction head -> (B, 10)
+```
+
+### 当前认识
+
+- 这个模型比 mean/concat fusion 更接近老师的结构图
+- 它不是在最终 cls latent 层面简单融合，而是在完整 token sequence 层面让 row/column representation 互相查询
+- 当前版本保持 `embed_dim=128`，所以 concat 后是 256 维；如果后续需要参数量公平性，可以再做 half-dim version
+
+### 下一步
+
+- 运行模型 shape test 和 tiny smoke test
+- 再跑 CIFAR-10 seed42 100 epochs：
+  - `vit_row_col_cross_attention_fusion`
+  - 与 concat fusion、mean fusion、mean + NN fusion、row、column、learnable 一起画 validation loss 对比图
+
+### CIFAR-10 seed42 result
+
+- Experiment: `cifar10_fusion_variants_seed42`
+- Run: `row_col_cross_attention_fusion_seed42`
+- Early stopped at epoch 64
+- Selected checkpoint epoch: 54
+- Selected validation accuracy: 78.82%
+- Selected test accuracy: 77.21%
+- Best observed test accuracy: 77.60%
+
+Initial interpretation:
+
+- Bidirectional cross-attention is the strongest fusion variant so far:
+  - concat + MLP selected test acc: 75.48%
+  - mean fusion selected test acc: 76.14%
+  - mean + NN selected test acc: 76.40%
+  - cross-attention selected test acc: 77.21%
+- It also improves over individual row-wise and column-wise PE:
+  - row-wise selected test acc: 74.79%
+  - column-wise selected test acc: 74.33%
+- It is still below learnable PE:
+  - learnable selected test acc: 78.88%
+- The model overfits more strongly than simpler fusion variants:
+  - selected validation loss: 0.9936
+  - selected test loss: 1.0173
+  - final train acc: 98.33%
+  - final val acc: 77.98%
+- Current conclusion: cross-attention provides the clearest evidence that row/column interaction helps, but full-data CIFAR-10 still favors learnable PE and the cross-attention version likely needs regularization or parameter-count discussion.
+
+## 2026-07-28 Cross-Attention Refinement: Smoother Prediction Head
+
+### 已完成
+
+- 新增 `vit_row_col_cross_attention_mlp_head_fusion`
+- 主体与 `vit_row_col_cross_attention_fusion` 完全一致
+- 唯一变化是最后 prediction head：
+
+```text
+Original:
+concat(row_cls, col_cls) -> Linear(256, 10)
+
+Smoother head:
+concat(row_cls, col_cls) -> LayerNorm(256) -> Linear(256, 128) -> GELU -> Linear(128, 10)
+```
+
+### 当前认识
+
+- 这个 refinement 不改变训练协议，也不加 dropout
+- 它测试的问题是：cross-attention 后两个方向的 cls token 是否需要在分类前再做一次非线性融合
+- 如果有效，可以说明问题不只在 row/column token interaction，也在最终 fused latent 的分类方式
+
+### 下一步
+
+- 先跑 shape test 和 tiny smoke test
+- 再跑 CIFAR-10 seed42：
+  - `vit_row_col_cross_attention_mlp_head_fusion`
+  - 与原始 `vit_row_col_cross_attention_fusion` 对比 validation loss、selected test acc 和 overfitting 程度
+
+### CIFAR-10 seed42 result
+
+- Experiment: `cifar10_fusion_variants_seed42`
+- Run: `row_col_cross_attention_mlp_head_fusion_seed42`
+- Early stopped at epoch 57
+- Selected checkpoint epoch: 47
+- Selected validation accuracy: 78.30%
+- Selected test accuracy: 77.15%
+- Best observed test accuracy: 77.63%
+
+Comparison with original cross-attention fusion:
+
+| Model | selected val acc | selected val loss | selected test acc | selected test loss | best test acc | final train acc |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Cross-attention direct head | 78.82% | 0.9936 | 77.21% | 1.0173 | 77.60% | 98.33% |
+| Cross-attention MLP head | 78.30% | 0.8168 | 77.15% | 0.8298 | 77.63% | 97.11% |
+
+Initial interpretation:
+
+- Smoother head does not clearly improve selected test accuracy:
+  - direct head: 77.21%
+  - MLP head: 77.15%
+- It slightly improves best observed test accuracy:
+  - direct head: 77.60%
+  - MLP head: 77.63%
+- It meaningfully reduces validation/test loss and final train accuracy:
+  - this suggests slightly better calibration or less overconfident overfitting
+- Current conclusion: smoother head helps stability/loss more than accuracy. It is useful as a refinement result, but not a new best selected checkpoint.
+
+## 2026-07-28 Paper Figure Standardization
+
+### 已完成
+
+- 新增 `paper_plotting.py`，统一三条绘图链路：
+  - 单模型训练图
+  - 单 seed 模型对比图
+  - 多 seed mean +/- std 图
+- 新增 `docs/FIGURE_STANDARD.md`
+- 单模型 loss / accuracy 图默认只展示 train 和 validation
+- selected checkpoint epoch 继续由 validation 指标决定并用竖线标出
+- 所有核心曲线同时输出：
+  - 300 dpi PNG
+  - vector PDF
+- accuracy 统一显示为 `0-100%`
+- 多 seed accuracy 的 mean 和 std 都会乘以 `100`
+- `generate_comparison_report.py` 默认核心曲线收束为：
+  - `val_loss`
+  - `val_acc`
+  - `train_loss`
+  - `train_acc`
+- `summarize_seed_sweep.py` 不再生成逐 epoch test 曲线
+
+### 研究协议决定
+
+- test 不作为逐 epoch 论文曲线
+- 正式论文只报告 validation-selected checkpoint 的最终 test 指标
+- 当前旧 CSV 仍含逐 epoch test 值，只用于历史开发结果；最终 multi-seed 重跑前还要修改训练循环本身
+
+### 下一步
+
+1. 用已有 seed42 结果生成 PE comparison 和 fusion comparison 的规范化预览图
+2. 检查 legend、颜色、轴尺度和 PDF 输出
+3. 修改正式训练流程，使 test 只在训练结束后评估一次
+4. 确定最终模型清单后开始 multi-seed 重跑
+
+### 预览验证
+
+- 已生成 fusion seed42 预览：
+  - `results/reports/draft_fusion_curves_seed42/`
+- 已生成 PE seed42 预览：
+  - `results/reports/draft_pe_curves_seed42/`
+- 已用旧的 CIFAR-10 八模型五 seed 结果验证 mean +/- SD：
+  - `results/cifar10_positional_8models_5seeds/reports/paper_style_preview_8models_5seeds/`
+- 发现并修复跨 experiment 对比时找不到 run 的问题
+- 多 seed 曲线现在只保留所有 seed 都有数据的 epoch，避免 early stopping 后样本数逐渐减少
+
+## 2026-07-29 Publication-Style Comparison Outputs
+
+### 已完成
+
+- `generate_comparison_report.py` 现在会额外生成 publication-style report package：
+  - 单指标 comparison curves：
+    - `val_loss_comparison.png/.pdf`
+    - `val_acc_comparison.png/.pdf`
+    - `train_loss_comparison.png/.pdf`
+    - `train_acc_comparison.png/.pdf`
+  - `figures/paper_selected_test_accuracy.png/.pdf`
+  - `publication_selected_checkpoints.csv`
+  - `figure_captions.md`
+- 暂时不自动生成 2x2 拼接图，避免探索阶段一张图承担太多结论
+- `paper_selected_test_accuracy` 只汇总 validation-selected checkpoint 的 test accuracy
+- `figure_captions.md` 提供可用于 thesis / supervisor email 的图注草稿
+
+### 目的
+
+- 让结果展示更接近正式论文，而不是一组临时训练截图
+- 每组 comparison report 自动同时给出：
+  - 单张训练过程图
+  - 单张泛化过程图
+  - final held-out test summary
+  - 可复用 caption
+
+### 下一步
+
+- 已用 fusion seed42 结果生成单张 comparison 图预览：
+  - `results/cifar10_fusion_variants_seed42/reports/draft_fusion_single_figures_seed42/`
+- 当前图形策略收束为：
+  - 每张图只比较一个指标
+  - 不自动生成 2x2 拼接图
+  - selected-test 图只显示 validation-selected checkpoint 的 test accuracy
+- 正式 multi-seed 前继续优先修正 test 只在 selected checkpoint 后评估一次的问题
+
+## 2026-07-29 Code/Docs Alignment
+
+### 已完成
+
+- README 的 CLI 参数列表与 `train_cifar10_experiment.py` 对齐：
+  - 补充 synthetic dataset 参数
+  - 将 `--image-size` 归到通用参数
+- `docs/PROJECT_STRUCTURE.md` 与当前代码/目录结构对齐：
+  - 日期更新到 2026-07-29
+  - 区分正式历史结果目录和 exploratory seed42 / smoke 结果目录
+  - report 目录树补齐 comparison PDF 输出
+- 确认 comparison report 代码不再生成 `paper_training_dynamics`
+
+### 当前仍需注意
+
+- `results/` 下多数新结果目录仍未纳入正式论文协议，不建议 commit
+- 最终 multi-seed 前仍要修改训练流程，让 test 只在 selected checkpoint 后评估一次

@@ -254,6 +254,8 @@ positional encoding 层面手写 `row + col` 或 `row * col`。
 - `vit_row_col_latent_fusion`
 - `vit_row_col_mean_fusion`
 - `vit_row_col_mean_mlp_fusion`
+- `vit_row_col_cross_attention_fusion`
+- `vit_row_col_cross_attention_mlp_head_fusion`
 
 结构：
 
@@ -277,6 +279,32 @@ Mean + NN fusion baseline:
 image -> row-wise encoder -> row latent
 image -> column-wise encoder -> column latent
 mean(row latent, column latent) -> fusion MLP -> fused latent -> prediction head
+```
+
+Bidirectional cross-attention fusion:
+
+```text
+image -> row-wise encoder -> row token sequence
+image -> column-wise encoder -> column token sequence
+
+row-to-column cross attention:
+Q = row tokens
+K = column tokens
+V = column tokens
+
+column-to-row cross attention:
+Q = column tokens
+K = row tokens
+V = row tokens
+
+concat(updated row cls, updated column cls) -> prediction head
+```
+
+Cross-attention smoother-head refinement:
+
+```text
+same bidirectional cross-attention body
+concat(updated row cls, updated column cls) -> LayerNorm -> projection MLP -> prediction
 ```
 
 当前 CIFAR-10 默认维度：
@@ -308,11 +336,32 @@ fusion output:  (B, 128)
 logits:         (B, 10)
 ```
 
+Bidirectional cross-attention 默认维度：
+
+```text
+row tokens:             (B, 65, 128)
+column tokens:          (B, 65, 128)
+row-to-column output:   (B, 65, 128)
+column-to-row output:   (B, 65, 128)
+row cls:                (B, 128)
+column cls:             (B, 128)
+concat latent:          (B, 256)
+logits:                 (B, 10)
+```
+
+Smoother-head refinement 默认维度：
+
+```text
+concat latent:          (B, 256)
+projection head:        (B, 256) -> (B, 128) -> (B, 10)
+```
+
 训练方式：
 
 - 两个 encoder 都看完整同一张图片
 - 两个 encoder、fusion module、final head 端到端同时训练
 - 每个 batch 只从最终 prediction 计算一个 loss
+- bidirectional cross-attention 版本保留完整 token sequence，而不是只融合 cls latent
 
 第一轮只跑 CIFAR-10 seed42。主要比较对象：
 
@@ -324,3 +373,32 @@ logits:         (B, 10)
 
 需要注意：该模型包含两个 ViT encoder，参数量明显大于单 encoder ViT。若结果提升，后续需要考虑参数量
 fairness 对照，例如 larger single-encoder ViT。
+
+## 论文图与最终重跑的收束规则
+
+后续不再为每组实验临时设计不同的 loss / accuracy 图，统一遵守
+`docs/FIGURE_STANDARD.md`。
+
+正式论文的核心曲线：
+
+- 单模型：
+  - train loss vs validation loss
+  - train accuracy vs validation accuracy
+- 单 seed 模型对比：
+  - validation loss
+  - validation accuracy
+  - train loss
+  - train accuracy
+- 多 seed：
+  - epoch mean +/- standard deviation
+  - selected checkpoint test metric mean +/- standard deviation
+
+test 不画逐 epoch 曲线。正式重跑前的 gate：
+
+1. 把训练循环改为每个 epoch 只评估 validation。
+2. 由 validation 选择唯一 checkpoint。
+3. 加载 selected checkpoint 后只评估一次 test。
+4. 确认 PNG 和 PDF 图都能从同一 metrics 文件重建。
+5. 再启动最终模型的 multi-seed 实验。
+
+当前已有 seed42 结果只用于检查图形规范和筛选候选模型，不直接作为最终论文统计结论。

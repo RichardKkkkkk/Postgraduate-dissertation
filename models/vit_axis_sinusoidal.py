@@ -3,7 +3,7 @@ import math
 import torch
 import torch.nn as nn
 
-from .vit import Block, PatchEmbedding
+from .vit import Block, MLP, PatchEmbedding
 
 
 def build_sinusoidal_embedding(positions, embed_dim):
@@ -143,7 +143,7 @@ class ViTAxisSinusoidal(nn.Module):
         self.norm = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, num_classes)
 
-    def forward_features(self, x):
+    def forward_tokens(self, x):
         B = x.shape[0]
         x = self.patch_embed(x)
 
@@ -156,7 +156,11 @@ class ViTAxisSinusoidal(nn.Module):
             x = block(x)
 
         x = self.norm(x)
-        cls_output = x[:, 0]
+        return x
+
+    def forward_features(self, x):
+        tokens = self.forward_tokens(x)
+        cls_output = tokens[:, 0]
         return cls_output
 
     def forward(self, x):
@@ -633,6 +637,168 @@ class ViTRowColMeanMLPFusion(nn.Module):
         return logits
 
 
+class MultiHeadCrossAttention(nn.Module):
+    def __init__(
+        self,
+        embed_dim=768,
+        num_heads=8,
+        attention_dropout=0.0,
+        projection_dropout=0.0,
+    ):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = embed_dim // num_heads
+        self.scale = self.head_dim ** -0.5
+
+        assert self.embed_dim % num_heads == 0, "embed_dim must be divisible by num_heads"
+
+        self.q_proj = nn.Linear(embed_dim, embed_dim)
+        self.kv_proj = nn.Linear(embed_dim, embed_dim * 2)
+        self.attn_dropout = nn.Dropout(attention_dropout)
+        self.out_proj = nn.Linear(embed_dim, embed_dim)
+        self.out_dropout = nn.Dropout(projection_dropout)
+
+    def forward(self, query_tokens, context_tokens):
+        B, N, D = query_tokens.shape
+        _, M, _ = context_tokens.shape
+
+        q = self.q_proj(query_tokens)
+        kv = self.kv_proj(context_tokens)
+
+        q = q.reshape(B, N, self.num_heads, self.head_dim)
+        q = q.permute(0, 2, 1, 3)
+
+        kv = kv.reshape(B, M, 2, self.num_heads, self.head_dim)
+        kv = kv.permute(2, 0, 3, 1, 4)
+        k, v = kv[0], kv[1]
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_dropout(attn)
+
+        out = attn @ v
+        out = out.transpose(1, 2)
+        out = out.reshape(B, N, D)
+        out = self.out_proj(out)
+        out = self.out_dropout(out)
+        return out
+
+
+class CrossAttentionBlock(nn.Module):
+    def __init__(
+        self,
+        embed_dim=768,
+        num_heads=8,
+        mlp_hidden_dim=None,
+        attention_dropout=0.0,
+        projection_dropout=0.0,
+        mlp_dropout=0.0,
+    ):
+        super().__init__()
+        self.query_norm = nn.LayerNorm(embed_dim)
+        self.context_norm = nn.LayerNorm(embed_dim)
+        self.cross_attn = MultiHeadCrossAttention(
+            embed_dim,
+            num_heads,
+            attention_dropout=attention_dropout,
+            projection_dropout=projection_dropout,
+        )
+        self.mlp_norm = nn.LayerNorm(embed_dim)
+        self.mlp = MLP(embed_dim, mlp_hidden_dim, dropout=mlp_dropout)
+
+    def forward(self, query_tokens, context_tokens):
+        query_tokens = query_tokens + self.cross_attn(
+            self.query_norm(query_tokens),
+            self.context_norm(context_tokens),
+        )
+        query_tokens = query_tokens + self.mlp(self.mlp_norm(query_tokens))
+        return query_tokens
+
+
+class ViTRowColCrossAttentionFusion(nn.Module):
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=16,
+        in_channels=3,
+        embed_dim=768,
+        num_heads=8,
+        mlp_hidden_dim=None,
+        num_blocks=12,
+        num_classes=10,
+        embedding_dropout=0.0,
+        attention_dropout=0.0,
+        projection_dropout=0.0,
+        mlp_dropout=0.0,
+        unfolding="normal_row",
+    ):
+        super().__init__()
+        encoder_kwargs = {
+            "img_size": img_size,
+            "patch_size": patch_size,
+            "in_channels": in_channels,
+            "embed_dim": embed_dim,
+            "num_heads": num_heads,
+            "mlp_hidden_dim": mlp_hidden_dim,
+            "num_blocks": num_blocks,
+            "num_classes": num_classes,
+            "embedding_dropout": embedding_dropout,
+            "attention_dropout": attention_dropout,
+            "projection_dropout": projection_dropout,
+            "mlp_dropout": mlp_dropout,
+            "unfolding": unfolding,
+        }
+
+        self.row_encoder = ViTAxisSinusoidal(axis="row", **encoder_kwargs)
+        self.col_encoder = ViTAxisSinusoidal(axis="col", **encoder_kwargs)
+        self.row_encoder.head = nn.Identity()
+        self.col_encoder.head = nn.Identity()
+        self.row_to_col = CrossAttentionBlock(
+            embed_dim,
+            num_heads,
+            mlp_hidden_dim,
+            attention_dropout=attention_dropout,
+            projection_dropout=projection_dropout,
+            mlp_dropout=mlp_dropout,
+        )
+        self.col_to_row = CrossAttentionBlock(
+            embed_dim,
+            num_heads,
+            mlp_hidden_dim,
+            attention_dropout=attention_dropout,
+            projection_dropout=projection_dropout,
+            mlp_dropout=mlp_dropout,
+        )
+        self.head = nn.Linear(embed_dim * 2, num_classes)
+
+    def forward(self, x):
+        row_tokens = self.row_encoder.forward_tokens(x)
+        col_tokens = self.col_encoder.forward_tokens(x)
+
+        row_cross_tokens = self.row_to_col(row_tokens, col_tokens)
+        col_cross_tokens = self.col_to_row(col_tokens, row_tokens)
+
+        row_cls = row_cross_tokens[:, 0]
+        col_cls = col_cross_tokens[:, 0]
+        fused_latent = torch.cat([row_cls, col_cls], dim=1)
+        logits = self.head(fused_latent)
+        return logits
+
+
+class ViTRowColCrossAttentionMLPHeadFusion(ViTRowColCrossAttentionFusion):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        embed_dim = self.head.in_features // 2
+        num_classes = self.head.out_features
+        self.head = nn.Sequential(
+            nn.LayerNorm(embed_dim * 2),
+            nn.Linear(embed_dim * 2, embed_dim),
+            nn.GELU(),
+            nn.Linear(embed_dim, num_classes),
+        )
+
+
 if __name__ == "__main__":
     x = torch.randn(8, 3, 32, 32)
 
@@ -823,6 +989,34 @@ if __name__ == "__main__":
         projection_dropout=0.1,
         mlp_dropout=0.1,
     )
+    row_col_cross_attention_fusion_model = ViTRowColCrossAttentionFusion(
+        img_size=32,
+        patch_size=4,
+        in_channels=3,
+        num_classes=2,
+        embed_dim=128,
+        num_blocks=4,
+        num_heads=4,
+        mlp_hidden_dim=512,
+        embedding_dropout=0.1,
+        attention_dropout=0.1,
+        projection_dropout=0.1,
+        mlp_dropout=0.1,
+    )
+    row_col_cross_attention_mlp_head_fusion_model = ViTRowColCrossAttentionMLPHeadFusion(
+        img_size=32,
+        patch_size=4,
+        in_channels=3,
+        num_classes=2,
+        embed_dim=128,
+        num_blocks=4,
+        num_heads=4,
+        mlp_hidden_dim=512,
+        embedding_dropout=0.1,
+        attention_dropout=0.1,
+        projection_dropout=0.1,
+        mlp_dropout=0.1,
+    )
 
     print("Additive logits shape:", additive_model(x).shape)
     print("Additive shifted logits shape:", additive_shifted_model(x).shape)
@@ -835,3 +1029,8 @@ if __name__ == "__main__":
     print("Row/column latent fusion logits shape:", row_col_fusion_model(x).shape)
     print("Row/column mean fusion logits shape:", row_col_mean_fusion_model(x).shape)
     print("Row/column mean MLP fusion logits shape:", row_col_mean_mlp_fusion_model(x).shape)
+    print("Row/column cross-attention fusion logits shape:", row_col_cross_attention_fusion_model(x).shape)
+    print(
+        "Row/column cross-attention MLP-head fusion logits shape:",
+        row_col_cross_attention_mlp_head_fusion_model(x).shape,
+    )

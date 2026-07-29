@@ -11,13 +11,16 @@ os.environ.setdefault("MPLCONFIGDIR", str(Path("results/matplotlib_cache")))
 import matplotlib.pyplot as plt
 import torch
 
+from paper_plotting import (
+    PAPER_FIGSIZE,
+    SPLIT_STYLES,
+    finish_epoch_axis,
+    mark_every,
+    save_figure_pair,
+    setup_paper_plot_style,
+)
 
 EARLY_STOPPING_METRICS = ("val_acc", "val_loss", "val_macro_f1")
-CURVE_COLORS = {
-    "train": "#2563eb",
-    "val": "#ea580c",
-    "test": "#16a34a",
-}
 PER_CLASS_COLORS = {
     "test_per_class_accuracy": "#2563eb",
     "test_per_class_precision": "#7c3aed",
@@ -48,7 +51,7 @@ def get_device():
 
 
 def setup_plot_style():
-    plt.style.use("seaborn-v0_8-whitegrid")
+    setup_paper_plot_style()
 
 
 def _compute_single_label_accuracy(predictions, targets):
@@ -393,32 +396,30 @@ def _draw_selected_epoch(axis, selected_epoch):
     )
 
 
-def _plot_history_lines(history, path, title, ylabel, series_specs, selected_epoch=None):
+def _plot_history_lines(history, path, title, metric_name, series_specs, selected_epoch=None):
     setup_plot_style()
     epochs = [int(row["epoch"]) for row in history]
 
-    figure, axis = plt.subplots(figsize=(8.6, 5.3))
-    for key, label, color, scale in series_specs:
+    figure, axis = plt.subplots(figsize=PAPER_FIGSIZE)
+    marker_interval = mark_every(len(epochs))
+    for key, label, split_name, scale in series_specs:
         values = [float(row[key]) * scale for row in history]
+        split_style = SPLIT_STYLES[split_name]
         axis.plot(
             epochs,
             values,
-            linewidth=2.3,
-            marker="o",
-            markersize=3.6,
+            linewidth=2.1,
+            linestyle=split_style["linestyle"],
+            marker=split_style["marker"],
+            markersize=4.0,
+            markevery=marker_interval,
             label=label,
-            color=color,
+            color=split_style["color"],
         )
-        axis.scatter([epochs[-1]], [values[-1]], s=34, color=color, zorder=3)
 
     _draw_selected_epoch(axis, selected_epoch)
-    axis.set_xlabel("Epoch")
-    axis.set_ylabel(ylabel)
-    axis.set_title(title)
-    axis.grid(True, alpha=0.25)
-    axis.legend(loc="best", frameon=True)
-    figure.tight_layout()
-    figure.savefig(path, dpi=170)
+    finish_epoch_axis(axis, metric_name=metric_name, title=title)
+    save_figure_pair(figure, path)
     plt.close(figure)
 
 
@@ -588,11 +589,10 @@ def plot_curves(history, figure_dir, run_name, title_prefix, selected_epoch=None
         history=history,
         path=loss_path,
         title=f"{title_prefix} Loss",
-        ylabel="Loss",
+        metric_name="val_loss",
         series_specs=[
-            ("train_loss", "Train Loss", CURVE_COLORS["train"], 1.0),
-            ("val_loss", "Validation Loss", CURVE_COLORS["val"], 1.0),
-            ("test_loss", "Test Loss", CURVE_COLORS["test"], 1.0),
+            ("train_loss", "Train", "train", 1.0),
+            ("val_loss", "Validation", "val", 1.0),
         ],
         selected_epoch=selected_epoch,
     )
@@ -600,11 +600,10 @@ def plot_curves(history, figure_dir, run_name, title_prefix, selected_epoch=None
         history=history,
         path=acc_path,
         title=f"{title_prefix} Accuracy",
-        ylabel="Accuracy (%)",
+        metric_name="val_acc",
         series_specs=[
-            ("train_acc", "Train Accuracy", CURVE_COLORS["train"], 100.0),
-            ("val_acc", "Validation Accuracy", CURVE_COLORS["val"], 100.0),
-            ("test_acc", "Test Accuracy", CURVE_COLORS["test"], 100.0),
+            ("train_acc", "Train", "train", 100.0),
+            ("val_acc", "Validation", "val", 100.0),
         ],
         selected_epoch=selected_epoch,
     )
@@ -613,19 +612,17 @@ def plot_curves(history, figure_dir, run_name, title_prefix, selected_epoch=None
         "loss": loss_path,
         "accuracy": acc_path,
     }
-    if any("val_macro_f1" in row or "test_macro_f1" in row for row in history):
+    if any("val_macro_f1" in row for row in history):
         macro_f1_path = figure_dir / f"{run_name}_macro_f1.png"
         series_specs = []
         if all("val_macro_f1" in row for row in history):
-            series_specs.append(("val_macro_f1", "Validation Macro F1", CURVE_COLORS["val"], 100.0))
-        if all("test_macro_f1" in row for row in history):
-            series_specs.append(("test_macro_f1", "Test Macro F1", CURVE_COLORS["test"], 100.0))
+            series_specs.append(("val_macro_f1", "Validation", "val", 100.0))
         if series_specs:
             _plot_history_lines(
                 history=history,
                 path=macro_f1_path,
                 title=f"{title_prefix} Macro F1",
-                ylabel="Macro F1 (%)",
+                metric_name="val_macro_f1",
                 series_specs=series_specs,
                 selected_epoch=selected_epoch,
             )

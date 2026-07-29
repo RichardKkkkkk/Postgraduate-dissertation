@@ -1,6 +1,6 @@
 # 项目结构
 
-最近对齐：2026-07-20
+最近对齐：2026-07-29
 
 这个文档只回答一件事：
 
@@ -21,9 +21,12 @@
 - `summarize_seed_sweep.py`
   多 seed 结果聚合与汇总。
 - `result_paths.py`
-  统一管理训练结果、图、报告、checkpoint 的路径规则。
+  统一管理训练结果、图、报告、checkpoint 的路径规则；对比报告未指定 experiment 时，
+  可以按唯一 run name 跨 experiment 查找结果。
 - `refresh_single_run_figures.py`
   从已有 metrics / summary 重新生成单次实验图。
+- `paper_plotting.py`
+  单模型、模型对比和多 seed 图共享的论文绘图样式、颜色、尺度和 PNG/PDF 保存逻辑。
 - `requirements.txt`
   Python 依赖的锁定版本。
 - `environment.yml`
@@ -70,6 +73,8 @@
   项目日志，记录最近做了什么、学到了什么、接下来做什么。
 - `LEARNING_NOTES.md`
   代码理解、PyTorch 语法、实现逻辑笔记。
+- `FIGURE_STANDARD.md`
+  论文实验图的统一规范，包括 test holdout、单模型图、模型对比图和多 seed mean ± std 图。
 
 ## 运行产物目录
 
@@ -89,7 +94,19 @@
 - `results/cifar10_positional_8models_5seeds/`
   CIFAR-10 八模型、seed 42-46，以及 mean ± std 汇总。
 
-`vit_squared_multiplicative_sinusoidal`、shifted 版本和 `vit_radial_sinusoidal` 目前只有实现，没有对应的正式结果目录。
+当前本地还有若干未整理进最终论文协议的 exploratory 结果目录：
+
+- `results/cifar10_positional_squared_seed42/`
+- `results/cifar10_positional_radial_seed42/`
+- `results/cifar10_unfolding_15_seed42/`
+- `results/cifar10_hybrid_seed42/`
+- `results/cifar10_latent_fusion_seed42/`
+- `results/cifar10_fusion_variants_seed42/`
+- `results/cifar10_low_data_seed42/`
+- `results/smoke_*`
+
+这些目录用于筛选候选模型和检查图形规范。正式论文统计结论仍需要在修正 test
+holdout 流程后重新跑 multi-seed。
 
 历史上已有 56 个 checkpoint 和上述结果被 Git 追踪。不要因为 `checkpoints/` 出现在 `.gitignore` 中就假设这些历史文件未被追踪；清理前必须先制定跨设备保留方案。
 
@@ -109,12 +126,26 @@ results/
     ├── figures/
     │   └── <model>/
     │       ├── <run_name>_loss.png
+    │       ├── <run_name>_loss.pdf
     │       ├── <run_name>_accuracy.png
+    │       ├── <run_name>_accuracy.pdf
     │       └── <run_name>_test_confusion_matrix.png
     └── reports/
         └── <report_name>/
             ├── figures/
+            │   ├── val_loss_comparison.png
+            │   ├── val_loss_comparison.pdf
+            │   ├── val_acc_comparison.png
+            │   ├── val_acc_comparison.pdf
+            │   ├── train_loss_comparison.png
+            │   ├── train_loss_comparison.pdf
+            │   ├── train_acc_comparison.png
+            │   ├── train_acc_comparison.pdf
+            │   ├── paper_selected_test_accuracy.png
+            │   └── paper_selected_test_accuracy.pdf
             ├── comparison_summary.csv
+            ├── publication_selected_checkpoints.csv
+            ├── figure_captions.md
             ├── overview.md
             ├── presentation_summary.json
             └── report_manifest.json

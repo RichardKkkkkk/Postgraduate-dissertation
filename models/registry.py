@@ -28,6 +28,8 @@ from .vit_axis_sinusoidal import (
     ViTMultiplicativeSinusoidal,
     ViTMultiplicativeSinusoidalShifted,
     ViTRadialSinusoidal,
+    ViTRowColCrossAttentionFusion,
+    ViTRowColCrossAttentionMLPHeadFusion,
     ViTRowColLatentFusion,
     ViTRowColMeanFusion,
     ViTRowColMeanMLPFusion,
@@ -225,6 +227,16 @@ def build_vit_row_col_mean_fusion_model(args):
 def build_vit_row_col_mean_mlp_fusion_model(args):
     model_config = build_vit_model_config(args)
     return ViTRowColMeanMLPFusion(**model_config), model_config
+
+
+def build_vit_row_col_cross_attention_fusion_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTRowColCrossAttentionFusion(**model_config), model_config
+
+
+def build_vit_row_col_cross_attention_mlp_head_fusion_model(args):
+    model_config = build_vit_model_config(args)
+    return ViTRowColCrossAttentionMLPHeadFusion(**model_config), model_config
 
 
 UNFOLDING_MODEL_CLASSES = {
@@ -876,6 +888,40 @@ register_experiment(
         extra_summary_fields={
             "position_encoding": "row_col_mean_mlp_fusion",
             "fusion": "mean_mlp",
+            "unfolding": "normal_row",
+        },
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_row_col_cross_attention_fusion",
+        architecture="vit",
+        variant="row_col_cross_attention_fusion",
+        plot_title_prefix="ViT Row/Column Cross-Attention Fusion",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_row_col_cross_attention_fusion_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={
+            "position_encoding": "row_col_cross_attention_fusion",
+            "fusion": "bidirectional_cross_attention",
+            "unfolding": "normal_row",
+        },
+    )
+)
+
+register_experiment(
+    ExperimentSpec(
+        model_name="vit_row_col_cross_attention_mlp_head_fusion",
+        architecture="vit",
+        variant="row_col_cross_attention_mlp_head_fusion",
+        plot_title_prefix="ViT Row/Column Cross-Attention MLP-Head Fusion",
+        defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+        build_model=build_vit_row_col_cross_attention_mlp_head_fusion_model,
+        build_dataloaders=build_vit_family_dataloaders,
+        extra_summary_fields={
+            "position_encoding": "row_col_cross_attention_mlp_head_fusion",
+            "fusion": "bidirectional_cross_attention_mlp_head",
             "unfolding": "normal_row",
         },
     )

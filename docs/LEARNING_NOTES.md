@@ -515,3 +515,322 @@ fused_latent = self.fusion(fused_latent)
 - mean + MLP：`(B, 128) 和 (B, 128) 先平均 -> (B, 128) -> MLP -> (B, 128)`
 
 所以 mean + MLP 的 fusion network 输入更小，参数也更少。
+
+## 16. Bidirectional cross-attention fusion 的张量流
+
+`vit_row_col_cross_attention_fusion` 对应老师说的第三个 fusion model：
+
+```text
+Bidirectional Cross Attention & Prediction
+```
+
+它和前几个 fusion model 最大的区别是：不只融合最终的 cls latent，而是先保留完整 token sequence。
+
+当前 CIFAR-10 默认设置：
+
+```text
+image:      (B, 3, 32, 32)
+patch size: 4
+grid:       8 x 8
+tokens:     64 patch tokens + 1 cls token = 65
+embed dim:  128
+```
+
+row encoder 和 column encoder 分别输出：
+
+```text
+row_tokens: (B, 65, 128)
+col_tokens: (B, 65, 128)
+```
+
+### Row-to-column cross attention
+
+第一条 cross-attention branch：
+
+```text
+Q = row_tokens
+K = col_tokens
+V = col_tokens
+```
+
+代码里等价于：
+
+```python
+row_cross_tokens = self.row_to_col(row_tokens, col_tokens)
+```
+
+含义是：用 row representation 去 column representation 里查询有用信息。
+
+### Column-to-row cross attention
+
+第二条 cross-attention branch：
+
+```text
+Q = col_tokens
+K = row_tokens
+V = row_tokens
+```
+
+代码里等价于：
+
+```python
+col_cross_tokens = self.col_to_row(col_tokens, row_tokens)
+```
+
+含义是：用 column representation 去 row representation 里查询有用信息。
+
+### Cross attention 的内部 shape
+
+`MultiHeadCrossAttention` 里：
+
+```python
+q = self.q_proj(query_tokens)
+kv = self.kv_proj(context_tokens)
+```
+
+如果输入是：
+
+```text
+query_tokens:   (B, 65, 128)
+context_tokens: (B, 65, 128)
+num_heads:      4
+head_dim:       32
+```
+
+reshape 后：
+
+```text
+q: (B, 4, 65, 32)
+k: (B, 4, 65, 32)
+v: (B, 4, 65, 32)
+```
+
+attention map：
+
+```text
+q @ k.transpose(-2, -1): (B, 4, 65, 65)
+```
+
+最后输出：
+
+```text
+cross attention output: (B, 65, 128)
+```
+
+### CrossAttentionBlock 的结构
+
+`CrossAttentionBlock` 使用和普通 ViT block 类似的 pre-norm residual 结构：
+
+```python
+query_tokens = query_tokens + cross_attn(norm(query_tokens), norm(context_tokens))
+query_tokens = query_tokens + mlp(norm(query_tokens))
+```
+
+所以 residual connection 保留的是 query branch：
+
+```text
+row-to-column residual: row_tokens
+column-to-row residual: col_tokens
+```
+
+### 最终预测
+
+两个方向更新完成后取 cls token：
+
+```python
+row_cls = row_cross_tokens[:, 0]
+col_cls = col_cross_tokens[:, 0]
+```
+
+shape 是：
+
+```text
+row_cls: (B, 128)
+col_cls: (B, 128)
+```
+
+然后拼接：
+
+```python
+fused_latent = torch.cat([row_cls, col_cls], dim=1)
+```
+
+得到：
+
+```text
+fused_latent: (B, 256)
+```
+
+最后 prediction head：
+
+```text
+Linear(256, 10) -> logits: (B, 10)
+```
+
+## 17. Cross-attention fusion 的 smoother head
+
+`vit_row_col_cross_attention_mlp_head_fusion` 是对 cross-attention fusion 的一个小 refinement。
+
+主体不变：
+
+```text
+row encoder
+column encoder
+row-to-column cross attention
+column-to-row cross attention
+concat(row_cls, col_cls) -> (B, 256)
+```
+
+唯一变化是最后的 prediction head。
+
+原始 cross-attention fusion:
+
+```python
+self.head = nn.Linear(embed_dim * 2, num_classes)
+```
+
+当前 CIFAR-10 默认是：
+
+```text
+Linear(256, 10)
+```
+
+smoother head 版本:
+
+```python
+self.head = nn.Sequential(
+    nn.LayerNorm(embed_dim * 2),
+    nn.Linear(embed_dim * 2, embed_dim),
+    nn.GELU(),
+    nn.Linear(embed_dim, num_classes),
+)
+```
+
+当前 CIFAR-10 默认 shape:
+
+```text
+(B, 256) -> LayerNorm(256) -> (B, 256)
+(B, 256) -> Linear(256, 128) -> (B, 128)
+(B, 128) -> GELU -> (B, 128)
+(B, 128) -> Linear(128, 10) -> (B, 10)
+```
+
+为什么叫 smoother head：
+
+- 原始 head 直接把两个 cls token 拼接后分类
+- smoother head 先把 `(B, 256)` 投影回 `(B, 128)`
+- 中间的 GELU 给分类前的融合增加一点非线性
+
+这个实验不改变 row/column encoder 和 cross-attention block，只测试最终分类头是否太直接。
+
+## 18. 论文曲线为什么要统一尺度
+
+训练代码中的 accuracy 使用 `0-1`：
+
+```python
+{"val_acc": 0.7882}
+```
+
+论文图使用百分比，所以画图时统一乘以 `100`：
+
+```python
+plotted_accuracy = raw_accuracy * 100.0
+```
+
+因此：
+
+```text
+0.7882 -> 78.82%
+```
+
+多 seed 图需要同时缩放 mean 和 standard deviation。假设：
+
+```text
+mean = 0.7882
+std  = 0.0041
+```
+
+图中应显示：
+
+```text
+78.82% +/- 0.41 percentage points
+```
+
+不能只给 mean 乘 `100` 而遗漏 std，否则阴影带会缩小 100 倍。
+
+## 19. mean +/- std 曲线的含义
+
+对于相同模型的多个 seed，在每个 epoch 分别计算：
+
+```python
+epoch_mean = mean(seed_values)
+epoch_std = stdev(seed_values)
+```
+
+图中：
+
+- 中心线是 `epoch_mean`
+- 阴影下界是 `epoch_mean - epoch_std`
+- 阴影上界是 `epoch_mean + epoch_std`
+
+这张图同时表达：
+
+- 平均训练趋势
+- 不同随机初始化带来的波动
+
+它不能代替最终 test 表格。最终 test 仍然应该报告 validation-selected checkpoint 的
+`mean +/- std`。
+
+如果五个 seed 的 early stopping 结束时间不同，例如：
+
+```text
+seed 42: 66 epochs
+seed 43: 61 epochs
+seed 44: 58 epochs
+seed 45: 64 epochs
+seed 46: 60 epochs
+```
+
+那么五 seed mean 曲线应画到 epoch 58。epoch 59 以后已经不是五个 seed 的平均，继续画会让
+曲线含义发生变化。
+
+## 20. 为什么单模型图不再包含 test 曲线
+
+即使 test 指标没有参与 `loss.backward()`，每个 epoch 都查看 test 曲线也会影响人工选择：
+
+```text
+"这个 epoch 的 test 更高，所以选它"
+```
+
+这仍然属于 test information leakage。
+
+所以论文图只画：
+
+```text
+Train
+Validation
+```
+
+selected epoch 由 validation 决定，test 只对这个 checkpoint 评估一次并报告最终数值。
+
+## 21. 为什么现在先保持单张单指标图
+
+正式论文里有时会把相关指标拼成一个 multi-panel figure，例如：
+
+```text
+(a) train loss       (b) validation loss
+(c) train accuracy   (d) validation accuracy
+```
+
+但是当前项目还在模型探索和开会讨论阶段，更适合先保持单张单指标图：
+
+- `val_loss_comparison.png` 专门回答泛化损失
+- `val_acc_comparison.png` 专门回答验证准确率
+- `train_loss_comparison.png` 专门看优化过程
+- `train_acc_comparison.png` 专门看训练集拟合程度
+
+这样做的好处是每张图只承担一个结论，给老师看结果时不需要在同一张图里同时解释
+四个指标。等最终模型和数据集收束之后，如果论文排版需要，再手动把几张最终图拼成
+multi-panel figure。
+
+现在 `generate_comparison_report.py` 默认不自动生成拼接图。

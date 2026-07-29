@@ -12,6 +12,13 @@ repository documents as the shared memory between Codex sessions.
 - Keep datasets under `data/` and do not commit them.
 - Keep checkpoints under `checkpoints/`.
 - Save plots and report artifacts under experiment-scoped folders inside `results/`.
+- Follow `docs/FIGURE_STANDARD.md` for paper-facing plots: use train/validation
+  epoch curves, keep model colors stable, and export both 300 dpi PNG and PDF.
+- For comparison reports, also generate publication-style artifacts when
+  available: single-metric comparison curves, selected-checkpoint summary table,
+  selected-test summary figure, and draft figure captions.
+- Do not present per-epoch test curves as paper evidence. Report test metrics
+  only for the checkpoint selected by validation.
 - Update README when adding runnable scripts.
 - When changing project structure, shared training flow, experiment protocol, or
   result management rules, also update the relevant files under `docs/`.

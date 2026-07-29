@@ -2,8 +2,11 @@ import argparse
 import csv
 import json
 import math
+import os
 from pathlib import Path
 from statistics import mean, stdev
+
+os.environ.setdefault("MPLCONFIGDIR", str(Path("results/matplotlib_cache")))
 
 import matplotlib
 
@@ -11,6 +14,17 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from models.registry import EXPERIMENT_REGISTRY
+from paper_plotting import (
+    PAPER_FIGSIZE,
+    finish_epoch_axis,
+    get_model_label,
+    get_model_style,
+    mark_every,
+    place_comparison_legend,
+    save_figure_pair,
+    scale_metric_values,
+    setup_paper_plot_style,
+)
 from result_paths import build_report_artifact_dirs, resolve_run_artifact_paths
 
 
@@ -19,27 +33,10 @@ DEFAULT_METRICS = ["best_val_acc", "test_acc", "macro_f1"]
 CURVE_METRICS = [
     "train_loss",
     "val_loss",
-    "test_loss",
     "train_acc",
     "val_acc",
-    "test_acc",
     "val_macro_f1",
-    "test_macro_f1",
 ]
-MODEL_LABELS = {
-    "vit_baseline": "ViT Baseline (No Pos)",
-    "vit_learnable_position": "ViT Learnable Position",
-    "vit_row_sinusoidal": "ViT Row-wise Sinusoidal",
-    "vit_col_sinusoidal": "ViT Column-wise Sinusoidal",
-    "vit_additive_sinusoidal": "ViT Additive Sinusoidal",
-    "vit_additive_sinusoidal_shifted": "ViT Additive Sinusoidal Shifted",
-    "vit_multiplicative_sinusoidal": "ViT Multiplicative Sinusoidal",
-    "vit_multiplicative_sinusoidal_shifted": "ViT Multiplicative Sinusoidal Shifted",
-    "vit_rope": "ViT RoPE",
-    "vit_rope_2d": "ViT RoPE 2D",
-    "resnet18_scratch": "ResNet18 Scratch",
-    "resnet18_imagenet": "ResNet18 ImageNet",
-}
 METRIC_LABELS = {
     "best_val_acc": "Best Validation Accuracy",
     "test_acc": "Selected Test Accuracy",
@@ -54,20 +51,6 @@ CURVE_METRIC_LABELS = {
     "test_acc": "Test Accuracy",
     "val_macro_f1": "Validation Macro F1",
     "test_macro_f1": "Test Macro F1",
-}
-MODEL_COLORS = {
-    "vit_baseline": "#1d4ed8",
-    "vit_learnable_position": "#ea580c",
-    "vit_row_sinusoidal": "#16a34a",
-    "vit_col_sinusoidal": "#dc2626",
-    "vit_additive_sinusoidal": "#7c3aed",
-    "vit_additive_sinusoidal_shifted": "#a16207",
-    "vit_multiplicative_sinusoidal": "#db2777",
-    "vit_multiplicative_sinusoidal_shifted": "#0f766e",
-    "vit_rope": "#2563eb",
-    "vit_rope_2d": "#0891b2",
-    "resnet18_scratch": "#4b5563",
-    "resnet18_imagenet": "#111827",
 }
 SUMMARY_METRIC_EXTRACTORS = {
     "best_val_acc": lambda summary: float(summary["best_val_acc"]),
@@ -227,7 +210,7 @@ def collect_run_rows(args):
                 dataset_names.add(dataset_name)
             row = {
                 "model": model_name,
-                "model_label": MODEL_LABELS.get(model_name, model_name),
+                "model_label": get_model_label(model_name),
                 "seed": seed,
                 "run_name": run_name,
                 "best_val_acc": SUMMARY_METRIC_EXTRACTORS["best_val_acc"](summary),
@@ -239,7 +222,7 @@ def collect_run_rows(args):
             histories.append(
                 {
                     "model": model_name,
-                    "model_label": MODEL_LABELS.get(model_name, model_name),
+                    "model_label": get_model_label(model_name),
                     "seed": seed,
                     "run_name": run_name,
                     "dataset_name": dataset_name,
@@ -259,7 +242,7 @@ def summarize_by_model(rows, metrics):
     for model_name, model_rows in grouped.items():
         item = {
             "model": model_name,
-            "model_label": MODEL_LABELS.get(model_name, model_name),
+            "model_label": get_model_label(model_name),
             "num_seeds": len(model_rows),
         }
         for metric in metrics + ["best_epoch"]:
@@ -332,7 +315,7 @@ def build_headline_insights(rows, summary_rows, reference_model):
     if win_counts:
         top_winner = max(win_counts.items(), key=lambda item: item[1])
         insights.append(
-            f"{MODEL_LABELS.get(top_winner[0], top_winner[0])} wins "
+            f"{get_model_label(top_winner[0])} wins "
             f"{top_winner[1]}/{len(test_winners)} seeds on test accuracy."
         )
 
@@ -391,7 +374,7 @@ def build_epoch_curve_rows(histories, metric):
             rows.append(
                 {
                     "model": model_name,
-                    "model_label": MODEL_LABELS.get(model_name, model_name),
+                    "model_label": get_model_label(model_name),
                     "epoch": epoch_index,
                     "count": len(values),
                     "mean": safe_mean(values),
@@ -411,40 +394,49 @@ def write_epoch_curve_csv(report_dir: Path, metric: str, rows):
 
 
 def plot_epoch_mean_std(figures_dir: Path, metric: str, rows, dataset_display_name: str | None = None):
-    fig, ax = plt.subplots(figsize=(9, 5.5))
+    setup_paper_plot_style()
+    fig, ax = plt.subplots(figsize=PAPER_FIGSIZE)
     grouped = {}
     for row in rows:
         grouped.setdefault(row["model"], []).append(row)
 
-    for model_name, model_rows in grouped.items():
+    for index, (model_name, model_rows) in enumerate(grouped.items()):
         model_rows = sorted(model_rows, key=lambda item: item["epoch"])
+        full_seed_count = max(int(item["count"]) for item in model_rows)
+        model_rows = [item for item in model_rows if int(item["count"]) == full_seed_count]
         epochs = [item["epoch"] for item in model_rows]
-        means = [item["mean"] for item in model_rows]
-        stds = [item["std"] for item in model_rows]
-        color = MODEL_COLORS.get(model_name, "#2563eb")
-        label = MODEL_LABELS.get(model_name, model_name)
+        means = scale_metric_values(metric, [item["mean"] for item in model_rows])
+        stds = scale_metric_values(metric, [item["std"] for item in model_rows])
+        style = get_model_style(model_name, index)
+        label = get_model_label(model_name)
         lower = [mean_value - std_value for mean_value, std_value in zip(means, stds)]
         upper = [mean_value + std_value for mean_value, std_value in zip(means, stds)]
+        lower = [max(0.0, value) for value in lower]
+        if metric.endswith("acc") or metric.endswith("f1"):
+            upper = [min(100.0, value) for value in upper]
 
-        ax.plot(epochs, means, linewidth=2.2, label=label, color=color)
-        ax.fill_between(epochs, lower, upper, color=color, alpha=0.16)
+        ax.plot(
+            epochs,
+            means,
+            linewidth=2.0,
+            linestyle=style["linestyle"],
+            marker=style["marker"],
+            markevery=mark_every(len(epochs)),
+            markersize=3.8,
+            label=label,
+            color=style["color"],
+        )
+        ax.fill_between(epochs, lower, upper, color=style["color"], alpha=0.14)
 
     ylabel = CURVE_METRIC_LABELS.get(metric, metric)
-    if metric.endswith("acc") or metric.endswith("f1"):
-        ax.set_ylabel(f"{ylabel} (mean +/- std)")
-    else:
-        ax.set_ylabel(f"{ylabel} (mean +/- std)")
-    ax.set_xlabel("Epoch")
-    title = f"{ylabel} Across Epochs"
+    title = f"{ylabel} (Mean +/- SD Across Seeds)"
     if dataset_display_name:
         title = f"{dataset_display_name} | {title}"
-    ax.set_title(title)
-    ax.grid(True, linestyle="--", alpha=0.3)
-    ax.legend()
-    fig.tight_layout()
+    finish_epoch_axis(ax, metric_name=metric, title=title, show_legend=False)
+    place_comparison_legend(ax, len(grouped))
 
     path = figures_dir / f"{metric}_epoch_mean_std.png"
-    fig.savefig(path, dpi=200, bbox_inches="tight")
+    save_figure_pair(fig, path)
     plt.close(fig)
     return path
 
