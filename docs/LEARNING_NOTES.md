@@ -304,7 +304,9 @@ train each epoch
 -> evaluate test once
 ```
 
-当前训练代码还会每个 epoch 计算 test，这是已经记录在研究计划中的待修正事项。
+2026-07-29 起训练代码已经按上述流程执行：逐 epoch history 只保存 train / validation，训练结束后加载 validation 选定的权重，再对 test 评估一次。新 summary 通过 `evaluation_protocol` 记录这一点，也不再生成 `best_test_epoch`。
+
+历史实验的 metrics CSV 仍包含 test 曲线，这是旧协议产物。分析旧结果时只能引用 `selected_model` 中与 validation 选定 checkpoint 对应的 test 指标，不能挑选历史曲线上的最高 test epoch。
 
 ## 12. Learnable + fixed PE 的写法
 

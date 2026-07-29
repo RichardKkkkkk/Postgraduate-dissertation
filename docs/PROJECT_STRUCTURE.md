@@ -1,6 +1,6 @@
 # 项目结构
 
-最近对齐：2026-07-20
+最近对齐：2026-07-29
 
 这个文档只回答一件事：
 
@@ -19,7 +19,7 @@
 - `run_seed_sweep.py`
   多个 seed 的批量运行入口。
 - `summarize_seed_sweep.py`
-  多 seed 结果聚合与汇总。
+  多 seed 结果聚合与汇总；默认模型列表与 CIFAR-10 八模型主线一致。
 - `result_paths.py`
   统一管理训练结果、图、报告、checkpoint 的路径规则。
 - `refresh_single_run_figures.py`
@@ -91,6 +91,8 @@
 
 `vit_squared_multiplicative_sinusoidal`、shifted 版本和 `vit_radial_sinusoidal` 目前只有实现，没有对应的正式结果目录。
 
+`PROJECT_LOG.md` 中还记录了 unfolding、hybrid、fusion 和 low-data 的本地实验。当前仓库只保留了 low-data 汇总报告，其他若干实验的原始 metrics/checkpoint 未被追踪，因此不列为仓库内可完整审计的正式实验目录。
+
 历史上已有 56 个 checkpoint 和上述结果被 Git 追踪。不要因为 `checkpoints/` 出现在 `.gitignore` 中就假设这些历史文件未被追踪；清理前必须先制定跨设备保留方案。
 
 ## 当前统一的实验目录结构
@@ -124,6 +126,8 @@ checkpoints/
     └── <model>/
         └── <run_name>_best.pt
 ```
+
+新协议下，`metrics.csv` 只包含逐 epoch train / validation 指标；test 指标只写入 `summary.json` 的 `selected_model`，并通过 `evaluation_protocol` 标记为 validation 选定 checkpoint 后的一次性评估。历史 metrics 仍可能包含逐 epoch test 列，读取工具保持兼容。
 
 如果不显式传 `--experiment-name`，默认会用 `dataset` 名字作为实验目录名。
 

@@ -7,10 +7,25 @@ from models.registry import EXPERIMENT_REGISTRY
 from result_paths import resolve_run_artifact_paths
 
 
-DEFAULT_MODELS = ["vit_baseline", "vit_learnable_position", "vit_rope"]
+DEFAULT_MODELS = [
+    "vit_baseline",
+    "vit_learnable_position",
+    "vit_row_sinusoidal",
+    "vit_col_sinusoidal",
+    "vit_additive_sinusoidal",
+    "vit_additive_sinusoidal_shifted",
+    "vit_multiplicative_sinusoidal",
+    "vit_multiplicative_sinusoidal_shifted",
+]
 MODEL_LABELS = {
     "vit_baseline": "ViT Baseline (No Pos)",
     "vit_learnable_position": "ViT Learnable Position",
+    "vit_row_sinusoidal": "ViT Row-wise Sinusoidal",
+    "vit_col_sinusoidal": "ViT Column-wise Sinusoidal",
+    "vit_additive_sinusoidal": "ViT Additive Sinusoidal",
+    "vit_additive_sinusoidal_shifted": "ViT Additive Sinusoidal Shifted",
+    "vit_multiplicative_sinusoidal": "ViT Multiplicative Sinusoidal",
+    "vit_multiplicative_sinusoidal_shifted": "ViT Multiplicative Sinusoidal Shifted",
     "vit_rope": "ViT RoPE",
     "vit_rope_2d": "ViT RoPE 2D",
     "resnet18_scratch": "ResNet18 Scratch",

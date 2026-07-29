@@ -86,6 +86,13 @@ MODEL_DISPLAY_NAMES = {
     "vit_additive_sinusoidal_shifted": "ViT Additive Sinusoidal Shifted",
     "vit_multiplicative_sinusoidal": "ViT Multiplicative Sinusoidal",
     "vit_multiplicative_sinusoidal_shifted": "ViT Multiplicative Sinusoidal Shifted",
+    "vit_squared_multiplicative_sinusoidal": "ViT Squared Multiplicative Sinusoidal",
+    "vit_squared_multiplicative_sinusoidal_shifted": "ViT Squared Multiplicative Sinusoidal Shifted",
+    "vit_radial_sinusoidal": "ViT Radial Sinusoidal",
+    "vit_normal_col_learnable_multiplicative_sinusoidal": "ViT Learnable + Multiplicative Sinusoidal",
+    "vit_row_col_latent_fusion": "ViT Row/Column Latent Fusion",
+    "vit_row_col_mean_fusion": "ViT Row/Column Mean Fusion",
+    "vit_row_col_mean_mlp_fusion": "ViT Row/Column Mean + MLP Fusion",
     "resnet18_scratch": "ResNet18 Scratch",
     "resnet18_imagenet": "ResNet18 ImageNet",
     "vit": "ViT",
@@ -107,6 +114,13 @@ MODEL_VARIANT_DISPLAY = {
     "additive_sinusoidal_shifted": "Additive Sinusoidal Shifted",
     "multiplicative_sinusoidal": "Multiplicative Sinusoidal",
     "multiplicative_sinusoidal_shifted": "Multiplicative Sinusoidal Shifted",
+    "squared_multiplicative_sinusoidal": "Squared Multiplicative Sinusoidal",
+    "squared_multiplicative_sinusoidal_shifted": "Squared Multiplicative Sinusoidal Shifted",
+    "radial_sinusoidal": "Radial Sinusoidal",
+    "normal_col_learnable_multiplicative_sinusoidal": "Learnable + Multiplicative Sinusoidal",
+    "row_col_latent_fusion": "Row/Column Latent Fusion",
+    "row_col_mean_fusion": "Row/Column Mean Fusion",
+    "row_col_mean_mlp_fusion": "Row/Column Mean + MLP Fusion",
     "scratch": "Scratch",
     "imagenet": "ImageNet",
     "pretrained": "Pretrained",
@@ -121,6 +135,13 @@ POSITION_ENCODING_DISPLAY = {
     "additive_sinusoidal_shifted": "Additive Sinusoidal Shifted",
     "multiplicative_sinusoidal": "Multiplicative Sinusoidal",
     "multiplicative_sinusoidal_shifted": "Multiplicative Sinusoidal Shifted",
+    "squared_multiplicative_sinusoidal": "Squared Multiplicative Sinusoidal",
+    "squared_multiplicative_sinusoidal_shifted": "Squared Multiplicative Sinusoidal Shifted",
+    "radial_sinusoidal": "Radial Sinusoidal",
+    "learnable_plus_multiplicative_sinusoidal": "Learnable + Multiplicative Sinusoidal",
+    "row_col_latent_fusion": "Row/Column Latent Fusion",
+    "row_col_mean_fusion": "Row/Column Mean Fusion",
+    "row_col_mean_mlp_fusion": "Row/Column Mean + MLP Fusion",
     "none": "None",
 }
 INITIALIZATION_DISPLAY = {
@@ -150,7 +171,7 @@ DATASET_DISPLAY_NAMES = {
     "synthetic_row_code": "Synthetic Row Code",
     "synthetic_col_code": "Synthetic Column Code",
 }
-COMPACT_CURVE_PRIORITY = ["val_macro_f1", "val_acc", "test_acc", "train_loss"]
+COMPACT_CURVE_PRIORITY = ["val_macro_f1", "val_acc", "train_loss"]
 COMPACT_PER_CLASS_PRIORITY = [
     "test_per_class_f1",
     "test_per_class_recall",
@@ -627,10 +648,10 @@ def load_run_artifacts(
     )
 
 
-def order_metrics(metrics):
+def order_metrics(metrics, priority_metrics=None):
     seen = set()
     ordered = []
-    for metric in PRIORITY_METRICS:
+    for metric in priority_metrics or PRIORITY_METRICS:
         if metric in metrics and metric not in seen:
             ordered.append(metric)
             seen.add(metric)
@@ -650,8 +671,24 @@ def determine_metrics(runs, explicit_metrics=None):
             raise ValueError(
                 "These metrics are not present in every run: " + ", ".join(missing)
             )
-        return order_metrics(explicit_metrics)
-    return order_metrics([metric for metric in runs[0].available_metrics if metric in shared_metrics])
+        return order_metrics(explicit_metrics, priority_metrics=explicit_metrics)
+
+    priority_metrics = PRIORITY_METRICS
+    if get_shared_dataset_name(runs) == "cadb_elements":
+        priority_metrics = [
+            "val_macro_f1",
+            "val_acc",
+            "val_loss",
+            "train_acc",
+            "train_loss",
+            "test_macro_f1",
+            "test_acc",
+            "test_loss",
+        ]
+    return order_metrics(
+        [metric for metric in runs[0].available_metrics if metric in shared_metrics],
+        priority_metrics=priority_metrics,
+    )
 
 
 def determine_selected_metric_keys(runs, history_metrics):
