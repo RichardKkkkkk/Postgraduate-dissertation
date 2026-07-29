@@ -414,6 +414,7 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 - `test` 用于最终报告
 - 单模型和模型对比的 epoch 曲线默认只画 train / validation
 - PNG 使用 300 dpi，同时保存 PDF 矢量版本
+- 所有论文/报告图的样式统一来自 `paper_plotting.py`
 
 完整绘图规范见 [docs/FIGURE_STANDARD.md](docs/FIGURE_STANDARD.md)。
 

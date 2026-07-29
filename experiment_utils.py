@@ -12,8 +12,12 @@ import matplotlib.pyplot as plt
 import torch
 
 from paper_plotting import (
+    PAPER_BAR_FIGSIZE,
     PAPER_FIGSIZE,
+    PAPER_HEATMAP_FIGSIZE,
     SPLIT_STYLES,
+    annotate_bars,
+    finish_bar_axis,
     finish_epoch_axis,
     mark_every,
     save_figure_pair,
@@ -352,7 +356,7 @@ def plot_confusion_matrix(confusion_matrix, class_names, path, title):
     matrix = torch.tensor(confusion_matrix, dtype=torch.float32)
 
     setup_plot_style()
-    figure, axis = plt.subplots(figsize=(8, 6))
+    figure, axis = plt.subplots(figsize=PAPER_HEATMAP_FIGSIZE)
     heatmap = axis.imshow(matrix, cmap="Blues")
     axis.set_xticks(range(len(class_names)))
     axis.set_yticks(range(len(class_names)))
@@ -378,8 +382,7 @@ def plot_confusion_matrix(confusion_matrix, class_names, path, title):
             )
 
     figure.colorbar(heatmap, ax=axis, fraction=0.046, pad=0.04)
-    figure.tight_layout()
-    figure.savefig(path, dpi=150)
+    save_figure_pair(figure, path)
     plt.close(figure)
 
 
@@ -433,7 +436,7 @@ def plot_selected_per_class_metrics(selected_model_metrics, class_names, figure_
             continue
 
         setup_plot_style()
-        figure, axis = plt.subplots(figsize=(10.0, 5.0))
+        figure, axis = plt.subplots(figsize=PAPER_BAR_FIGSIZE)
         x_positions = list(range(len(values)))
         plotted_values = [float(value) * 100.0 for value in values]
         color = PER_CLASS_COLORS.get(metric_name, "#2563eb")
@@ -441,25 +444,12 @@ def plot_selected_per_class_metrics(selected_model_metrics, class_names, figure_
 
         axis.set_xticks(x_positions)
         axis.set_xticklabels(class_names, rotation=35, ha="right", fontsize=8)
-        axis.set_ylim(0, max(100.0, max(plotted_values) * 1.12 if plotted_values else 100.0))
-        axis.set_ylabel("Percentage (%)")
-        axis.set_title(f"{title_prefix} {metric_title}")
-        axis.grid(True, axis="y", alpha=0.25)
+        y_max = max(100.0, max(plotted_values) * 1.12 if plotted_values else 100.0)
+        finish_bar_axis(axis, title=f"{title_prefix} {metric_title}", y_max=y_max)
+        annotate_bars(axis, bars, plotted_values)
 
-        for bar, value in zip(bars, plotted_values):
-            axis.text(
-                bar.get_x() + bar.get_width() / 2,
-                value + 0.8,
-                f"{value:.1f}",
-                ha="center",
-                va="bottom",
-                fontsize=7,
-                color="#0f172a",
-            )
-
-        figure.tight_layout()
         figure_path = figure_dir / f"{run_name}_{metric_name}.png"
-        figure.savefig(figure_path, dpi=170)
+        save_figure_pair(figure, figure_path)
         plt.close(figure)
         saved_paths[metric_name] = figure_path
 

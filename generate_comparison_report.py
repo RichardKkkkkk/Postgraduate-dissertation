@@ -17,7 +17,10 @@ import numpy as np
 from paper_plotting import (
     FALLBACK_COLORS as PAPER_FALLBACK_COLORS,
     MODEL_COLORS as PAPER_MODEL_COLORS,
+    PAPER_BAR_FIGSIZE,
     PAPER_FIGSIZE,
+    PAPER_HEATMAP_FIGSIZE,
+    finish_bar_axis,
     finish_epoch_axis,
     get_model_style,
     mark_every,
@@ -1796,7 +1799,7 @@ def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
         focus_metrics = macro_metric_keys[:3]
 
     setup_plot_style()
-    figure, axis = plt.subplots(figsize=(8.0, 4.8))
+    figure, axis = plt.subplots(figsize=PAPER_BAR_FIGSIZE)
     x_positions = np.arange(len(focus_metrics))
     width = min(0.75 / max(1, len(runs)), 0.22)
 
@@ -1815,14 +1818,15 @@ def plot_macro_metrics(figures_dir: Path, runs, macro_metric_keys):
 
     axis.set_xticks(x_positions)
     axis.set_xticklabels([metric_display_name(metric_name) for metric_name in focus_metrics], fontsize=10)
-    axis.set_ylabel("Percentage (%)")
-    axis.set_ylim(0, max(100.0, axis.get_ylim()[1]))
-    axis.set_title(build_dataset_plot_title(dataset_name, "Macro Metric Snapshot"), fontsize=14, pad=12)
-    axis.legend(loc="upper center", ncol=min(3, len(runs)), frameon=True)
-    figure.tight_layout()
+    finish_bar_axis(
+        axis,
+        title=build_dataset_plot_title(dataset_name, "Macro Metric Snapshot"),
+        y_max=max(100.0, axis.get_ylim()[1]),
+    )
+    axis.legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=min(3, len(runs)), frameon=False)
 
     figure_path = figures_dir / "macro_metrics_comparison.png"
-    figure.savefig(figure_path, dpi=180)
+    save_figure_pair(figure, figure_path)
     plt.close(figure)
 
     summary_lines = []
@@ -1877,7 +1881,7 @@ def ensure_confusion_matrix_figure(figures_dir: Path, run: RunArtifacts):
     data = np.array(matrix, dtype=float)
 
     setup_plot_style()
-    figure, axis = plt.subplots(figsize=(6.2, 5.4))
+    figure, axis = plt.subplots(figsize=PAPER_HEATMAP_FIGSIZE)
     heatmap = axis.imshow(data, cmap="Blues")
     axis.set_xticks(range(len(class_names)))
     axis.set_yticks(range(len(class_names)))
@@ -1901,9 +1905,8 @@ def ensure_confusion_matrix_figure(figures_dir: Path, run: RunArtifacts):
             axis.text(column_index, row_index, str(value), ha="center", va="center", fontsize=7, color=text_color)
 
     figure.colorbar(heatmap, ax=axis, fraction=0.046, pad=0.04)
-    figure.tight_layout()
     figure_path = figures_dir / f"{run.run_name}_confusion_matrix.png"
-    figure.savefig(figure_path, dpi=180)
+    save_figure_pair(figure, figure_path)
     plt.close(figure)
     return figure_path
 
@@ -1949,7 +1952,7 @@ def plot_per_class_metric(figures_dir: Path, runs, metric_name: str):
     width = min(0.72 / max(1, len(runs)), 0.22)
 
     setup_plot_style()
-    figure, axis = plt.subplots(figsize=(9.4, 4.8))
+    figure, axis = plt.subplots(figsize=PAPER_BAR_FIGSIZE)
 
     for index, run in enumerate(runs):
         color = get_run_color(run, index)
@@ -1966,18 +1969,15 @@ def plot_per_class_metric(figures_dir: Path, runs, metric_name: str):
 
     axis.set_xticks(x_positions)
     axis.set_xticklabels(class_names, rotation=35, ha="right", fontsize=8)
-    axis.set_ylim(0, max(100.0, axis.get_ylim()[1]))
-    axis.set_ylabel("Percentage (%)")
-    axis.set_title(
-        build_dataset_plot_title(dataset_name, f"{metric_display_name(metric_name)} by Class"),
-        fontsize=14,
-        pad=12,
+    finish_bar_axis(
+        axis,
+        title=build_dataset_plot_title(dataset_name, f"{metric_display_name(metric_name)} by Class"),
+        y_max=max(100.0, axis.get_ylim()[1]),
     )
-    axis.legend(loc="upper center", ncol=min(3, len(runs)), frameon=True)
-    figure.tight_layout()
+    axis.legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=min(3, len(runs)), frameon=False)
 
     figure_path = figures_dir / f"{metric_name}_per_class.png"
-    figure.savefig(figure_path, dpi=180)
+    save_figure_pair(figure, figure_path)
     plt.close(figure)
     return figure_path, class_names
 

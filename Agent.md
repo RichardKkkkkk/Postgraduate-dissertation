@@ -14,6 +14,8 @@ repository documents as the shared memory between Codex sessions.
 - Save plots and report artifacts under experiment-scoped folders inside `results/`.
 - Follow `docs/FIGURE_STANDARD.md` for paper-facing plots: use train/validation
   epoch curves, keep model colors stable, and export both 300 dpi PNG and PDF.
+- Keep plot style changes centralized in `paper_plotting.py`; do not introduce
+  ad hoc colors, dpi values, or figure sizes in individual plotting scripts.
 - For comparison reports, also generate publication-style artifacts when
   available: single-metric comparison curves, selected-checkpoint summary table,
   selected-test summary figure, and draft figure captions.

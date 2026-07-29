@@ -1,14 +1,24 @@
 import argparse
 import csv
 import json
+import os
 from datetime import datetime
 from pathlib import Path
+
+os.environ.setdefault("MPLCONFIGDIR", str(Path("results/matplotlib_cache")))
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from paper_plotting import (
+    PAPER_BAR_FIGSIZE,
+    finish_bar_axis,
+    get_model_style,
+    save_figure_pair,
+    setup_paper_plot_style,
+)
 from result_paths import build_report_artifact_dirs, resolve_run_artifact_paths
 
 
@@ -98,6 +108,7 @@ def load_run_payload(results_dir: Path, run_name: str, label: str, experiment_na
     selected = summary["selected_model"]
     return {
         "run_name": run_name,
+        "model_name": selected.get("model_name", run_name),
         "label": label,
         "test_acc": float(selected["test_acc"]),
         "macro_f1": float(selected["test_macro_f1"]),
@@ -156,24 +167,21 @@ def plot_grouped_metric(figures_dir: Path, class_names, runs, metric_key, title,
     x = np.arange(len(class_names))
     width = 0.24 if len(runs) >= 3 else 0.32
 
-    fig, ax = plt.subplots(figsize=(12, 5.5))
-    colors = ["#2563eb", "#0891b2", "#16a34a", "#f59e0b"]
+    setup_paper_plot_style()
+    fig, ax = plt.subplots(figsize=PAPER_BAR_FIGSIZE)
     for index, run in enumerate(runs):
         offset = (index - (len(runs) - 1) / 2) * width
-        values = run[metric_key]
-        ax.bar(x + offset, values, width=width, label=run["label"], color=colors[index % len(colors)])
+        values = np.array(run[metric_key]) * 100.0
+        style = get_model_style(run["model_name"], index)
+        ax.bar(x + offset, values, width=width, label=run["label"], color=style["color"])
 
     ax.set_xticks(x)
     ax.set_xticklabels(class_names, rotation=25, ha="right")
-    ax.set_ylim(0.0, 1.0)
-    ax.set_ylabel(metric_key)
-    ax.set_title(title)
-    ax.grid(axis="y", linestyle="--", alpha=0.3)
-    ax.legend()
-    fig.tight_layout()
+    finish_bar_axis(ax, title=title, ylabel="Percentage (%)", y_max=100.0)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=min(3, len(runs)), frameon=False)
 
     path = figures_dir / filename
-    fig.savefig(path, dpi=200, bbox_inches="tight")
+    save_figure_pair(fig, path)
     plt.close(fig)
     return path
 
@@ -184,30 +192,32 @@ def plot_delta_vs_reference(figures_dir: Path, class_names, runs, metric_key, fi
     comparison_runs = runs[1:]
     width = 0.32 if len(comparison_runs) == 2 else 0.22
 
-    fig, ax = plt.subplots(figsize=(12, 5.5))
-    colors = ["#0891b2", "#16a34a", "#f59e0b"]
+    setup_paper_plot_style()
+    fig, ax = plt.subplots(figsize=PAPER_BAR_FIGSIZE)
     for index, run in enumerate(comparison_runs):
         offset = (index - (len(comparison_runs) - 1) / 2) * width
-        deltas = np.array(run[metric_key]) - np.array(reference[metric_key])
+        deltas = (np.array(run[metric_key]) - np.array(reference[metric_key])) * 100.0
+        style = get_model_style(run["model_name"], index + 1)
         ax.bar(
             x + offset,
             deltas,
             width=width,
             label=f"{run['label']} - {reference['label']}",
-            color=colors[index % len(colors)],
+            color=style["color"],
         )
 
-    ax.axhline(0.0, color="#0f172a", linewidth=1.0)
+    ax.axhline(0.0, color="#1f2937", linewidth=1.0)
     ax.set_xticks(x)
     ax.set_xticklabels(class_names, rotation=25, ha="right")
-    ax.set_ylabel(f"{metric_key} delta")
+    ax.set_ylabel("Delta (percentage points)")
     ax.set_title(f"Per-Class {metric_key} Delta vs {reference['label']}")
-    ax.grid(axis="y", linestyle="--", alpha=0.3)
-    ax.legend()
-    fig.tight_layout()
+    ax.grid(axis="y", linestyle="--", alpha=0.35)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=min(3, len(comparison_runs)), frameon=False)
 
     path = figures_dir / filename
-    fig.savefig(path, dpi=200, bbox_inches="tight")
+    save_figure_pair(fig, path)
     plt.close(fig)
     return path
 

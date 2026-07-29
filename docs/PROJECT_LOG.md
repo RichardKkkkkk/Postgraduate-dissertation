@@ -654,3 +654,28 @@ Initial interpretation:
 
 - `results/` 下多数新结果目录仍未纳入正式论文协议，不建议 commit
 - 最终 multi-seed 前仍要修改训练流程，让 test 只在 selected checkpoint 后评估一次
+
+## 2026-07-29 Plot Style Standard v2
+
+### 已完成
+
+- `paper_plotting.py` 升级为统一画图样式源：
+  - `PAPER_STYLE_VERSION = 2026-07-29-single-metric-v2`
+  - 统一主曲线图、bar plot、heatmap 尺寸
+  - 统一 300 dpi PNG + PDF 输出
+  - 使用更适合论文的高对比、色盲友好调色板
+  - 模型颜色和 marker 尽量保持稳定
+- 单模型辅助图也接入统一标准：
+  - selected per-class metrics
+  - confusion matrix
+- comparison report 辅助图也接入统一标准：
+  - macro metric snapshot
+  - grouped per-class metrics
+  - generated confusion matrix
+- `analyze_per_class_report.py` 不再单独使用 `dpi=200`，并将 per-class 指标统一显示为百分比
+
+### 目的
+
+- 后续所有实验图默认拥有相同格式、色调、字号和导出格式
+- 减少论文写作阶段反复手动改图的成本
+- 保持探索图和最终论文图之间的视觉规则一致

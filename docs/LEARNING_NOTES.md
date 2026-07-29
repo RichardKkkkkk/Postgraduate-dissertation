@@ -834,3 +834,35 @@ selected epoch 由 validation 决定，test 只对这个 checkpoint 评估一次
 multi-panel figure。
 
 现在 `generate_comparison_report.py` 默认不自动生成拼接图。
+
+## 22. 为什么要把画图样式集中到 `paper_plotting.py`
+
+如果每个脚本自己写：
+
+```python
+plt.figure(figsize=(8, 6))
+plt.savefig(path, dpi=150)
+```
+
+后面会出现一个问题：同一篇论文里的图看起来像从不同项目里复制来的。
+
+现在项目把这些规则集中在 `paper_plotting.py`：
+
+```python
+PAPER_STYLE_VERSION = "2026-07-29-single-metric-v2"
+PAPER_FIGSIZE = (7.2, 4.5)
+PAPER_DPI = 300
+MODEL_COLORS = {...}
+```
+
+这样以后不管是：
+
+- 单模型 loss / accuracy
+- 模型对比曲线
+- multi-seed mean +/- std
+- per-class bar plot
+- confusion matrix
+
+都会使用同一套字号、颜色、marker、legend 和 PNG/PDF 输出规则。
+
+这不是改变实验结果，只是统一 visual presentation。论文里这很重要，因为图的风格统一会让读者把注意力放在结果差异上，而不是被格式差异干扰。
