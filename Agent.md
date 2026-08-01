@@ -21,6 +21,9 @@ repository documents as the shared memory between Codex sessions.
   selected-test summary figure, and draft figure captions.
 - Do not present per-epoch test curves as paper evidence. Report test metrics
   only for the checkpoint selected by validation.
+- For final thesis experiments, keep the selected-checkpoint-only test protocol:
+  train/validation during epochs, then one test evaluation after loading the
+  validation-selected checkpoint.
 - Update README when adding runnable scripts.
 - When changing project structure, shared training flow, experiment protocol, or
   result management rules, also update the relevant files under `docs/`.

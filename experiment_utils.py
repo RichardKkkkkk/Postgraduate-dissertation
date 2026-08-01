@@ -553,18 +553,15 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
 def save_summary_json(args, history, path, early_stopping_info, selected_model_metrics):
     path.parent.mkdir(parents=True, exist_ok=True)
     best_val_key = "val_macro_f1" if "val_macro_f1" in history[0] else "val_acc"
-    best_test_key = "test_macro_f1" if "test_macro_f1" in history[0] else "test_acc"
     best_val_epoch = max(history, key=lambda row: row[best_val_key])
-    best_test_epoch = max(history, key=lambda row: row[best_test_key])
     summary = {
         "best_val_epoch": best_val_epoch["epoch"],
         "best_val_acc": best_val_epoch["val_acc"],
-        "best_test_epoch": best_test_epoch["epoch"],
-        "best_test_acc": best_test_epoch["test_acc"],
         "final_epoch": history[-1],
         "selected_model": selected_model_metrics,
         "early_stopping": early_stopping_info,
         "config": vars(args),
+        "test_evaluation_protocol": "selected_checkpoint_only",
     }
 
     with path.open("w", encoding="utf-8") as handle:

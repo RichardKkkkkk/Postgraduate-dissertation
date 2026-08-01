@@ -3,21 +3,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from models.registry import EXPERIMENT_REGISTRY
+from models.registry import EXPERIMENT_REGISTRY, SUPPORTED_DATASETS
+from paper_plotting import get_model_label
 from result_paths import resolve_run_artifact_paths
 
 
 DEFAULT_MODELS = ["vit_baseline", "vit_learnable_position", "vit_rope"]
-MODEL_LABELS = {
-    "vit_baseline": "ViT Baseline (No Pos)",
-    "vit_learnable_position": "ViT Learnable Position",
-    "vit_rope": "ViT RoPE",
-    "vit_rope_2d": "ViT RoPE 2D",
-    "resnet18_scratch": "ResNet18 Scratch",
-    "resnet18_imagenet": "ResNet18 ImageNet",
-}
-
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Run multiple seeds and generate one comparison report per seed."
@@ -30,6 +21,18 @@ def parse_args():
         help="Models to run for each seed.",
     )
     parser.add_argument(
+        "--all-models",
+        action="store_true",
+        help="Run every registered model. Overrides --models.",
+    )
+    parser.add_argument(
+        "--exclude-models",
+        nargs="+",
+        choices=tuple(EXPERIMENT_REGISTRY.keys()),
+        default=[],
+        help="Models to remove from the selected sweep.",
+    )
+    parser.add_argument(
         "--seeds",
         nargs="+",
         type=int,
@@ -37,6 +40,7 @@ def parse_args():
         help="Seeds to sweep, for example: --seeds 42 43 44",
     )
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
+    parser.add_argument("--dataset", choices=SUPPORTED_DATASETS, default="cifar10")
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
     parser.add_argument("--experiment-name", type=str, default=None)
@@ -58,6 +62,9 @@ def parse_args():
     parser.add_argument("--early-stopping-patience", type=int, default=5)
     parser.add_argument("--early-stopping-min-delta", type=float, default=0.001)
     parser.add_argument("--early-stopping-metric", type=str, default="val_acc")
+    parser.add_argument("--lr-plateau-patience", type=int, default=5)
+    parser.add_argument("--lr-plateau-factor", type=float, default=0.5)
+    parser.add_argument("--lr-plateau-min-lr", type=float, default=1e-6)
     parser.add_argument(
         "--run-prefix",
         type=str,
@@ -129,6 +136,8 @@ def build_train_command(args, model_name: str, seed: int):
         "train_cifar10_experiment.py",
         "--model",
         model_name,
+        "--dataset",
+        args.dataset,
         "--seed",
         str(seed),
         "--epochs",
@@ -159,6 +168,12 @@ def build_train_command(args, model_name: str, seed: int):
         str(args.early_stopping_min_delta),
         "--early-stopping-metric",
         args.early_stopping_metric,
+        "--lr-plateau-patience",
+        str(args.lr_plateau_patience),
+        "--lr-plateau-factor",
+        str(args.lr_plateau_factor),
+        "--lr-plateau-min-lr",
+        str(args.lr_plateau_min_lr),
         "--run-name",
         run_name,
     ]
@@ -194,14 +209,19 @@ def build_report_command(args, seed: int, run_specs: list[tuple[str, str]]):
 
 def main():
     args = parse_args()
+    model_names = list(EXPERIMENT_REGISTRY.keys()) if args.all_models else list(args.models)
+    excluded_model_names = set(args.exclude_models)
+    model_names = [model_name for model_name in model_names if model_name not in excluded_model_names]
+    if not model_names:
+        raise ValueError("No models selected. Check --models, --all-models, and --exclude-models.")
 
     for seed in args.seeds:
         print("")
         print(f"===== Seed {seed} =====")
         run_specs = []
-        for model_name in args.models:
+        for model_name in model_names:
             run_name = build_run_name(model_name, seed, args.run_prefix)
-            run_specs.append((run_name, MODEL_LABELS.get(model_name, model_name)))
+            run_specs.append((run_name, get_model_label(model_name)))
 
             if args.skip_existing and summary_exists(args.results_dir, run_name, args.experiment_name):
                 print(f"Skipping existing run: {run_name}")

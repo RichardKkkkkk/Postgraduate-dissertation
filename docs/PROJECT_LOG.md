@@ -581,7 +581,7 @@ Initial interpretation:
 
 - test 不作为逐 epoch 论文曲线
 - 正式论文只报告 validation-selected checkpoint 的最终 test 指标
-- 当前旧 CSV 仍含逐 epoch test 值，只用于历史开发结果；最终 multi-seed 重跑前还要修改训练循环本身
+- 当前旧 CSV 仍含逐 epoch test 值，只用于历史开发结果；训练循环已在 2026-08-01 改为 selected-checkpoint-only test protocol
 
 ### 下一步
 
@@ -653,7 +653,7 @@ Initial interpretation:
 ### 当前仍需注意
 
 - `results/` 下多数新结果目录仍未纳入正式论文协议，不建议 commit
-- 最终 multi-seed 前仍要修改训练流程，让 test 只在 selected checkpoint 后评估一次
+- 最终论文统计结果需要用 selected-checkpoint-only test protocol 重新跑
 
 ## 2026-07-29 Plot Style Standard v2
 
@@ -668,6 +668,7 @@ Initial interpretation:
 - 单模型辅助图也接入统一标准：
   - selected per-class metrics
   - confusion matrix
+
 - comparison report 辅助图也接入统一标准：
   - macro metric snapshot
   - grouped per-class metrics
@@ -679,3 +680,43 @@ Initial interpretation:
 - 后续所有实验图默认拥有相同格式、色调、字号和导出格式
 - 减少论文写作阶段反复手动改图的成本
 - 保持探索图和最终论文图之间的视觉规则一致
+
+## 2026-08-01 Final Holdout Protocol
+
+### 已完成
+
+- `train_cifar10_experiment.py` 已改为 final holdout protocol：
+  - 每个 epoch 只评估 train 和 validation
+  - validation 负责 checkpoint selection 和 early stopping
+  - 训练结束后加载 validation-selected checkpoint
+  - test split 只评估一次
+- `experiment_utils.py` 的 summary 不再写 `best_test_epoch` / `best_test_acc`
+- summary JSON 新增：
+  - `test_evaluation_protocol = selected_checkpoint_only`
+- `run_seed_sweep.py` 支持最终重跑需要的统一参数：
+  - `--dataset`
+  - `--all-models`
+  - `--exclude-models`
+  - `--lr-plateau-patience`
+  - `--lr-plateau-factor`
+  - `--lr-plateau-min-lr`
+- README、`docs/RESEARCH_PLAN.md`、`docs/FIGURE_STANDARD.md` 和 `Agent.md` 已同步最终协议。
+
+### 最终 CIFAR-10 multi-seed 建议协议
+
+- dataset: `cifar10`
+- seeds: `42 43 44 45 46`
+- epochs: `100`
+- batch size: `128`
+- learning rate: `3e-4`
+- weight decay: `0.05`
+- validation split: `val_ratio = 0.1`
+- early stopping: `val_acc`, patience `10`, min delta `0.001`
+- LR scheduler: ReduceLROnPlateau, patience `5`, factor `0.5`, min lr `1e-6`
+- 不使用 train/val/test subset
+
+### 下一步
+
+1. 运行 tiny subset smoke test，确认 metrics CSV 不再包含逐 epoch test 列。
+2. 在台式机上启动完整 CIFAR-10 multi-seed sweep。
+3. 用统一 publication-style reports 收束论文结果图。

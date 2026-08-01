@@ -411,7 +411,7 @@ python generate_comparison_report.py --run baseline_cadb_elements_seed42="ViT Ba
 核心实验原则：
 
 - `validation` 用于 early stopping 和 model selection
-- `test` 用于最终报告
+- `test` 只在 validation-selected checkpoint 上评估一次，用于最终报告
 - 单模型和模型对比的 epoch 曲线默认只画 train / validation
 - PNG 使用 300 dpi，同时保存 PDF 矢量版本
 - 所有论文/报告图的样式统一来自 `paper_plotting.py`
@@ -445,7 +445,54 @@ python generate_comparison_report.py --run <run_a>="Model A" --run <run_b>="Mode
 - `figure_captions.md`
   - 可作为论文图注或 weekly email 草稿的 caption
 
-已知待修正项：当前训练循环仍会在每个 epoch 计算并记录 test 指标。新图不会展示这些 test 曲线，但下一组论文正式实验前仍应改成只在 validation 选定 checkpoint 后评估一次 test；详见 [RESEARCH_PLAN.md](docs/RESEARCH_PLAN.md)。
+当前训练循环已经采用 final holdout 协议：每个 epoch 只评估 train/validation，训练结束后加载
+validation-selected checkpoint，再对 test split 评估一次。历史旧结果 CSV 中仍可能包含逐 epoch
+test 指标；正式论文结果应使用新协议重新跑。
+
+## 最终 CIFAR-10 multi-seed 协议
+
+第一轮最终实验建议固定：
+
+- dataset: `cifar10`
+- train/validation split: CIFAR-10 train set 中 `val_ratio = 0.1`
+- test split: CIFAR-10 official test set，只在 selected checkpoint 上评估一次
+- seeds: `42 43 44 45 46`
+- epochs: `100`
+- batch size: `128`
+- learning rate: `3e-4`
+- weight decay: `0.05`
+- early stopping metric: `val_acc`
+- early stopping patience: `10`
+- early stopping min delta: `0.001`
+- LR scheduler: ReduceLROnPlateau, patience `5`, factor `0.5`, min lr `1e-6`
+- subsets: 不使用 `--train-subset` / `--val-subset` / `--test-subset`
+
+示例入口：
+
+```bash
+python run_seed_sweep.py \
+  --dataset cifar10 \
+  --all-models \
+  --exclude-models resnet18_imagenet \
+  --seeds 42 43 44 45 46 \
+  --experiment-name cifar10_final_all_models_5seeds \
+  --run-prefix cifar10final \
+  --report-prefix cifar10final_compare \
+  --epochs 100 \
+  --batch-size 128 \
+  --lr 3e-4 \
+  --weight-decay 0.05 \
+  --val-ratio 0.1 \
+  --early-stopping-patience 10 \
+  --early-stopping-metric val_acc \
+  --early-stopping-min-delta 0.001 \
+  --lr-plateau-patience 5 \
+  --lr-plateau-factor 0.5 \
+  --lr-plateau-min-lr 1e-6
+```
+
+`--all-models` 会运行 `models/registry.py` 里注册的所有模型。上面示例排除了
+`resnet18_imagenet`，因为它可能需要下载 torchvision 的 ImageNet 预训练权重；如果本机已经缓存权重，或者网络稳定，可以删掉这一行。
 
 ## 常用 CLI 参数
 
@@ -453,6 +500,8 @@ python generate_comparison_report.py --run <run_a>="Model A" --run <run_b>="Mode
 
 - `--model`
 - `--dataset`
+- `--all-models`
+- `--exclude-models`
 - `--data-dir`
 - `--results-dir`
 - `--checkpoint-dir`

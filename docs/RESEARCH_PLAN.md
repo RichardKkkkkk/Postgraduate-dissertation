@@ -160,33 +160,36 @@ experiment_name = cifar10_teacher_extensions
 run_name = cifar10ext_<model_name>_seed42
 ```
 
-## 已知实验协议问题
+## 最终实验协议
 
 文档原则仍然是：
 
 `Validation is for model selection, test is for final reporting.`
 
-当前训练代码虽然只用 validation 指标做 early stopping 和 checkpoint selection，但仍会在每个 epoch 计算 test，并在 summary 中记录 best test epoch。正式论文实验不应根据这些中间 test 指标选择或描述模型。
-
-在下一轮正式实验前，优先把协议收紧为：
+当前训练代码已经收紧为 final holdout protocol：
 
 1. 每个 epoch 只计算 train 和 validation 指标。
 2. 用 validation 选择唯一 checkpoint。
-3. 训练结束后只对该 checkpoint 计算一次 test 指标。
-4. 报告不再突出 `best_test_epoch` 或按 epoch 的 test 曲线。
+3. 训练结束后加载 selected checkpoint，只对 test split 评估一次。
+4. summary 中记录 `test_evaluation_protocol = selected_checkpoint_only`。
+5. 报告不再突出 `best_test_epoch` 或按 epoch 的 test 曲线。
 
-旧结果仍可作为开发与方向判断依据，但论文最终表格应清楚说明旧协议，或在新协议下重跑核心对比。
+旧结果仍可作为开发与方向判断依据，但论文最终表格应在新协议下重跑。
 
 ## 下一步
 
-1. 先修正 test holdout 流程，并做小 subset smoke test。
-2. 在 CIFAR-10 seed 42 上正式运行：
-   - `vit_squared_multiplicative_sinusoidal`
-   - `vit_squared_multiplicative_sinusoidal_shifted`
-   - `vit_radial_sinusoidal`
-3. 与现有 `vit_learnable_position`、`vit_multiplicative_sinusoidal` 和 shifted 版本比较。
-4. 只有接近或超过 `vit_multiplicative_sinusoidal_shifted` 的新模型才扩展到 seed 43-46。
-5. 最终确定论文核心模型后，再决定是否按新 holdout 协议重跑完整八模型基线。
+1. 先用 tiny subset smoke test 确认 final holdout 输出结构。
+2. 在完整 CIFAR-10 上按统一协议重跑所有已注册模型：
+   - seeds: `42 43 44 45 46`
+   - epochs: `100`
+   - batch size: `128`
+   - learning rate: `3e-4`
+   - weight decay: `0.05`
+   - validation split: `val_ratio = 0.1`
+   - early stopping: `val_acc`, patience `10`, min delta `0.001`
+   - LR scheduler: ReduceLROnPlateau, patience `5`, factor `0.5`, min lr `1e-6`
+3. 用统一图形标准输出每个模型的单模型图、每个 seed 的 comparison 图，以及多 seed mean +/- std。
+4. 根据 full-data multi-seed 结果收束 thesis 主线模型，而不是继续无限扩展 exploratory variants。
 
 ## 当前不优先
 
@@ -395,7 +398,7 @@ fairness 对照，例如 larger single-encoder ViT。
 
 test 不画逐 epoch 曲线。正式重跑前的 gate：
 
-1. 把训练循环改为每个 epoch 只评估 validation。
+1. 确认训练循环每个 epoch 只评估 validation。
 2. 由 validation 选择唯一 checkpoint。
 3. 加载 selected checkpoint 后只评估一次 test。
 4. 确认 PNG 和 PDF 图都能从同一 metrics 文件重建。

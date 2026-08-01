@@ -66,7 +66,7 @@ train each epoch
 - 不把 test accuracy 或 test loss 画成逐 epoch 曲线
 - 不根据 `best_test_epoch` 选择模型
 
-旧实验 CSV 仍然包含逐 epoch test 指标，但刷新图时会忽略这些列。正式论文实验还需要在训练流程中彻底停止逐 epoch test evaluation。
+旧实验 CSV 可能仍然包含逐 epoch test 指标，但刷新图时会忽略这些列。当前训练循环已经停止逐 epoch test evaluation；正式论文结果应按新协议重新跑。
 
 ## 3. 单 seed 模型对比图
 
@@ -223,7 +223,8 @@ python summarize_seed_sweep.py \
 
 在开始最终 multi-seed 实验前逐项确认：
 
-- 先完成训练流程改造：test 只在训练完成后对 selected checkpoint 评估一次
+- 确认训练流程：test 只在训练完成后对 selected checkpoint 评估一次
+- summary JSON 记录 `test_evaluation_protocol = selected_checkpoint_only`
 - 比较模型使用相同数据 split 和训练超参数
 - run name 包含 model、dataset 和 seed
 - 单模型 PNG / PDF 可以正常生成

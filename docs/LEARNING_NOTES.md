@@ -866,3 +866,70 @@ MODEL_COLORS = {...}
 都会使用同一套字号、颜色、marker、legend 和 PNG/PDF 输出规则。
 
 这不是改变实验结果，只是统一 visual presentation。论文里这很重要，因为图的风格统一会让读者把注意力放在结果差异上，而不是被格式差异干扰。
+
+## 23. Final holdout protocol 在代码里怎么体现
+
+正式论文实验现在遵守：
+
+```text
+train each epoch
+evaluate validation each epoch
+select checkpoint by validation
+load selected checkpoint
+evaluate test once
+```
+
+这对应到代码结构是：
+
+```python
+for epoch in range(1, args.epochs + 1):
+    train_metrics = train_one_epoch(...)
+    val_metrics = evaluate(...)
+    history.append({
+        "epoch": epoch,
+        "train_loss": train_metrics["loss"],
+        "train_acc": train_metrics["acc"],
+        "val_loss": val_metrics["loss"],
+        "val_acc": val_metrics["acc"],
+    })
+
+model.load_state_dict(best_state_dict)
+selected_test_metrics = evaluate_with_details(...)
+```
+
+注意 `history` 里没有 `test_loss` / `test_acc`。这说明 test 不参与每个 epoch 的观察，也不参与
+checkpoint 选择。test 只作为最终报告指标，存到 summary JSON 的 `selected_model` 下面。
+
+从实验设计角度看，validation 像“开发过程中的裁判”，test 像“最后一次考试”。如果每个 epoch
+都看 test，就算没有用它反向传播，也可能会影响我们人工选择模型，这会让最终结果偏乐观。
+
+## 24. `argparse` 里的开关参数
+
+`run_seed_sweep.py` 里新增了：
+
+```python
+parser.add_argument("--all-models", action="store_true")
+```
+
+这个写法表示：命令行里只要出现 `--all-models`，`args.all_models` 就是 `True`；如果没有出现，
+就是 `False`。
+
+例如：
+
+```bash
+python run_seed_sweep.py --all-models --seeds 42
+```
+
+代码里可以这样判断：
+
+```python
+model_names = list(EXPERIMENT_REGISTRY.keys()) if args.all_models else list(args.models)
+```
+
+意思是：
+
+- 如果用了 `--all-models`，就从 registry 自动拿全部模型
+- 如果没用，就只跑 `--models` 后面手动指定的模型
+
+`--exclude-models` 则是在选好的模型列表里删掉某些模型，例如先排除可能需要下载权重的
+`resnet18_imagenet`。
