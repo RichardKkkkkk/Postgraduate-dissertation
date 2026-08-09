@@ -720,3 +720,262 @@ Initial interpretation:
 1. 运行 tiny subset smoke test，确认 metrics CSV 不再包含逐 epoch test 列。
 2. 在台式机上启动完整 CIFAR-10 multi-seed sweep。
 3. 用统一 publication-style reports 收束论文结果图。
+
+## 2026-08-01 Fixed Split for Final Multi-Seed Sweep
+
+### 已完成
+
+- 新增 `--split-seed`，将 CIFAR-10 train/validation 划分与 training seed 分开。
+- 最终 sweep 固定 `split_seed=42`，training seeds 使用 `42 43 44 45 46`。
+- ViT、ResNet18 scratch 和 ResNet18 ImageNet 的 CIFAR-10 dataloader 使用同一固定 split。
+- config JSON 记录 `split_seed`，方便论文实验审计和复现。
+
+### 当前执行协议
+
+- full CIFAR-10，不使用 subset
+- batch size `128`
+- learning rate `3e-4`
+- weight decay `0.05`
+- early stopping: `val_acc`, patience `10`, min delta `0.001`
+- final holdout test protocol
+- fixed split seed `42`
+- training seeds `42-46`
+
+### 新工作站 smoke test 修正
+
+- 后台 smoke test 发现 Matplotlib 自动选择 Tk backend，但新机环境没有可用 Tcl/Tk。
+- `paper_plotting.py` 现在显式使用无界面的 `Agg` backend，适合长时间后台训练并继续输出 PNG/PDF。
+
+## 2026-08-05 Thesis Comparison Figures v1
+
+### 已完成
+
+- 核查 `cifar10_final_vit_models_5seeds`：32 个 ViT 配置、每个配置 seeds 42-46，共 160 个 summary。
+- 已确认论文候选组使用统一完整 CIFAR-10、固定 `split_seed=42`、batch size 128、learning rate `3e-4`、相同 early stopping 和 `selected_checkpoint_only` test protocol。
+- 新增 `generate_thesis_figures.py`，只读取 summary JSON 中的 `selected_model` 指标。
+- 生成五张候选论文图：
+  - basic PE comparison
+  - paired shift effect
+  - patch-assignment paired deltas
+  - patch-assignment schematic
+  - fusion performance and parameter count
+- 每组同步输出 per-seed CSV、summary CSV、figure captions 和 manifest。
+- fusion 图加入 single-encoder references 和 trainable parameter count，避免忽略 dual-encoder capacity confound。
+
+### 当前结论边界
+
+- 这些图已经可以用于选择论文主文材料，但统计显著性检验尚未加入。
+- Patch-order 和 fusion 是两组独立实验；当前没有 `fusion × patch order` factorial experiment。
+- 旧 `cifar10_positional_8models_5seeds` summary 没有记录 final selected-checkpoint-only protocol，不用于本轮论文图。
+
+### 下一步
+
+1. 确定四张结果图哪些进入主文，哪些移到 Appendix。
+2. 对预先定义的 paired comparisons 决定是否报告 Wilcoxon test、effect size 和区间估计。
+3. 后续补充 method overview、PE construction 和 bidirectional fusion architecture schematic。
+
+### Epoch-based comparison update
+
+- 按论文图需求新增五组以 `Epoch` 为横坐标的 multi-seed validation curves：basic PE、shift、patch assignment accuracy、patch assignment loss 和 fusion。
+- accuracy 与 loss 均来自逐 epoch validation metrics；没有构造逐 epoch test curve。
+- 每条曲线显示五个 seeds 的 mean ± 1 sample SD，并在任一 seed early stop 后停止，保证各 epoch 的样本数固定为五。
+- 原有 selected-checkpoint test 图继续保留，用于报告最终 holdout performance、paired effects 与 fusion capacity confound。
+## 2026-08-07 Dissertation statistics, mapping audit and fixed Word draft
+
+### Completed
+
+- Audited all 160 summaries in `cifar10_final_vit_models_5seeds`: 32 models, seeds 42–46, fixed `split_seed=42`, and `selected_checkpoint_only` test evaluation.
+- Added `generate_thesis_statistics.py` and generated accuracy/loss means, sample SDs, two-sided 95% t intervals, paired seed contrasts and parameter counts.
+- Added the radial model to the first core PE table without changing the eight-model confirmatory boundary.
+- Extracted `fixed_pos_scale` from all five selected hybrid checkpoints; the value varies around zero and is now reported as exploratory evidence.
+- Added deterministic physical-patch → sequence-slot → PE-coordinate mapping tests and a CSV report for all four assignment conventions.
+- Added CIFAR-100 dataset registration, loader, 100-class model construction and registration tests.
+- Added and passed a final-protocol low-data smoke test. A longer low-data command was stopped before producing a summary, and the formal sweep was then intentionally stopped when the working scope was reduced to the 6 August deliverables. No reduced-data result is included in thesis statistics.
+- Added `thesis/tools/build_dissertation.py`. It creates one fixed draft with title page → Abstract → six numbered chapters → unnumbered References, no images or image placeholders, Arial throughout and black text throughout.
+
+### Statistical interpretation frozen for writing
+
+- Five training seeds are not treated as five independent datasets.
+- Main claims use paired effects, interval width and direction consistency.
+- Exact two-sided Wilcoxon with n=5 cannot attain p<0.05; CD diagrams are descriptive only and are not used for a single-dataset significance claim.
+- Negative hybrid, fusion, squared and radial outcomes remain part of the evidence map.
+
+### Current external-state blocker
+
+- `thesis/Yikai_Zhao_MSc_Dissertation.docx` is open in Microsoft Word and is protected by an Office lock file. The rebuilt draft has passed structural font/colour/placeholder checks in a hidden temporary file, but final in-place replacement and Word/PDF/PNG visual QA must wait until the document is closed.
+
+## 2026-08-09 Methodology structure and evidence audit
+
+### Completed
+
+- Replaced the placeholder Methodology chapter in the fixed dissertation file with a nine-section structure covering controlled design, datasets, the shared compact ViT, positional encodings, patch assignment, hybrid/fusion extensions, training, statistics and reproducibility.
+- Added verified initial prose from the implementation and final CIFAR-10 configurations; no methodology figures were inserted.
+- Added `thesis/METHODOLOGY_EVIDENCE_SHEET.md` to map each methodological statement to code, config or generated statistics.
+- Preserved the native ViT Zotero citation and added explicit drafting notes for the missing CIFAR and AdamW records.
+- Verified 20 methodology headings, Arial/black formatting in the edited chapter, 19 unique native Zotero citation fields, six existing equations and three existing drawings.
+
+### Protocol mismatch to resolve
+
+- `run_low_data_sweep.py` and the research plan specify learned versus multiplicative PE at learning rate `3e-4`.
+- Existing 1k/5k four-model result folders use no PE, learned PE, shifted multiplicative PE and the hybrid at learning rate `1e-3`.
+- These results must not be presented as one prespecified protocol. Freeze the final low-data model set and learning rate before finalising Section 3.2.3.
+
+### Next action
+
+1. Review the Methodology chapter one subsection at a time, beginning with Sections 3.1--3.3.
+2. Convert the PE definitions in Section 3.4 into numbered Word equations and a compact method table.
+3. Add the original CIFAR report and AdamW paper to Zotero before final citation numbering.
+
+## 2026-08-09 Methodology dataset and environment tables
+
+### Completed
+
+- Simplified Section 3.2 into a short dataset rationale, a compact CIFAR-10/CIFAR-100 configuration table, shared preprocessing text and a reduced-data protocol paragraph.
+- Added a Section 3.9 workstation/software table recording NVIDIA GeForce RTX 5070 Ti, AMD Ryzen 7 9800X3D, 32 GB RAM, Python 3.11.15, PyTorch 2.12.0+cu130 and Torchvision 0.27.0+cu130.
+- Converted all three current table captions to sequential Word `SEQ Table` fields and explicitly enforced Arial black text within every table.
+- Preserved 19 native Zotero citation fields, six equations and three existing drawings; no new figure was added.
+- Exported the fixed DOCX through Microsoft Word and visually checked the relevant pages. The dataset table now stays together on one page, its headers remain readable, and the environment and results tables have no caption separation or row-splitting problem.
+
+### Evidence still to confirm
+
+- Verify the exact Windows edition/build and confirm that the stated workstation produced every headline result before removing the environment drafting note.
+- Freeze the final reduced-data model set and learning rate before reporting that experiment as prespecified.
+
+## 2026-08-09 Methodology method definitions and native equations
+
+### Completed
+
+- Expanded Sections 3.3--3.6 directly from `models/vit.py`, `models/vit_axis_sinusoidal.py`, `models/unfolding.py` and `models/registry.py`.
+- Added a shared compact-ViT configuration table and a positional-encoding family table without adding any new figure.
+- Added native Word Equations (7)--(16) for the standard sinusoidal schedule, row/column encodings, additive and multiplicative combinations, shifted frequency schedules, squared/radial extensions, patch-to-position mapping, hybrid PE, latent fusion and bidirectional cross-attention.
+- Clarified that the implemented shifted variants offset the row/column frequency exponents rather than translating image coordinates.
+- Kept the PE-family and workstation tables together on single pages and renumbered all five table captions with Word `SEQ Table` fields.
+- Verified the final DOCX structurally and through a 25-page Microsoft Word render: 19 Zotero citation fields, 16 native equations and three pre-existing drawing objects remain present.
+
+### Later refinement
+
+- Inline mathematical variables in the surrounding prose can be standardised during the paragraph-by-paragraph language pass.
+- Method diagrams remain intentionally deferred until the experimental suites and final figure set are frozen.
+
+## 2026-08-09 Literature Review Sections 2.4--2.6
+
+### Completed
+
+- Replaced the drafting notes in Sections 2.4--2.6 with reviewed prose on patch ordering and patch-to-position assignment, compact/data-limited ViT training, and the related-work synthesis and controlled-comparison gap.
+- Distinguished a consistent permutation of tokens and position vectors from reassigning positional coordinates to physical patches.
+- Added and verified literature on Dufter's positional-information overview, LOOPE, the NeurIPS 2025 version of REOrder, DeiT, Compact Transformers, iRPE, CPVT and RoPE-ViT.
+- Corrected REOrder from an earlier arXiv-only description to its NeurIPS 2025 publication; LOOPE remains identified as a 2025 preprint.
+- Added the new sources to the `UCL-dissertation` Zotero collection and inserted native Zotero citation fields in the fixed Word document.
+- Removed the stale Section 2.3.2 drafting note that said CPVT would be discussed later, since Section 2.6 now contains that discussion.
+- Preserved the five tables, all native equations and three existing drawing objects; no figure was added.
+- Structural QA reports 29 Zotero citation fields in total, Arial/black formatting throughout Sections 2.4--2.6 and a valid DOCX package.
+- Rendered the 27-page document through Microsoft Word and visually checked pages 10--14. Headings, citations, page breaks and chapter transition render cleanly.
+
+### Later refinement
+
+- The final bibliography still needs a Zotero refresh after the full citation set is frozen.
+- Section 2.3.2 can later receive a dedicated source for the separable two-dimensional sine--cosine construction if the paragraph-by-paragraph literature pass retains that claim.
+
+## 2026-08-09 Experiments and Results structure
+
+### Completed
+
+- Rebuilt Chapter 4 around the logical sequence of the experimental programme rather than the chronological order in which runs were produced.
+- Added Sections 4.1--4.8 for evaluation conventions, the core PE comparison, shifted schedules, patch-to-position assignment, limited-data performance, CIFAR-100 generalisation, hybrid/fusion extensions and a factual chapter summary.
+- Added seven table frameworks (Tables 5--11) for reporting accuracy, loss, confidence intervals, paired effects, parameter counts and cross-dataset rankings. All numerical cells remain explicitly marked `Pending` until populated from final summary files.
+- Removed obsolete Tier labels, provisional numerical claims, the CADB subsection and duplicated experimental prose from the Word draft; source code and result directories were not modified.
+- Kept causal interpretation out of Chapter 4 and added drafting notes that map each subsection to its required evidence and interpretation boundary.
+- Preserved Arial/black formatting, native Word table numbering, the existing 29 Zotero citation fields, 16 equations and three pre-existing drawings. No new figure was inserted.
+- Rendered the fixed document to 29 pages through Microsoft Word and visually inspected the full document and Chapter 4 pages at full resolution. Split tables repeat their header rows and show no clipping, overlap or caption-separation problems.
+
+### Evidence still to resolve
+
+- Freeze the exact fixed multiplicative comparator and learning rate for the reduced-data experiment before filling Table 9; older single-seed results remain exploratory.
+- Populate Tables 5--11 only from validation-selected, complete five-seed summaries and keep incomplete CIFAR-100 seed sets out of the main comparison.
+
+## 2026-08-09 Provisional Abstract and reduced-data protocol
+
+### Completed
+
+- Rewrote the Abstract as a 231-word provisional account of the problem, controlled study, evaluated model families, datasets, five-seed evaluation protocol and evidence-bounded contribution.
+- Removed all provisional performance claims from the Abstract and added a visible drafting note specifying the four result components to insert after the experimental tables are frozen.
+- Set the Abstract to begin on its own page so that the title page remains separate and the full provisional Abstract fits cleanly on page 2.
+- Froze the reduced-data comparison as learnable absolute PE versus shifted multiplicative PE at the common learning rate specified in Section 3.7.
+- Updated the reduced-data Methodology paragraph, Section 4.5, Table 9 caption, all four comparator rows and the associated evidence note. Earlier single-seed or `1e-3` runs remain explicitly exploratory.
+- Preserved 29 Zotero citation fields, the existing equations and three drawing objects; the Abstract remains citation-free, Arial and black.
+- Rendered all 29 pages through Microsoft Word and visually checked the complete document, with full-resolution review of the title page, Abstract and both pages of Table 9. No clipping, overlap or broken table continuation was found.
+
+### Remaining Abstract evidence
+
+- Add final numerical sentences only after the CIFAR-10, reduced-data and CIFAR-100 tables use complete comparable runs; then remove the Abstract drafting note.
+
+## 2026-08-09 Methodology evidence and cross-reference pass
+
+### Completed
+
+- Added the exact per-channel CIFAR-10 and CIFAR-100 normalisation constants and stated the channel-wise standardisation formula.
+- Clarified that the shared compact ViT uses pre-normalisation residual blocks and recorded both residual updates in Section 3.3.
+- Added Word bookmarks to Equations (7)--(16) and replaced manual equation-number mentions with ten live `REF` fields.
+- Defined the hybrid coefficient `alpha` as the fixed-position scale, linked it to the implementation name `fixed_pos_scale`, and retained `alpha_0 = 0` as its initial value.
+- Added the exact trainable parameter counts for the three latent-fusion variants and two bidirectional cross-attention variants, with the single fixed-PE encoder as the capacity reference.
+- Replaced the three Methodology drafting notes with verified CIFAR and AdamW Zotero citations plus an evidence-bounded environment and reproducibility statement.
+- Added Windows build and repository base-revision information to Table 4 while explicitly distinguishing the current draft environment from historical per-run provenance.
+- Preserved the Methodology structure and prose style; no figure was inserted and no experimental result was changed.
+- Structural QA confirms 31 native Zotero citation fields, ten equation `REF` fields, bookmarks for Equations (7)--(16), and no remaining Methodology drafting note.
+- Rendered the 29-page document through Microsoft Word and visually checked the complete document plus Methodology pages 14--21 at full resolution. Equation references, tables, citations and the Chapter 4 transition render without clipping or broken pagination.
+
+### Next action
+
+- Populate Chapter 4 tables from frozen, validation-selected summary files before adding any result figure.
+
+## 2026-08-09 Chapter 4 frozen-result table pass
+
+### Completed
+
+- Populated Tables 6--8 from the validation-selected five-seed CIFAR-10 summaries, including trainable parameters, test accuracy, test loss and 95% confidence intervals.
+- Populated the Full-data reference rows in Table 9 and retained the 1,000-, 5,000- and 10,000-example rows as `Pending` because their frozen five-seed suite is not yet complete.
+- Retained Table 10 as `Pending` rather than mixing an incomplete CIFAR-100 seed set into the cross-dataset ranking.
+- Expanded Table 11 to report the order-matched hybrid comparison, all five dual-branch fusion variants, two squared variants and radial PE separately.
+- Added paired effects and intervals for shifted variants, learnable versus shifted multiplicative PE, the order-matched hybrid comparison and learnable PE versus the best fusion model.
+- Reported the selected-checkpoint hybrid fixed-position scale across all five seeds and kept capacity differences visible for every fusion result.
+- Replaced Chapter 4 drafting notes with factual, evidence-bounded observations; unresolved low-data and CIFAR-100 cells remain explicitly marked rather than inferred.
+- Restored the automatic `SEQ Table` field for Table 6, updated all eleven table-number fields and kept split-table header repetition.
+- Rendered the 30-page document through Microsoft Word and visually inspected Chapter 4 pages 22--27. Table 6 repeats its header after the page break, Table 11 remains readable on one page, captions are numbered correctly, and Section 4.8 begins cleanly on page 27.
+
+### Remaining experiment evidence
+
+- Complete the frozen five-seed 1,000-, 5,000- and 10,000-example comparison before replacing the remaining Table 9 cells.
+- Complete all four pre-selected CIFAR-100 models across five seeds before populating Table 10 or making cross-dataset claims.
+- Add result figures only after those tables and the final model ranking are frozen.
+
+## 2026-08-09 Formula, figure and dense-table QA
+
+### Completed
+
+- Rechecked all 16 native Word equations against the implemented ViT, positional-encoding, unfolding, hybrid and fusion code paths.
+- Replaced the ambiguous element-wise-square superscript in Equation (12) with the conventional square notation while retaining the prose definition of an element-wise operation.
+- Clarified the shifted row/column frequency construction, the distinction between physical patch coordinates and assigned PE coordinates around Equation (13), and the one-head versus four-head scope of Equation (16).
+- Added the missing set braces and readable modulo spacing in Equation (13), and formatted nearby mathematical variables with italic, subscript and superscript styling.
+- Rebuilt the mathematical entries in Table 3 with real subscript/superscript runs; removed stretched justified spacing from Table 11 and raised its minimum font size to 8 pt.
+- Enlarged Figure 2 within the text width and standardised all three figure captions as centred, bold italic Arial text.
+- Structural QA confirms that all 16 equations, Equation (7)--(16) bookmarks, ten live equation `REF` fields, eleven automatic table-number fields and three inline figures remain intact.
+
+### Visual QA note
+
+- The last successful 30-page Word render was reviewed at full resolution for the formula, figure and dense-table pages before these targeted fixes. A final repeat PDF export was blocked because the current Windows session has no default printer; Word opened the revised document successfully, but its PDF rendering call did not return. The revised DOCX package passes structural validation, and no background Word process was left running.
+
+## 2026-08-10 Terminology and contrast-language pass
+
+### Completed
+
+- Removed the undefined adjective `compact` from the dissertation title and general descriptions of the evaluated ViT; the architecture is now identified directly through its explicit configuration.
+- Retained `Compact Transformers` only where it is the formal name of the cited method by Hassani et al.
+- Replaced every use of `whereas` with shorter sentences, direct comparison or semicolon-based coordination while preserving the original technical meaning.
+- Renamed Section 2.5 to `Data-Efficient and Data-Limited ViT Training` and Section 3.3 to `Shared Vision Transformer Architecture`.
+- Updated the title to `A Controlled Evaluation of Positional Encoding in Vision Transformers for Low-Resolution Image Classification` and shortened the running header accordingly.
+- Verified the DOCX package and restored the automatic Table 2 numbering field and Equation (13) cross-reference after the run-level wording edit.
+- Structural QA confirms 31 Zotero citation fields, ten live equation `REF` fields, eleven automatic table-number fields, three figures and eleven tables.
+
+### Render note
+
+- The bundled DOCX renderer could not run because LibreOffice/`soffice` is not installed in the current workspace runtime. The changes are short inline replacements and passed structural validation; no claim of a new full-page render is made for this pass.
