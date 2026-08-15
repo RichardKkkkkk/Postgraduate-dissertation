@@ -518,6 +518,7 @@ def save_config_json(args, model_config, train_size, val_size, test_size, device
             "test_subset": args.test_subset,
             "val_ratio": args.val_ratio,
             "seed": args.seed,
+            "split_seed": getattr(args, "split_seed", None),
             "num_workers": args.num_workers,
             "early_stopping_patience": args.early_stopping_patience,
             "early_stopping_min_delta": args.early_stopping_min_delta,

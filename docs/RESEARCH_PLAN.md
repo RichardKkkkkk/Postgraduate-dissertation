@@ -181,6 +181,7 @@ run_name = cifar10ext_<model_name>_seed42
 1. 先用 tiny subset smoke test 确认 final holdout 输出结构。
 2. 在完整 CIFAR-10 上按统一协议重跑所有已注册模型：
    - seeds: `42 43 44 45 46`
+   - fixed train/validation split seed: `42`
    - epochs: `100`
    - batch size: `128`
    - learning rate: `3e-4`
@@ -405,3 +406,127 @@ test 不画逐 epoch 曲线。正式重跑前的 gate：
 5. 再启动最终模型的 multi-seed 实验。
 
 当前已有 seed42 结果只用于检查图形规范和筛选候选模型，不直接作为最终论文统计结论。
+
+## 论文图的最终分组计划
+
+论文结果不使用 32 模型的单一总排名作为主叙事。主文按研究问题拆为四组：
+
+1. **Basic PE**：No PE、learnable、row-only、column-only、additive、multiplicative。
+2. **Shift effect**：additive shifted-minus-unshifted 与 multiplicative shifted-minus-unshifted。
+3. **Patch-to-position assignment**：No PE、learnable、row、column 和 multiplicative 在四种 assignment 下的配对变化。
+4. **Fusion**：五种 row/column fusion，并加入 row-only、column-only、learnable references 与参数量。
+
+图形证据使用：
+
+- epoch-based validation accuracy / loss curves（mean ± pointwise 95% t CI）
+- individual seed points
+- mean ± 95% t confidence interval for final five-seed summaries
+- paired percentage-point differences when the same seeds are available
+- selected-checkpoint-only test accuracy
+
+主文计划保留：
+
+- 一张 experimental design overview
+- 一张 PE construction / coordinate convention 图
+- 一张 basic PE 结果图
+- 一张 shift paired-effect 图
+- 一张 patch assignment schematic 与一张 interaction result 图
+- 一张 bidirectional fusion architecture 图
+- 一张 capacity-aware fusion result 图
+
+主文的 basic PE、shift、patch assignment 和 fusion 对比优先使用 `Epoch`—validation
+accuracy/loss 曲线展示训练动态，并用 selected-checkpoint-only test 点图、配对差值或表格
+报告最终泛化表现。Patch assignment 的 loss 曲线可在正文空间不足时移至 Appendix。
+
+完整排名、per-class metrics、confusion matrices、非核心模型的全部训练曲线、radial、squared 和 hybrid 默认放 Appendix。后续第二数据集和 low-data 结果只有在协议完整后再增加主文图位。
+## 2026-08-07 MSc dissertation execution plan
+
+### Frozen story line
+
+The thesis is a controlled empirical evaluation, not a proposal for a universally new Transformer architecture. Its evidence chain is: PE necessity → row/column construction → patch-to-position correctness → data-regime and dataset generalisation → hybrid/fusion complexity boundaries.
+
+### Experiment priority
+
+1. **Completed evidence consolidation:** 160 CIFAR-10 summaries, five-seed t intervals, paired contrasts, parameter counts and hybrid scale.
+2. **Completed implementation check:** deterministic mapping test for `normal_row`, `normal_col`, `proper_row` and `proper_col`.
+3. **Prepared, not running on 6 August:** learned versus multiplicative PE at 1k, 5k and 10k training examples, seeds 42–46. Full-data results will be reused from the final experiment.
+4. **Prepared:** CIFAR-100 loader and 100-class model interface. Run no PE, learned, shifted additive and shifted multiplicative with seeds 42–46 after the dataset gate.
+5. **No additional runs before the draft deadline:** fusion. Interpret it with parameter count and the capacity confound.
+
+### Writing order
+
+Methodology → Experiments and Results → Analysis and Discussion → Literature Review → Introduction → Conclusion → Abstract.
+
+The fixed Word draft follows this structure:
+
+1. Title Page
+2. Abstract
+3. Introduction
+4. Literature Review
+5. Methodology
+6. Experiments and Results
+7. Analysis and Discussion
+8. Conclusion
+9. References (unnumbered)
+
+No figures or figure placeholders are included in the current draft. Incomplete low-data and cross-dataset suites are described with explicit evidence-status prose and no partial result claims.
+
+## 2026-08-12 Frozen selected-test evidence set
+
+The low-data CIFAR-10 matrix was rerun for four models at 1k, 5k and 10k
+training examples using seeds 42--46 and `lr=3e-4` (60 runs). The four-model
+CIFAR-100 suite was also rerun with seeds 42--46 and `lr=3e-4` (20 runs). These
+80 summaries use the selected-checkpoint-only test protocol.
+
+The final paper-facing result set is now selected-test-first: a nine-model core
+table plus core PE, patch assignment, low-data, CIFAR-100, fusion capacity,
+paired shift and per-class recall figures. Validation epoch curves may describe
+optimisation behaviour but must not determine relative performance claims.
+
+An automated gate confirms that the new 1k/5k/10k experiments and existing
+full-data CIFAR-10 references share the learning rate, scheduler, augmentation,
+normalisation, split seed, batch size, weight decay, early stopping, registered
+model identifiers and test protocol. Full-data may therefore appear as the
+fourth point in the new data-size comparison. Across low-data seeds, both the
+sampled subset and stochastic training vary; within each seed, all four models
+share the same subset.
+
+The earlier `lr=1e-3` low-data and CIFAR-100 results remain exploratory and are
+not sources for the frozen thesis table or headline figures. The current Word
+draft contains values inserted before the `lr3e4` rerun and must be updated in a
+separate, visually verified document pass after the new figures are approved.
+
+## 2026-08-12 Final figure evidence split
+
+The final presentation separates training behaviour from final performance.
+Six main figures show five-seed validation trajectories against epoch for core
+PE, shifted PE, patch assignment, low-data, CIFAR-100 and fusion. Pointwise
+bands are 95% t intervals and each condition stops at its five-seed common epoch.
+
+Selected-checkpoint test accuracy and loss tables remain the source for relative
+performance conclusions. Paired shift effects, patch-assignment test deltas,
+fusion capacity and per-class recall remain auxiliary test analyses. This avoids
+test-over-epoch plots and prevents validation trajectories from being used as
+the ultimate ranking evidence.
+
+## 2026-08-13 Coordinate-preserving unfolding correction
+
+The historical unfolding experiment is retained and explicitly described as
+sequence-slot assignment: changing token order also changed which fixed PE
+coordinate was assigned to a physical patch. A new coordinate-aligned branch
+permutes physical patch tokens and their fixed PE vectors together while leaving
+the CLS token untouched.
+
+The controlled matrix covers row, column, additive, multiplicative and radial
+fixed PE under row-major, column-major and two serpentine orders. Protocol-matched
+normal-row runs can be reused because coordinate-aligned and sequence-slot
+assignment are identical for the identity permutation. The remaining 75 runs
+must be written to `cifar10_coordinate_aligned_unfolding_5seeds` and reported
+separately from the legacy assignment statistics.
+
+If trained models differ materially across coordinate-aligned unfoldings, that
+is not evidence that the forward function represents different spatial inputs:
+the same-weight audit establishes near-equivalence. Such differences would
+instead reflect finite optimisation stochasticity. Conversely, forward
+equivalence does not imply that independently trained runs must have identical
+selected-test metrics.

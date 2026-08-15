@@ -12,6 +12,10 @@ from datasets.cadb_data import (
     build_cadb_scene_dataloaders,
 )
 from datasets.cifar10_data import build_resnet_dataloaders, build_vit_dataloaders
+from datasets.cifar100_data import (
+    build_resnet_dataloaders as build_cifar100_resnet_dataloaders,
+    build_vit_dataloaders as build_cifar100_vit_dataloaders,
+)
 from datasets.synthetic_orientation_data import (
     build_synthetic_col_code_dataloaders,
     build_synthetic_orientation_clean_dataloaders,
@@ -57,6 +61,7 @@ class ExperimentSpec:
 EXPERIMENT_REGISTRY: dict[str, ExperimentSpec] = {}
 SUPPORTED_DATASETS = (
     "cifar10",
+    "cifar100",
     "synthetic_orientation",
     "synthetic_orientation_clean",
     "synthetic_orientation_hard",
@@ -68,6 +73,7 @@ SUPPORTED_DATASETS = (
 )
 DATASET_NUM_CLASSES = {
     "cifar10": 10,
+    "cifar100": 100,
     "synthetic_orientation": 2,
     "synthetic_orientation_clean": 2,
     "synthetic_orientation_hard": 2,
@@ -79,6 +85,7 @@ DATASET_NUM_CLASSES = {
 }
 DATASET_DEFAULT_IMAGE_SIZE = {
     "cifar10": 32,
+    "cifar100": 32,
     "synthetic_orientation": 32,
     "synthetic_orientation_clean": 32,
     "synthetic_orientation_hard": 32,
@@ -90,6 +97,7 @@ DATASET_DEFAULT_IMAGE_SIZE = {
 }
 DATASET_DISPLAY_NAMES = {
     "cifar10": "CIFAR-10",
+    "cifar100": "CIFAR-100",
     "synthetic_orientation": "Synthetic Orientation",
     "synthetic_orientation_clean": "Synthetic Orientation Clean",
     "synthetic_orientation_hard": "Synthetic Orientation Hard",
@@ -139,6 +147,12 @@ def build_vit_model_config(args):
 def build_vit_model_config_with_unfolding(args, unfolding):
     model_config = build_vit_model_config(args)
     model_config["unfolding"] = unfolding
+    return model_config
+
+
+def build_vit_fixed_pe_config(args, unfolding, position_assignment="sequence_slot"):
+    model_config = build_vit_model_config_with_unfolding(args, unfolding)
+    model_config["position_assignment"] = position_assignment
     return model_config
 
 
@@ -273,6 +287,25 @@ UNFOLDING_MODEL_CLASSES = {
 }
 
 
+COORDINATE_ALIGNED_UNFOLDING_MODEL_CLASSES = {
+    "row_sinusoidal": UNFOLDING_MODEL_CLASSES["row_sinusoidal"],
+    "col_sinusoidal": UNFOLDING_MODEL_CLASSES["col_sinusoidal"],
+    "additive_sinusoidal": {
+        "class": ViTAdditiveSinusoidal,
+        "variant": "additive_sinusoidal",
+        "plot_title": "ViT Additive Sinusoidal",
+        "position_encoding": "additive_sinusoidal",
+    },
+    "multiplicative_sinusoidal": UNFOLDING_MODEL_CLASSES["multiplicative_sinusoidal"],
+    "radial_sinusoidal": {
+        "class": ViTRadialSinusoidal,
+        "variant": "radial_sinusoidal",
+        "plot_title": "ViT Radial Sinusoidal",
+        "position_encoding": "radial_sinusoidal",
+    },
+}
+
+
 UNFOLDING_DISPLAY_NAMES = {
     "normal_col": "Normal Column",
     "proper_row": "Proper Row",
@@ -288,6 +321,18 @@ def make_unfolding_model_builder(model_class, unfolding):
     return build_model
 
 
+def make_coordinate_aligned_unfolding_model_builder(model_class, unfolding):
+    def build_model(args):
+        model_config = build_vit_fixed_pe_config(
+            args,
+            unfolding,
+            position_assignment="coordinate_aligned",
+        )
+        return model_class(**model_config), model_config
+
+    return build_model
+
+
 def build_vit_family_dataloaders(args):
     if args.dataset == "cifar10":
         return build_vit_dataloaders(
@@ -298,6 +343,19 @@ def build_vit_family_dataloaders(args):
             test_subset=args.test_subset,
             num_workers=args.num_workers,
             seed=args.seed,
+            split_seed=args.split_seed,
+            val_ratio=args.val_ratio,
+        )
+    if args.dataset == "cifar100":
+        return build_cifar100_vit_dataloaders(
+            data_dir=args.data_dir,
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            split_seed=args.split_seed,
             val_ratio=args.val_ratio,
         )
     if args.dataset == "synthetic_orientation":
@@ -472,6 +530,21 @@ def build_resnet18_scratch_dataloaders(args):
             test_subset=args.test_subset,
             num_workers=args.num_workers,
             seed=args.seed,
+            split_seed=args.split_seed,
+            val_ratio=args.val_ratio,
+            image_size=image_size,
+            use_imagenet_norm=False,
+        )
+    if args.dataset == "cifar100":
+        return build_cifar100_resnet_dataloaders(
+            data_dir=args.data_dir,
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            split_seed=args.split_seed,
             val_ratio=args.val_ratio,
             image_size=image_size,
             use_imagenet_norm=False,
@@ -600,6 +673,20 @@ def build_resnet18_scratch_dataloaders(args):
 
 def build_resnet18_imagenet_dataloaders(args):
     image_size = args.image_size or 224
+    if args.dataset == "cifar100":
+        return build_cifar100_resnet_dataloaders(
+            data_dir=args.data_dir,
+            batch_size=args.batch_size,
+            train_subset=args.train_subset,
+            val_subset=args.val_subset,
+            test_subset=args.test_subset,
+            num_workers=args.num_workers,
+            seed=args.seed,
+            split_seed=args.split_seed,
+            val_ratio=args.val_ratio,
+            image_size=image_size,
+            use_imagenet_norm=True,
+        )
     if args.dataset == "cadb_orientation":
         return build_cadb_orientation_dataloaders(
             cadb_root=args.cadb_root or (args.data_dir / "CADB_Dataset"),
@@ -635,7 +722,10 @@ def build_resnet18_imagenet_dataloaders(args):
     if args.dataset in {"synthetic_orientation", "synthetic_orientation_clean", "synthetic_orientation_hard", "synthetic_row_code", "synthetic_col_code"}:
         raise ValueError("resnet18_imagenet currently supports only cifar10, cadb_orientation, and cadb_scene.")
     if args.dataset != "cifar10":
-        raise ValueError("resnet18_imagenet currently supports only cifar10, cadb_orientation, and cadb_scene.")
+        raise ValueError(
+            "resnet18_imagenet currently supports only cifar10, cifar100, "
+            "cadb_orientation, and cadb_scene."
+        )
     return build_resnet_dataloaders(
         data_dir=args.data_dir,
         batch_size=args.batch_size,
@@ -644,6 +734,7 @@ def build_resnet18_imagenet_dataloaders(args):
         test_subset=args.test_subset,
         num_workers=args.num_workers,
         seed=args.seed,
+        split_seed=args.split_seed,
         val_ratio=args.val_ratio,
         image_size=image_size,
         use_imagenet_norm=True,
@@ -698,7 +789,11 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_row_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "row_sinusoidal", "unfolding": "normal_row"},
+        extra_summary_fields={
+            "position_encoding": "row_sinusoidal",
+            "unfolding": "normal_row",
+            "position_assignment": "sequence_slot",
+        },
     )
 )
 
@@ -711,7 +806,11 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_col_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "col_sinusoidal", "unfolding": "normal_row"},
+        extra_summary_fields={
+            "position_encoding": "col_sinusoidal",
+            "unfolding": "normal_row",
+            "position_assignment": "sequence_slot",
+        },
     )
 )
 
@@ -724,7 +823,11 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_radial_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "radial_sinusoidal"},
+        extra_summary_fields={
+            "position_encoding": "radial_sinusoidal",
+            "unfolding": "normal_row",
+            "position_assignment": "sequence_slot",
+        },
     )
 )
 
@@ -737,7 +840,11 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_additive_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "additive_sinusoidal"},
+        extra_summary_fields={
+            "position_encoding": "additive_sinusoidal",
+            "unfolding": "normal_row",
+            "position_assignment": "sequence_slot",
+        },
     )
 )
 
@@ -763,7 +870,11 @@ register_experiment(
         defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
         build_model=build_vit_multiplicative_sinusoidal_model,
         build_dataloaders=build_vit_family_dataloaders,
-        extra_summary_fields={"position_encoding": "multiplicative_sinusoidal", "unfolding": "normal_row"},
+        extra_summary_fields={
+            "position_encoding": "multiplicative_sinusoidal",
+            "unfolding": "normal_row",
+            "position_assignment": "sequence_slot",
+        },
     )
 )
 
@@ -796,6 +907,37 @@ for unfolding_name, unfolding_display_name in UNFOLDING_DISPLAY_NAMES.items():
                 extra_summary_fields={
                     "position_encoding": model_info["position_encoding"],
                     "unfolding": unfolding_name,
+                    "position_assignment": "sequence_slot",
+                },
+            )
+        )
+
+
+for unfolding_name in ("normal_row", "normal_col", "proper_row", "proper_col"):
+    unfolding_display_name = {
+        "normal_row": "Normal Row",
+        "normal_col": "Normal Column",
+        "proper_row": "Proper Row",
+        "proper_col": "Proper Column",
+    }[unfolding_name]
+    for model_suffix, model_info in COORDINATE_ALIGNED_UNFOLDING_MODEL_CLASSES.items():
+        register_experiment(
+            ExperimentSpec(
+                model_name=f"vit_ca_{unfolding_name}_{model_suffix}",
+                architecture="vit",
+                variant=f"coordinate_aligned_{unfolding_name}_{model_info['variant']}",
+                plot_title_prefix=model_info["plot_title"].replace(
+                    "ViT ", f"ViT Coordinate-Aligned {unfolding_display_name} ", 1
+                ),
+                defaults={"batch_size": 128, "lr": 3e-4, "weight_decay": 0.05},
+                build_model=make_coordinate_aligned_unfolding_model_builder(
+                    model_info["class"], unfolding_name
+                ),
+                build_dataloaders=build_vit_family_dataloaders,
+                extra_summary_fields={
+                    "position_encoding": model_info["position_encoding"],
+                    "unfolding": unfolding_name,
+                    "position_assignment": "coordinate_aligned",
                 },
             )
         )

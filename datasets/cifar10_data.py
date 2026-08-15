@@ -56,6 +56,7 @@ def build_vit_dataloaders(
     num_workers,
     seed,
     val_ratio,
+    split_seed=None,
 ):
     transform_train = transforms.Compose(
         [
@@ -80,6 +81,7 @@ def build_vit_dataloaders(
         test_subset=test_subset,
         num_workers=num_workers,
         seed=seed,
+        split_seed=split_seed,
         val_ratio=val_ratio,
         train_transform=transform_train,
         eval_transform=transform_test,
@@ -95,6 +97,7 @@ def build_resnet_dataloaders(
     num_workers,
     seed,
     val_ratio,
+    split_seed,
     image_size,
     use_imagenet_norm,
 ):
@@ -125,6 +128,7 @@ def build_resnet_dataloaders(
         test_subset=test_subset,
         num_workers=num_workers,
         seed=seed,
+        split_seed=split_seed,
         val_ratio=val_ratio,
         train_transform=transform_train,
         eval_transform=transform_test,
@@ -139,6 +143,7 @@ def build_cifar10_split_loaders(
     test_subset,
     num_workers,
     seed,
+    split_seed,
     val_ratio,
     train_transform,
     eval_transform,
@@ -162,10 +167,11 @@ def build_cifar10_split_loaders(
         transform=eval_transform,
     )
 
+    effective_split_seed = seed if split_seed is None else split_seed
     train_indices, val_indices = split_train_val_indices(
         dataset_size=len(full_train_dataset),
         val_ratio=val_ratio,
-        seed=seed,
+        seed=effective_split_seed,
     )
     train_dataset = Subset(full_train_dataset, train_indices)
     val_dataset = Subset(full_val_dataset, val_indices)

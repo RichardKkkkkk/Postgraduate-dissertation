@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1180" viewBox="0 0 1600 1180" role="img" aria-labelledby="title desc">
+  <title id="title">Row-column fusion architectures</title>
+  <desc id="desc">An input image is processed by separate row-wise and column-wise positional encoding branches. Their CLS representations are combined by mean, mean plus MLP, or concatenation plus MLP. Full token sequences are also combined by bidirectional cross-attention before linear or MLP classification heads.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4F81BD"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#C47A19"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #111111; }
+      .heading { font-size: 24px; font-weight: 700; }
+      .label { font-size: 20px; font-weight: 700; }
+      .body { font-size: 18px; }
+      .small { font-size: 16px; }
+      .tiny { font-size: 15px; }
+      .node { stroke-width: 2.4; }
+      .arrow { fill: none; stroke: #555555; stroke-width: 2.8; marker-end: url(#arrow); }
+      .branch-line { fill: none; stroke: #555555; stroke-width: 2.8; }
+      .row-context { fill: none; stroke: #4F81BD; stroke-width: 2.8; stroke-dasharray: 9 7; marker-end: url(#arrow-blue); }
+      .col-context { fill: none; stroke: #C47A19; stroke-width: 2.8; stroke-dasharray: 9 7; marker-end: url(#arrow-orange); }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1180" fill="#FFFFFF"/>
+
+  <!-- Shared input and two independent encoder branches -->
+  <rect x="650" y="28" width="300" height="64" rx="12" fill="#F2F2F2" stroke="#666666" class="node"/>
+  <text x="800" y="68" text-anchor="middle" class="label">Input image x</text>
+
+  <path d="M800 92 V120 H400 V145" class="branch-line" marker-end="url(#arrow)"/>
+  <path d="M800 92 V120 H1200 V145" class="branch-line" marker-end="url(#arrow)"/>
+
+  <rect x="245" y="145" width="310" height="82" rx="12" fill="#DCEBFA" stroke="#4F81BD" class="node"/>
+  <text x="400" y="178" text-anchor="middle" class="label">Patch embedding</text>
+  <text x="400" y="207" text-anchor="middle" class="body">+ row-wise PE</text>
+
+  <rect x="1045" y="145" width="310" height="82" rx="12" fill="#FDE9D4" stroke="#C47A19" class="node"/>
+  <text x="1200" y="178" text-anchor="middle" class="label">Patch embedding</text>
+  <text x="1200" y="207" text-anchor="middle" class="body">+ column-wise PE</text>
+
+  <path d="M400 227 V257" class="arrow"/>
+  <path d="M1200 227 V257" class="arrow"/>
+
+  <rect x="225" y="257" width="350" height="90" rx="12" fill="#DCEBFA" stroke="#4F81BD" class="node"/>
+  <text x="400" y="291" text-anchor="middle" class="label">Row branch</text>
+  <text x="400" y="321" text-anchor="middle" class="body">Pre-norm ViT encoder × 4</text>
+
+  <rect x="1025" y="257" width="350" height="90" rx="12" fill="#FDE9D4" stroke="#C47A19" class="node"/>
+  <text x="1200" y="291" text-anchor="middle" class="label">Column branch</text>
+  <text x="1200" y="321" text-anchor="middle" class="body">Pre-norm ViT encoder × 4</text>
+
+  <text x="800" y="302" text-anchor="middle" class="small" fill="#555555">same architecture, independent parameters</text>
+
+  <path d="M400 347 V377" class="arrow"/>
+  <path d="M1200 347 V377" class="arrow"/>
+
+  <rect x="230" y="377" width="340" height="88" rx="10" fill="#EEF5FC" stroke="#4F81BD" class="node"/>
+  <text x="400" y="410" text-anchor="middle" class="body">Token sequence Z<tspan baseline-shift="sub" font-size="13">r</tspan> ∈ ℝ<tspan baseline-shift="super" font-size="13">65 × 128</tspan></text>
+  <text x="400" y="441" text-anchor="middle" class="body">CLS vector h<tspan baseline-shift="sub" font-size="13">r</tspan> = Z<tspan baseline-shift="sub" font-size="13">r</tspan>[CLS]</text>
+
+  <rect x="1030" y="377" width="340" height="88" rx="10" fill="#FFF4E7" stroke="#C47A19" class="node"/>
+  <text x="1200" y="410" text-anchor="middle" class="body">Token sequence Z<tspan baseline-shift="sub" font-size="13">c</tspan> ∈ ℝ<tspan baseline-shift="super" font-size="13">65 × 128</tspan></text>
+  <text x="1200" y="441" text-anchor="middle" class="body">CLS vector h<tspan baseline-shift="sub" font-size="13">c</tspan> = Z<tspan baseline-shift="sub" font-size="13">c</tspan>[CLS]</text>
+
+  <!-- Connections to the two lower panels -->
+  <path d="M400 465 V498 H380 V540" class="branch-line" marker-end="url(#arrow)"/>
+  <path d="M1200 465 V498 H640 V540" class="branch-line" marker-end="url(#arrow)"/>
+  <path d="M400 465 V510 H1035 V540" class="branch-line" marker-end="url(#arrow)"/>
+  <path d="M1200 465 V540" class="arrow"/>
+
+  <!-- Panel A: aggregation-based fusion -->
+  <rect x="35" y="520" width="770" height="625" rx="16" fill="#FFFFFF" stroke="#A6A6A6" stroke-width="2.2"/>
+  <text x="420" y="560" text-anchor="middle" class="heading">(a) Aggregation-based fusion</text>
+  <text x="420" y="590" text-anchor="middle" class="small">Uses the two CLS vectors h<tspan baseline-shift="sub" font-size="12">r</tspan> and h<tspan baseline-shift="sub" font-size="12">c</tspan></text>
+
+  <!-- Mean -->
+  <text x="160" y="632" text-anchor="middle" class="label">Mean</text>
+  <rect x="68" y="654" width="184" height="72" rx="10" fill="#FFF2CC" stroke="#C9A227" class="node"/>
+  <text x="160" y="684" text-anchor="middle" class="body">h = (h<tspan baseline-shift="sub" font-size="13">r</tspan> + h<tspan baseline-shift="sub" font-size="13">c</tspan>) / 2</text>
+  <text x="160" y="710" text-anchor="middle" class="small">128 dimensions</text>
+  <path d="M160 726 V768" class="arrow"/>
+  <rect x="68" y="768" width="184" height="62" rx="10" fill="#D9EAD3" stroke="#6AA84F" class="node"/>
+  <text x="160" y="794" text-anchor="middle" class="body">Linear</text>
+  <text x="160" y="819" text-anchor="middle" class="small">128 → K classes</text>
+  <text x="160" y="861" text-anchor="middle" class="small">1.601 M parameters</text>
+
+  <!-- Mean + MLP -->
+  <text x="420" y="632" text-anchor="middle" class="label">Mean + MLP</text>
+  <rect x="318" y="654" width="204" height="72" rx="10" fill="#FFF2CC" stroke="#C9A227" class="node"/>
+  <text x="420" y="684" text-anchor="middle" class="body">h = (h<tspan baseline-shift="sub" font-size="13">r</tspan> + h<tspan baseline-shift="sub" font-size="13">c</tspan>) / 2</text>
+  <text x="420" y="710" text-anchor="middle" class="small">128 dimensions</text>
+  <path d="M420 726 V758" class="arrow"/>
+  <rect x="304" y="758" width="232" height="98" rx="10" fill="#E7EEF8" stroke="#6D9EEB" class="node"/>
+  <text x="420" y="785" text-anchor="middle" class="small">LayerNorm</text>
+  <text x="420" y="810" text-anchor="middle" class="small">Linear 128 → 512 → GELU</text>
+  <text x="420" y="835" text-anchor="middle" class="small">Linear 512 → 128</text>
+  <path d="M420 856 V888" class="arrow"/>
+  <rect x="318" y="888" width="204" height="62" rx="10" fill="#D9EAD3" stroke="#6AA84F" class="node"/>
+  <text x="420" y="914" text-anchor="middle" class="body">Linear</text>
+  <text x="420" y="939" text-anchor="middle" class="small">128 → K classes</text>
+  <text x="420" y="981" text-anchor="middle" class="small">1.733 M parameters</text>
+
+  <!-- Concat + MLP -->
+  <text x="680" y="632" text-anchor="middle" class="label">Concat + MLP</text>
+  <rect x="578" y="654" width="204" height="72" rx="10" fill="#FFF2CC" stroke="#C9A227" class="node"/>
+  <text x="680" y="684" text-anchor="middle" class="body">h = [h<tspan baseline-shift="sub" font-size="13">r</tspan> ; h<tspan baseline-shift="sub" font-size="13">c</tspan>]</text>
+  <text x="680" y="710" text-anchor="middle" class="small">256 dimensions</text>
+  <path d="M680 726 V758" class="arrow"/>
+  <rect x="564" y="758" width="232" height="98" rx="10" fill="#E7EEF8" stroke="#6D9EEB" class="node"/>
+  <text x="680" y="785" text-anchor="middle" class="small">LayerNorm</text>
+  <text x="680" y="810" text-anchor="middle" class="small">Linear 256 → 512 → GELU</text>
+  <text x="680" y="835" text-anchor="middle" class="small">Linear 512 → 128</text>
+  <path d="M680 856 V888" class="arrow"/>
+  <rect x="578" y="888" width="204" height="62" rx="10" fill="#D9EAD3" stroke="#6AA84F" class="node"/>
+  <text x="680" y="914" text-anchor="middle" class="body">Linear</text>
+  <text x="680" y="939" text-anchor="middle" class="small">128 → K classes</text>
+  <text x="680" y="981" text-anchor="middle" class="small">1.799 M parameters</text>
+
+  <!-- Panel B: bidirectional cross-attention -->
+  <rect x="835" y="520" width="730" height="625" rx="16" fill="#FFFFFF" stroke="#A6A6A6" stroke-width="2.2"/>
+  <text x="1200" y="560" text-anchor="middle" class="heading">(b) Bidirectional cross-attention fusion</text>
+  <text x="1200" y="590" text-anchor="middle" class="small">Each token sequence is updated using information from the other branch</text>
+
+  <!-- Full token sequences entering the two directional updates -->
+  <rect x="890" y="610" width="282" height="66" rx="10" fill="#EEF5FC" stroke="#4F81BD" class="node"/>
+  <text x="1031" y="637" text-anchor="middle" class="body">Row-branch token sequence Z<tspan baseline-shift="sub" font-size="13">r</tspan></text>
+  <text x="1031" y="661" text-anchor="middle" class="small">65 × 128</text>
+
+  <rect x="1228" y="610" width="282" height="66" rx="10" fill="#FFF4E7" stroke="#C47A19" class="node"/>
+  <text x="1369" y="637" text-anchor="middle" class="body">Column-branch token sequence Z<tspan baseline-shift="sub" font-size="13">c</tspan></text>
+  <text x="1369" y="661" text-anchor="middle" class="small">65 × 128</text>
+
+  <path d="M1031 676 V704" class="arrow"/>
+  <path d="M1369 676 V704" class="arrow"/>
+  <path d="M1275 676 C1200 687 1145 690 1114 707" class="col-context"/>
+  <path d="M1125 676 C1200 687 1255 690 1286 707" class="row-context"/>
+
+  <!-- Stage 1: cross-attention with the original branch residual -->
+  <rect x="894" y="704" width="274" height="84" rx="10" fill="#F4CCCC" stroke="#C0504D" class="node"/>
+  <text x="1031" y="733" text-anchor="middle" class="label">Update row sequence</text>
+  <text x="1031" y="759" text-anchor="middle" class="small">LayerNorm on both sequences</text>
+  <text x="1031" y="782" text-anchor="middle" class="small">4-head cross-attention + row residual</text>
+
+  <rect x="1232" y="704" width="274" height="84" rx="10" fill="#F4CCCC" stroke="#C0504D" class="node"/>
+  <text x="1369" y="733" text-anchor="middle" class="label">Update column sequence</text>
+  <text x="1369" y="759" text-anchor="middle" class="small">LayerNorm on both sequences</text>
+  <text x="1369" y="782" text-anchor="middle" class="small">4-head cross-attention + column residual</text>
+
+  <path d="M1031 788 V810" class="arrow"/>
+  <path d="M1369 788 V810" class="arrow"/>
+
+  <!-- Stage 2: feed-forward update -->
+  <rect x="894" y="810" width="274" height="76" rx="10" fill="#EADCF8" stroke="#8E63B0" class="node"/>
+  <text x="1031" y="837" text-anchor="middle" class="label">Feed-forward update</text>
+  <text x="1031" y="861" text-anchor="middle" class="small">LayerNorm → MLP 128 → 512 → 128</text>
+  <text x="1031" y="882" text-anchor="middle" class="small">Add residual</text>
+
+  <rect x="1232" y="810" width="274" height="76" rx="10" fill="#EADCF8" stroke="#8E63B0" class="node"/>
+  <text x="1369" y="837" text-anchor="middle" class="label">Feed-forward update</text>
+  <text x="1369" y="861" text-anchor="middle" class="small">LayerNorm → MLP 128 → 512 → 128</text>
+  <text x="1369" y="882" text-anchor="middle" class="small">Add residual</text>
+
+  <path d="M1031 886 V908 H1200" class="branch-line"/>
+  <path d="M1369 886 V908 H1200" class="branch-line"/>
+  <path d="M1200 908 V926" class="arrow"/>
+
+  <rect x="1032" y="926" width="336" height="64" rx="10" fill="#FFF2CC" stroke="#C9A227" class="node"/>
+  <text x="1200" y="952" text-anchor="middle" class="body">Concatenate updated CLS vectors</text>
+  <text x="1200" y="976" text-anchor="middle" class="body">[h′<tspan baseline-shift="sub" font-size="13">r</tspan> ; h′<tspan baseline-shift="sub" font-size="13">c</tspan>] ∈ ℝ<tspan baseline-shift="super" font-size="13">256</tspan></text>
+
+  <path d="M1200 990 V1012 H1045 V1028" class="branch-line" marker-end="url(#arrow)"/>
+  <path d="M1200 990 V1012 H1360 V1028" class="branch-line" marker-end="url(#arrow)"/>
+
+  <rect x="913" y="1028" width="264" height="82" rx="10" fill="#D9EAD3" stroke="#6AA84F" class="node"/>
+  <text x="1045" y="1057" text-anchor="middle" class="body">Linear head: 256 → K</text>
+  <text x="1045" y="1086" text-anchor="middle" class="small">1.999 M parameters</text>
+
+  <rect x="1228" y="1028" width="264" height="82" rx="10" fill="#D9EAD3" stroke="#6AA84F" class="node"/>
+  <text x="1360" y="1052" text-anchor="middle" class="small">LayerNorm → 256 → 128 → GELU</text>
+  <text x="1360" y="1075" text-anchor="middle" class="small">Linear 128 → K</text>
+  <text x="1360" y="1099" text-anchor="middle" class="small">2.031 M parameters</text>
+</svg>

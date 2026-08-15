@@ -7,6 +7,8 @@ data/
 checkpoints/
 results/matplotlib_cache/
 results/logs/
+results/cifar10_fixed_split_holdout_smoke/
+results/cifar10_final_all_models_5seeds/
 results/**/.DS_Store
 __pycache__/
 *.pyc

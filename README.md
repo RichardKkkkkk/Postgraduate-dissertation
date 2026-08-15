@@ -454,7 +454,7 @@ test 指标；正式论文结果应使用新协议重新跑。
 第一轮最终实验建议固定：
 
 - dataset: `cifar10`
-- train/validation split: CIFAR-10 train set 中 `val_ratio = 0.1`
+- train/validation split: CIFAR-10 train set 中 `val_ratio = 0.1`，固定 `split_seed = 42`
 - test split: CIFAR-10 official test set，只在 selected checkpoint 上评估一次
 - seeds: `42 43 44 45 46`
 - epochs: `100`
@@ -475,6 +475,7 @@ python run_seed_sweep.py \
   --all-models \
   --exclude-models resnet18_imagenet \
   --seeds 42 43 44 45 46 \
+  --split-seed 42 \
   --experiment-name cifar10_final_all_models_5seeds \
   --run-prefix cifar10final \
   --report-prefix cifar10final_compare \
@@ -509,6 +510,7 @@ python run_seed_sweep.py \
 - `--run-name`
 - `--epochs`
 - `--batch-size`
+- `--split-seed`
 - `--lr`
 - `--weight-decay`
 - `--train-subset`
@@ -632,3 +634,170 @@ python run_seed_sweep.py \
 - 代码改动
 - `docs/` 下的说明文档
 - 与主线实验直接相关的少量可复用配置
+
+## 论文主结果图
+
+最终 CIFAR-10 selected-checkpoint multi-seed 结果使用独立脚本生成论文图，不再通过 Word 草稿构建脚本绘图：
+
+```bash
+conda run -n vit_research python generate_thesis_figures.py
+```
+
+默认读取：
+
+```text
+results/cifar10_final_vit_models_5seeds/metrics/
+```
+
+默认输出：
+
+```text
+results/cifar10_final_vit_models_5seeds/reports/thesis_comparison_figures_v2/
+```
+
+当前同时生成训练动态曲线和 selected-checkpoint test 总结图。训练动态曲线以
+`Epoch` 为横坐标，并使用 validation 指标：
+
+- `basic_pe_validation_dynamics`：基础 PE 的 validation accuracy / loss
+- `shift_validation_dynamics`：shift variants 的 validation accuracy / loss
+- `patch_assignment_val_acc_epoch`：不同 assignment 的 validation accuracy
+- `patch_assignment_val_loss_epoch`：不同 assignment 的 validation loss
+- `fusion_validation_dynamics`：fusion variants 的 validation accuracy / loss
+
+selected-checkpoint test 总结图包括：
+
+- `basic_pe_comparison`：No PE、learnable、row、column、additive、multiplicative
+- `shift_paired_effect`：additive 与 multiplicative 的 shifted-minus-unshifted 配对差值
+- `patch_assignment_paired_deltas`：不同 assignment 相对 row-major 的 seed-level 配对差值
+- `patch_assignment_schematic`：四种 8 × 8 patch-to-position assignment
+- `fusion_capacity_comparison`：single-encoder references、fusion accuracy 和参数量
+
+脚本会在绘图前检查 seed 覆盖、共享训练配置和
+`test_evaluation_protocol = selected_checkpoint_only`，并同步输出 source CSV、manifest 和图注草稿。
+Epoch 曲线显示五个 seeds 的 mean ± pointwise 95% t CI；为避免 early stopping 后样本数随 epoch
+变化，曲线只画到五个 seeds 都有记录的最后一个 epoch。test 不作逐 epoch 绘图。
+v2 的 epoch 曲线不使用三角形、方形或菱形 marker；模型由固定的高对比颜色和线型共同
+区分，阴影表示逐 epoch 的 95% t CI。selected-checkpoint test 汇总图中的半透明圆点
+表示单个 seed，菱形表示五个 seed 的均值，竖向 error bar 表示 95% t confidence interval。
+## Dissertation workflow update (2026-08-07)
+
+The dissertation now uses one fixed working file:
+
+`thesis/Yikai_Zhao_MSc_Dissertation.docx`
+
+The completed CIFAR-10 evidence consists of 32 ViT configurations × seeds 42–46 = 160 selected-checkpoint summaries. Radial and squared fixed encodings, the learned–fixed hybrid, all four patch-assignment conventions, and five fusion models are included in this completed set.
+
+New reproducibility utilities:
+
+- `generate_thesis_statistics.py`: regenerates per-seed metrics, five-seed means, sample SDs, 95% t intervals, paired contrasts, parameter counts and the selected hybrid scale.
+- `generate_patch_mapping_report.py`: records physical patch coordinate → sequence slot → assigned PE coordinate for every supported mapping.
+- `run_low_data_sweep.py`: runs the prespecified 1k/5k/10k low-data matrix for learned and multiplicative PE.
+- `datasets/cifar100_data.py`: provides the CIFAR-100 loader and dataset-specific normalisation.
+- `thesis/tools/build_dissertation.py`: rebuilds the fixed Arial, black, no-figure dissertation draft from verified summaries.
+
+Supported datasets now include `cifar100`. CIFAR-100 keeps the 32×32 input interface and changes the classifier to 100 outputs. The main cross-dataset sweep is intentionally limited to no PE, learned PE, shifted additive PE and shifted multiplicative PE.
+
+## Robustness figure package (2026-08-10)
+
+Generate the completed reduced-data CIFAR-10 and CIFAR-100 thesis figures with:
+
+```powershell
+conda run -n vit_research python generate_robustness_figures.py
+```
+
+The script validates seeds 42--46 and the
+`selected_checkpoint_only` protocol before reading any test metric. It writes
+PNG/PDF figures, source CSV files, draft captions and a manifest under:
+
+```text
+results/reports/thesis_robustness_figures_v2/
+```
+
+The current reduced-data result set contains four models at 1k, 5k and 10k
+training examples and uses `lr=1e-3`. The completed CIFAR-100 comparison also
+uses `lr=1e-3`. The existing final CIFAR-10 full-data suite uses `lr=3e-4`, so
+the plotting script intentionally does not connect that full-data point to the
+reduced-data trend. `run_low_data_sweep.py` still reflects the earlier two-model
+`lr=3e-4` proposal and must not be used as the reproduction command for the
+completed four-model result directories.
+
+The v2 robustness package presents the 1k, 5k and 10k conditions as separate
+epoch-based panels for validation accuracy and validation loss. CIFAR-100 also
+has epoch-based validation accuracy and loss figures. Selected-test figures use
+a categorical model x-axis because each test set is evaluated only once after
+checkpoint selection; faint circles are seed outcomes, diamonds are means and
+error bars are 95% t confidence intervals.
+
+## Frozen selected-test thesis package (2026-08-12)
+
+The protocol-aligned low-data and CIFAR-100 reruns use `lr=3e-4` and are stored
+under experiment names ending in `_lr3e4`. Generate the teacher-requested core
+table and seven selected-test figures with:
+
+```powershell
+conda run -n vit_research python generate_final_test_figures.py
+```
+
+The default output is:
+
+```text
+results/reports/thesis_selected_test_figures_v1/
+```
+
+The package contains the nine-model core PE table (including radial PE), five
+main figures, two supporting figures, per-seed and summary CSV files, captions,
+a configuration-alignment audit and a manifest. Every performance value is read
+from `summary["selected_model"]`. Ordinary error bars use five-seed 95% t
+intervals; paired-effect intervals are calculated from seed-level differences.
+
+The low-data figure connects 1k, 5k, 10k and full-data only after an automated
+gate verifies the shared learning rate, scheduler, augmentation, normalisation,
+split seed, batch size, weight decay, early stopping, model identifiers and test
+protocol. The older `lr=1e-3` robustness package remains exploratory and must
+not be used as the source for the frozen thesis result tables.
+
+## Final thesis evidence package (2026-08-12)
+
+The paper-facing presentation now separates optimisation evidence from final
+performance evidence. Generate the complete package with:
+
+```powershell
+conda run -n vit_research python generate_final_thesis_evidence.py
+```
+
+The default output is `results/reports/thesis_final_evidence_figures_v1/`.
+Six main figures use validation accuracy or validation loss against epoch. The
+lines are five-seed means and shaded bands are pointwise 95% t confidence
+intervals. Each condition ends at the last epoch shared by all five seeds.
+
+Final comparisons use selected-checkpoint test tables for core PE, low-data,
+CIFAR-100 and fusion. Four auxiliary selected-test figures cover paired shifted
+effects, patch-assignment deltas, fusion accuracy versus parameter count and
+per-class recall differences. No test metric is plotted against epoch.
+
+## Coordinate-aligned unfolding experiment (2026-08-13)
+
+Historical unfolding models use `position_assignment = sequence_slot`: patch
+tokens follow the selected unfolding order while fixed PE remains indexed by
+sequence slot. This remains the default and preserves every existing model and
+result. The new `coordinate_aligned` mode applies the same `patch_order` to the
+patch part of fixed PE; the CLS entry is not reordered.
+
+Run the deterministic mapping and forward-equivalence audit with:
+
+```powershell
+conda run -n vit_research python audit_coordinate_aligned_unfolding.py
+```
+
+Run or safely resume the formal CIFAR-10 sweep with:
+
+```powershell
+conda run -n vit_research python run_coordinate_aligned_unfolding_sweep.py --skip-existing
+```
+
+The wrapper first validates 25 protocol-matched normal-row source summaries,
+then trains only the 75 non-normal-row conditions under
+`results/cifar10_coordinate_aligned_unfolding_5seeds/`. After successful
+training it checks all artifacts and writes coordinate-aligned and legacy
+sequence-slot tables separately. Registered coordinate-aligned model names use
+the compact prefix `vit_ca_`; `ca` means coordinate-aligned.

@@ -3,6 +3,9 @@ from pathlib import Path
 
 os.environ.setdefault("MPLCONFIGDIR", str(Path("results/matplotlib_cache")))
 
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
@@ -10,9 +13,16 @@ PAPER_STYLE_VERSION = "2026-07-29-single-metric-v2"
 PAPER_FIGSIZE = (7.2, 4.5)
 PAPER_BAR_FIGSIZE = (7.2, 4.2)
 PAPER_HEATMAP_FIGSIZE = (6.2, 5.4)
+PAPER_TALL_FIGSIZE = (7.2, 6.2)
+PAPER_TWO_PANEL_FIGSIZE = (11.0, 5.4)
+PAPER_EPOCH_PANEL_FIGSIZE = (11.0, 4.8)
+PAPER_FACET_FIGSIZE = (11.0, 7.2)
+PAPER_THREE_PANEL_FIGSIZE = (12.6, 4.6)
 PAPER_DPI = 300
 PAPER_TEXT_COLOR = "#1f2937"
 PAPER_GRID_COLOR = "#e5e7eb"
+PAPER_MUTED_COLOR = "#6b7280"
+PAPER_POINT_ALPHA = 0.42
 
 SPLIT_STYLES = {
     "train": {"color": "#0072B2", "linestyle": "-", "marker": "o"},
@@ -50,9 +60,9 @@ MODEL_COLORS = {
     "vit_row_sinusoidal": "#E69F00",
     "vit_col_sinusoidal": "#009E73",
     "vit_additive_sinusoidal": "#CC79A7",
-    "vit_additive_sinusoidal_shifted": "#AA4499",
-    "vit_multiplicative_sinusoidal": "#D55E00",
-    "vit_multiplicative_sinusoidal_shifted": "#56B4E9",
+    "vit_additive_sinusoidal_shifted": "#7B3294",
+    "vit_multiplicative_sinusoidal": "#CC3311",
+    "vit_multiplicative_sinusoidal_shifted": "#E66101",
     "vit_squared_multiplicative_sinusoidal": "#A6761D",
     "vit_squared_multiplicative_sinusoidal_shifted": "#8C510A",
     "vit_radial_sinusoidal": "#882255",
@@ -80,6 +90,22 @@ FALLBACK_COLORS = (
 )
 
 LINE_STYLES = ("-", "--", "-.", ":")
+MODEL_LINESTYLES = {
+    "vit_baseline": "-",
+    "vit_learnable_position": "-",
+    "vit_row_sinusoidal": "--",
+    "vit_col_sinusoidal": "-.",
+    "vit_additive_sinusoidal": "--",
+    "vit_additive_sinusoidal_shifted": ":",
+    "vit_multiplicative_sinusoidal": "-.",
+    "vit_multiplicative_sinusoidal_shifted": "--",
+    "vit_normal_col_learnable_multiplicative_sinusoidal": ":",
+    "vit_row_col_latent_fusion": ":",
+    "vit_row_col_mean_fusion": "--",
+    "vit_row_col_mean_mlp_fusion": "-.",
+    "vit_row_col_cross_attention_fusion": "--",
+    "vit_row_col_cross_attention_mlp_head_fusion": ":",
+}
 MARKERS = ("o", "s", "^", "D", "v", "P", "X", "<")
 MODEL_MARKERS = {
     "vit_baseline": "o",
@@ -103,6 +129,13 @@ UNFOLDING_STYLES = {
     "vit_normal_col_": ("Normal Column", "--"),
     "vit_proper_row_": ("Proper Row", "-."),
     "vit_proper_col_": ("Proper Column", ":"),
+}
+
+ASSIGNMENT_STYLES = {
+    "normal_row": {"label": "Row-major", "color": "#0072B2", "linestyle": "-"},
+    "normal_col": {"label": "Column-major", "color": "#D55E00", "linestyle": "--"},
+    "proper_row": {"label": "Serpentine rows", "color": "#009E73", "linestyle": "-."},
+    "proper_col": {"label": "Serpentine columns", "color": "#7B3294", "linestyle": ":"},
 }
 
 
@@ -148,7 +181,7 @@ def get_model_label(model_name: str):
 
 def get_model_style(model_name: str, index: int):
     color = MODEL_COLORS.get(model_name)
-    linestyle = LINE_STYLES[(index // len(FALLBACK_COLORS)) % len(LINE_STYLES)]
+    linestyle = MODEL_LINESTYLES.get(model_name, LINE_STYLES[index % len(LINE_STYLES)])
     marker = MODEL_MARKERS.get(model_name, MARKERS[index % len(MARKERS)])
     for prefix, (_, unfolding_linestyle) in UNFOLDING_STYLES.items():
         if model_name.startswith(prefix):
@@ -162,6 +195,12 @@ def get_model_style(model_name: str, index: int):
         "linestyle": linestyle,
         "marker": marker,
     }
+
+
+def get_assignment_style(order: str):
+    if order not in ASSIGNMENT_STYLES:
+        raise KeyError(f"Unknown patch assignment: {order}")
+    return dict(ASSIGNMENT_STYLES[order])
 
 
 def mark_every(point_count: int):

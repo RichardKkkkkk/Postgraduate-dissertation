@@ -920,6 +920,27 @@ parser.add_argument("--all-models", action="store_true")
 python run_seed_sweep.py --all-models --seeds 42
 ```
 
+## 24. 为什么 training seed 和 split seed 要分开
+
+正式 multi-seed 实验固定 `split_seed=42`，让所有模型和所有 training seed 使用同一组
+CIFAR-10 train/validation indices。`seed=42..46` 仍然控制模型初始化、数据增强和训练顺序。
+
+```text
+split_seed = 42       -> 数据划分保持不变
+training seed = 42-46 -> 重复训练中的随机性发生变化
+```
+
+这样 multi-seed 标准差主要反映训练随机性，而不是把不同数据划分的变化混进结果。
+
+后台训练不需要打开绘图窗口。统一绘图模块使用：
+
+```python
+import matplotlib
+matplotlib.use("Agg")
+```
+
+`Agg` 会直接把图渲染到 PNG/PDF，避免服务器或后台进程因为 Tk GUI/Tcl 环境缺失而失败。
+
 代码里可以这样判断：
 
 ```python
@@ -933,3 +954,179 @@ model_names = list(EXPERIMENT_REGISTRY.keys()) if args.all_models else list(args
 
 `--exclude-models` 则是在选好的模型列表里删掉某些模型，例如先排除可能需要下载权重的
 `resnet18_imagenet`。
+
+## 25. 为什么论文图要显示原始 seed 点和 paired difference
+
+只有五个 seeds 时，单独画 mean ± standard deviation 会隐藏数据的实际分布。论文图同时显示：
+
+```text
+translucent circles = individual seeds
+diamond             = mean
+error bar           = 95% t confidence interval
+```
+
+如果两种方法都使用相同的 seed 列表，可以先按 seed 对齐，再计算：
+
+```python
+delta_seed = 100 * (shifted_test_acc - unshifted_test_acc)
+```
+
+这里乘以 `100` 后，单位是 percentage points。配对差值直接回答“同一 seed 条件下改变设计后发生了什么”，比比较两个独立 error bar 更清楚。
+
+Patch assignment 图同样以 row-major 为 reference：
+
+```python
+delta_vs_row_major = 100 * (alternative_order_acc - row_major_acc)
+```
+
+注意，这里的配对表示使用相同 training seed 和固定 split；它不能被解释成纯模型初始化方差，也不能自动证明因果或统计显著性。
+
+最终结果必须从 summary JSON 的以下位置读取：
+
+```python
+summary["selected_model"]["epoch"]
+summary["selected_model"]["test_acc"]
+```
+
+顶层 `best_val_epoch` 是历史 validation 曲线上的原始最高点，可能与考虑 early-stopping `min_delta` 后实际加载的 selected checkpoint 不同，因此不能混用。
+
+## 26. 为什么 Epoch 曲线使用 validation 而不是 test
+
+横坐标为 epoch 的曲线适合回答模型如何收敛、是否过拟合以及不同方法的 optimisation
+dynamics 是否不同。正式流程中每个 epoch 记录 train 和 validation 指标，因此论文对比曲线使用：
+
+```text
+x = epoch
+y = validation accuracy or validation loss
+band = mean ± pointwise 95% t CI across five seeds
+```
+
+test set 是最终 holdout，只在 validation-selected checkpoint 加载后评估一次。逐 epoch
+绘制 test accuracy/loss 会把 test set 带入训练过程中的反复观察，因此不应为了图形形式而增加这种评估。
+
+Early stopping 会使不同 seed 的曲线长度不同。如果后段仍对剩余 seed 求均值，读者可能把
+样本数变化误认为模型趋势。当前论文图采用共同 epoch 截断：只有当五个 seeds 在该 epoch
+都有记录时才计算 mean 和 sample SD。
+## 27. Patch sequence order is not the same as PE assignment
+
+For a physical patch `(row, col)`, record three separate objects:
+
+```text
+physical patch coordinate -> sequence slot -> assigned PE coordinate/vector
+```
+
+A joint permutation of patch tokens and their matched PE vectors is a relabelling for full self-attention. Changing which fixed vector is attached to a physical patch changes the positional information presented to the model. Therefore, an accuracy change must not be attributed vaguely to “destroyed token adjacency” unless the exact mapping has been verified.
+
+## 28. Five-seed 95% intervals and paired contrasts
+
+For five training seeds, use the sample standard deviation and four degrees of freedom:
+
+```text
+half_width = 2.776445 * sample_SD / sqrt(5)
+95% CI = mean +/- half_width
+```
+
+For two models with the same seeds, calculate the per-seed difference first, then summarise those five differences. This removes much of the shared seed-to-seed variation and directly answers what changed under a matched seed. It does not make the five seeds independent datasets.
+
+With five non-zero pairs, the smallest exact two-sided Wilcoxon signed-rank p-value is 0.0625. Report effect size, paired interval and direction consistency instead of writing “statistically significant improvement”.
+
+## 29. CIFAR-100 interface audit
+
+CIFAR-100 uses the same 32×32 RGB input and 8×8 patch grid as CIFAR-10, but the classifier output changes from `(B, 10)` to `(B, 100)`. Dataset-specific normalisation is kept inside `datasets/cifar100_data.py`, while the ViT/PE interfaces remain unchanged.
+
+## 30. Why the full-data point is not connected to the reduced-data curve
+
+A training-size curve should change the amount of training data while holding
+the remaining optimisation protocol fixed. The completed 1k, 5k and 10k runs
+all use `lr=1e-3`, so those three conditions form an internally controlled
+comparison. The existing final CIFAR-10 full-data runs use `lr=3e-4`.
+
+Connecting the existing full-data result to the three reduced-data points would
+therefore change both training size and learning rate at the final point. The
+observed difference could not be attributed only to data availability. The
+current figure omits that connection and records the mismatch in its caption and
+manifest. A fully controlled four-point curve requires either rerunning the
+reduced-data conditions at `3e-4` or rerunning the full-data reference at
+`1e-3`.
+
+Selected-test plots use the validation-selected checkpoint once per run. Their
+faint points are the five seed outcomes and their error bars are 95% t intervals:
+
+```text
+mean +/- 2.776445 * sample_SD / sqrt(5)
+```
+
+Epoch plots serve a different purpose. They use validation accuracy and loss,
+show mean +/- a pointwise 95% t interval, and stop each model curve once fewer than all five
+seeds remain after early stopping.
+
+## 31. 为什么论文 Epoch 曲线不再使用三角形等 marker
+
+多模型曲线上的三角形、方形和菱形如果只用于区分模型，容易被误读为 selected epoch、
+显著性或特殊事件。v2 论文图因此采用：
+
+```text
+colour + line pattern = model or assignment
+shaded band           = mean +/- pointwise 95% t CI across seeds
+point marker          = omitted on epoch curves
+```
+
+最终 test 汇总图不是训练轨迹。它只在 validation-selected checkpoint 上产生一个结果，
+因此使用 categorical model x-axis，并明确规定：半透明圆点是单个 seed，菱形是均值，
+竖向 error bar 是 95% t confidence interval。marker 本身不表示统计显著性。
+
+## 32. Low-data subset seed 的解释
+
+`split_seed=42` 固定 CIFAR train/validation partition，但低数据量抽样调用：
+
+```python
+make_subset(train_dataset, train_subset, seed)
+```
+
+因此，同一个 training seed 下四个模型得到相同 subset；不同 training seed 同时改变
+subset composition、模型初始化、augmentation randomness 和训练顺序。Low-data 的五次
+重复及其 interval 反映这些来源的综合 repeatability，不能描述为纯 initialization variance。
+
+## 33. Full-data 何时可以连接到 low-data 曲线
+
+只有在 learning rate、scheduler、augmentation、normalisation、split seed、batch size、
+weight decay、early stopping、模型结构和 selected-checkpoint-only test protocol 全部一致时，
+full-data 才能作为第四个数据量点。新的 `lr3e4` 结果通过了该自动 gate，因此1k、5k、
+10k和full-data可以在同一受控图中连接。旧 `lr=1e-3` subset结果没有通过这一条件。
+
+## 34. Epoch curve 和 final comparison 是两类证据
+
+训练期间每个 epoch 都有 validation metric，因此可以画五个 seeds 的 mean，并用
+`2.776445 * sample_SD / sqrt(5)` 形成 pointwise 95% t interval。这类图回答模型怎样
+收敛以及轨迹是否稳定。
+
+Test set 只在加载 validation-selected checkpoint 后评估一次，所以不能画 test
+accuracy 随 epoch 的曲线。最终 variant 比较应从 selected-checkpoint test
+accuracy/loss 表读取。
+
+不同 seeds 因 early stopping 具有不同长度时，先取各 seed 最大 epoch 的最小值，只对
+共同范围内恰好包含五个 seeds 的 epoch 汇总，避免曲线末端悄悄减少重复数。
+
+## 35. Sequence-slot assignment 与 coordinate-aligned assignment
+
+`PatchEmbedding` 先从卷积得到 row-major physical patches，再用 `patch_order` 重排 token。
+历史 fixed-PE 模型随后直接加 row-major `pos_embed`，所以 sequence slot `s` 得到 PE
+coordinate `s`：
+
+```python
+patch_tokens = patch_tokens.index_select(1, patch_order)
+x = patch_tokens + original_pos_embed
+```
+
+新模式只重排固定 PE 的 patch 部分，CLS PE 保持在第零位：
+
+```python
+ordered_patch_pe = original_pos_embed[:, 1:].index_select(1, patch_order)
+ordered_pos_embed = torch.cat((original_pos_embed[:, :1], ordered_patch_pe), dim=1)
+x = patch_tokens + ordered_pos_embed
+```
+
+因此 sequence order 可以改变，但每个 physical patch 始终得到由其原始 row/column
+coordinate 生成的 PE。当前 encoder 使用 global unmasked self-attention、shared token-wise
+LayerNorm/MLP 和最终 CLS readout，没有 window attention、sequence convolution、邻接运算或
+position-dependent mask。同步置换 patch 与 PE 时，logits 理论上只应有浮点误差。

@@ -3,7 +3,16 @@ import math
 import torch
 import torch.nn as nn
 
+from .unfolding import order_fixed_positional_embedding, validate_position_assignment
 from .vit import Block, MLP, PatchEmbedding
+
+
+def fixed_pos_embed_in_token_order(module, x):
+    return order_fixed_positional_embedding(
+        module.pos_embed,
+        module.patch_embed.patch_order,
+        module.position_assignment,
+    ).to(dtype=x.dtype, device=x.device)
 
 
 def build_sinusoidal_embedding(positions, embed_dim):
@@ -114,9 +123,11 @@ class ViTAxisSinusoidal(nn.Module):
         projection_dropout=0.0,
         mlp_dropout=0.0,
         unfolding="normal_row",
+        position_assignment="sequence_slot",
     ):
         super().__init__()
         self.axis = axis
+        self.position_assignment = validate_position_assignment(position_assignment)
         self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_dropout = nn.Dropout(embedding_dropout)
@@ -149,7 +160,7 @@ class ViTAxisSinusoidal(nn.Module):
 
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
-        x = x + self.pos_embed.to(dtype=x.dtype, device=x.device)
+        x = x + fixed_pos_embed_in_token_order(self, x)
         x = self.pos_dropout(x)
 
         for block in self.blocks:
@@ -195,8 +206,10 @@ class ViTRadialSinusoidal(nn.Module):
         projection_dropout=0.0,
         mlp_dropout=0.0,
         unfolding="normal_row",
+        position_assignment="sequence_slot",
     ):
         super().__init__()
+        self.position_assignment = validate_position_assignment(position_assignment)
         self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_dropout = nn.Dropout(embedding_dropout)
@@ -230,7 +243,7 @@ class ViTRadialSinusoidal(nn.Module):
 
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
-        x = x + self.pos_embed.to(dtype=x.dtype, device=x.device)
+        x = x + fixed_pos_embed_in_token_order(self, x)
         x = self.pos_dropout(x)
 
         for block in self.blocks:
@@ -259,9 +272,11 @@ class ViTAdditiveSinusoidal(nn.Module):
         mlp_dropout=0.0,
         shifted_wavelength=False,
         unfolding="normal_row",
+        position_assignment="sequence_slot",
     ):
         super().__init__()
         self.shifted_wavelength = shifted_wavelength
+        self.position_assignment = validate_position_assignment(position_assignment)
         self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_dropout = nn.Dropout(embedding_dropout)
@@ -298,7 +313,7 @@ class ViTAdditiveSinusoidal(nn.Module):
 
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
-        x = x + self.pos_embed.to(dtype=x.dtype, device=x.device)
+        x = x + fixed_pos_embed_in_token_order(self, x)
         x = self.pos_dropout(x)
 
         for block in self.blocks:
@@ -333,10 +348,12 @@ class ViTMultiplicativeSinusoidal(nn.Module):
         shifted_wavelength=False,
         squared=False,
         unfolding="normal_row",
+        position_assignment="sequence_slot",
     ):
         super().__init__()
         self.shifted_wavelength = shifted_wavelength
         self.squared = squared
+        self.position_assignment = validate_position_assignment(position_assignment)
         self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim, unfolding=unfolding)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_dropout = nn.Dropout(embedding_dropout)
@@ -379,7 +396,7 @@ class ViTMultiplicativeSinusoidal(nn.Module):
 
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
-        x = x + self.pos_embed.to(dtype=x.dtype, device=x.device)
+        x = x + fixed_pos_embed_in_token_order(self, x)
         x = self.pos_dropout(x)
 
         for block in self.blocks:

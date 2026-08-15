@@ -179,3 +179,54 @@ checkpoints/cifar10_teacher_extensions/
 8. `models/vit_axis_sinusoidal.py`
 9. `datasets/cadb_data.py`
 10. `docs/RESEARCH_PLAN.md` 中的当前证据、协议问题和下一步
+## Dissertation and generalisation additions (2026-08-07)
+
+- `datasets/cifar100_data.py`
+  CIFAR-100 train/validation/test loaders, 100 class names and dataset-specific normalisation.
+- `generate_thesis_statistics.py`
+  Validates and aggregates the 160 final CIFAR-10 summaries for thesis tables.
+- `generate_patch_mapping_report.py`
+  Exports the deterministic patch-to-position audit table.
+- `run_low_data_sweep.py`
+  Retains the earlier two-model reduced-data proposal; it is not the reproduction
+  command for the completed four-model `lr=1e-3` result set.
+- `generate_robustness_figures.py`
+  Validates and plots the completed 1k/5k/10k CIFAR-10 and four-model CIFAR-100
+  suites, exporting PNG/PDF figures, source CSV files, captions and a manifest.
+  The default publication-facing output is
+  `results/reports/thesis_robustness_figures_v2/`.
+- `generate_thesis_figures.py`
+  Generates the main CIFAR-10 comparison package under
+  `results/cifar10_final_vit_models_5seeds/reports/thesis_comparison_figures_v2/`.
+  Epoch curves use colour plus line style without point markers; selected-test
+  summaries use seed circles and mean diamonds with 95% t intervals.
+- `generate_final_test_figures.py`
+  Generates the frozen teacher-requested selected-test table and seven-figure
+  package under `results/reports/thesis_selected_test_figures_v1/`. It reads the
+  three CIFAR-10 low-data `_lr3e4` experiments, the CIFAR-100 `_lr3e4`
+  experiment and the existing full-data CIFAR-10 suite. It fails if the
+  full-data/low-data configuration alignment gate does not pass.
+- `generate_final_thesis_evidence.py`
+  Generates the final paper-facing package under
+  `results/reports/thesis_final_evidence_figures_v1/`: six five-seed validation
+  trajectory figures with pointwise 95% t intervals, selected-checkpoint test
+  tables, four test-only auxiliary figures, source CSVs, captions, a
+  configuration audit and a manifest.
+- `audit_coordinate_aligned_unfolding.py`
+  Exports the 8×8 physical-patch/sequence-slot/original-PE/assigned-PE mapping,
+  audits permutation-sensitive operations and records same-weight forward
+  equivalence for five fixed PE families and four unfoldings.
+- `run_coordinate_aligned_unfolding_sweep.py`
+  Validates reuse of the 25 protocol-matched normal-row runs and safely runs the
+  75 required non-normal-row coordinate-aligned CIFAR-10 conditions. It invokes
+  `analyze_coordinate_aligned_unfolding.py` after successful completion.
+- `analyze_coordinate_aligned_unfolding.py`
+  Validates the 100-cell coordinate-aligned matrix, checks run artifacts and
+  protocol fields, then writes per-seed and mean ± 95% CI tables. Historical
+  sequence-slot results are exported separately and are never pooled.
+- `tests/test_unfolding_mapping.py`
+  Verifies sequence and coordinate mappings with labelled patches.
+- `tests/test_cifar100_registration.py`
+  Verifies dataset metadata and the 100-logit model interface.
+- `thesis/tools/build_dissertation.py`
+  Builds the one fixed no-figure MSc dissertation Word file from verified result tables.

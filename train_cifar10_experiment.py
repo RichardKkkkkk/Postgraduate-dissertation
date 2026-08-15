@@ -59,6 +59,12 @@ def parse_args():
     parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--split-seed",
+        type=int,
+        default=None,
+        help="Optional fixed seed for a CIFAR train/validation split. Defaults to --seed.",
+    )
     parser.add_argument("--image-size", type=int, default=None)
     parser.add_argument("--cadb-root", type=Path, default=None)
     parser.add_argument("--cadb-test-ratio", type=float, default=0.2)
@@ -327,6 +333,8 @@ def save_run_outputs(
         "model_family": metadata["architecture"],
         "model_variant": metadata["variant"],
         "position_encoding": metadata.get("position_encoding"),
+        "unfolding": metadata.get("unfolding"),
+        "position_assignment": metadata.get("position_assignment", "sequence_slot"),
         "task_type": task_type,
     }
     if "subset_accuracy" in selected_val_metrics:

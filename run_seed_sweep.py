@@ -39,6 +39,12 @@ def parse_args():
         required=True,
         help="Seeds to sweep, for example: --seeds 42 43 44",
     )
+    parser.add_argument(
+        "--split-seed",
+        type=int,
+        default=None,
+        help="Optional fixed CIFAR-10 train/validation split seed shared by every training seed.",
+    )
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--dataset", choices=SUPPORTED_DATASETS, default="cifar10")
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
@@ -177,6 +183,7 @@ def build_train_command(args, model_name: str, seed: int):
         "--run-name",
         run_name,
     ]
+    append_optional_arg(command, "--split-seed", args.split_seed)
     append_optional_arg(command, "--batch-size", args.batch_size)
     append_optional_arg(command, "--lr", args.lr)
     append_optional_arg(command, "--weight-decay", args.weight_decay)

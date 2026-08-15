@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="930" viewBox="0 0 1600 930">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#666"/></marker>
+    <marker id="redArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#B85450"/></marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #000; }
+      .box { stroke-width: 2.5; rx: 12; ry: 12; }
+      .line { fill: none; stroke: #666; stroke-width: 2.5; marker-end: url(#arrow); }
+      .context { fill: none; stroke: #B85450; stroke-width: 2.3; stroke-dasharray: 8 7; marker-end: url(#redArrow); }
+      .label { font-size: 17px; text-anchor: middle; dominant-baseline: middle; }
+      .small { font-size: 15px; text-anchor: middle; dominant-baseline: middle; }
+      .heading { font-size: 20px; font-weight: 700; text-anchor: middle; }
+    </style>
+  </defs>
+  <rect width="1600" height="930" fill="#fff"/>
+
+  <rect class="box" x="650" y="25" width="300" height="55" fill="#F5F5F5" stroke="#666"/>
+  <text class="label" x="800" y="53" font-weight="700">Input image x</text>
+  <path class="line" d="M720 80 V105 H450 V125"/><path class="line" d="M880 80 V105 H1150 V125"/>
+
+  <rect class="box" x="300" y="125" width="300" height="75" fill="#FFF2CC" stroke="#D6B656"/>
+  <text class="label" x="450" y="151">Patch embedding</text><text class="label" x="450" y="177">+ row-wise PE</text>
+  <rect class="box" x="1000" y="125" width="300" height="75" fill="#FFF2CC" stroke="#D6B656"/>
+  <text class="label" x="1150" y="151">Patch embedding</text><text class="label" x="1150" y="177">+ column-wise PE</text>
+  <path class="line" d="M450 200 V235"/><path class="line" d="M1150 200 V235"/>
+
+  <rect class="box" x="300" y="235" width="300" height="85" fill="#DAE8FC" stroke="#6C8EBF"/>
+  <text class="label" x="450" y="263" font-weight="700">Row branch</text><text class="label" x="450" y="293">Pre-normalisation ViT encoder × 4</text>
+  <rect class="box" x="1000" y="235" width="300" height="85" fill="#DAE8FC" stroke="#6C8EBF"/>
+  <text class="label" x="1150" y="263" font-weight="700">Column branch</text><text class="label" x="1150" y="293">Pre-normalisation ViT encoder × 4</text>
+  <path class="line" d="M450 320 V345"/><path class="line" d="M1150 320 V345"/>
+
+  <rect class="box" x="320" y="345" width="260" height="65" fill="#fff" stroke="#6C8EBF"/>
+  <text class="small" x="450" y="367">Token sequence Zᵣ</text><text class="small" x="450" y="390">CLS representation hᵣ</text>
+  <rect class="box" x="1020" y="345" width="260" height="65" fill="#fff" stroke="#6C8EBF"/>
+  <text class="small" x="1150" y="367">Token sequence Z꜀</text><text class="small" x="1150" y="390">CLS representation h꜀</text>
+
+  <rect class="box" x="40" y="455" width="900" height="440" fill="#fff" stroke="#B3B3B3"/>
+  <text class="heading" x="490" y="490">(a) Aggregation-based fusion</text>
+  <text class="small" x="490" y="523">Uses the two CLS representations hᵣ and h꜀</text>
+
+  <text class="label" x="200" y="560" font-weight="700">hᵣ      h꜀</text>
+  <rect class="box" x="110" y="595" width="180" height="55" fill="#FCE5CD" stroke="#D79B00"/><text class="label" x="200" y="623">Mean</text>
+  <path class="line" d="M200 650 V695"/>
+  <rect class="box" x="110" y="695" width="180" height="55" fill="#D5E8D4" stroke="#82B366"/><text class="small" x="200" y="723">Linear classifier</text>
+  <text class="small" x="200" y="825" font-weight="700">Mean fusion</text>
+
+  <text class="label" x="490" y="560" font-weight="700">hᵣ      h꜀</text>
+  <rect class="box" x="400" y="585" width="180" height="50" fill="#FCE5CD" stroke="#D79B00"/><text class="label" x="490" y="610">Mean</text>
+  <path class="line" d="M490 635 V665"/>
+  <rect class="box" x="400" y="665" width="180" height="50" fill="#DAE8FC" stroke="#6C8EBF"/><text class="small" x="490" y="690">LayerNorm + MLP</text>
+  <path class="line" d="M490 715 V745"/>
+  <rect class="box" x="400" y="745" width="180" height="50" fill="#D5E8D4" stroke="#82B366"/><text class="small" x="490" y="770">Linear classifier</text>
+  <text class="small" x="490" y="825" font-weight="700">Mean + MLP</text>
+
+  <text class="label" x="780" y="560" font-weight="700">hᵣ      h꜀</text>
+  <rect class="box" x="690" y="585" width="180" height="50" fill="#FCE5CD" stroke="#D79B00"/><text class="label" x="780" y="610">Concatenate</text>
+  <path class="line" d="M780 635 V665"/>
+  <rect class="box" x="690" y="665" width="180" height="50" fill="#DAE8FC" stroke="#6C8EBF"/><text class="small" x="780" y="690">LayerNorm + MLP</text>
+  <path class="line" d="M780 715 V745"/>
+  <rect class="box" x="690" y="745" width="180" height="50" fill="#D5E8D4" stroke="#82B366"/><text class="small" x="780" y="770">Linear classifier</text>
+  <text class="small" x="780" y="825" font-weight="700">Concat + MLP</text>
+
+  <rect class="box" x="970" y="455" width="590" height="440" fill="#fff" stroke="#B3B3B3"/>
+  <text class="heading" x="1265" y="490">(b) Bidirectional cross-attention fusion</text>
+  <text class="small" x="1265" y="523">Uses the full token sequences Zᵣ and Z꜀</text>
+  <circle cx="1078" cy="575" r="28" fill="#fff" stroke="#6C8EBF" stroke-width="2.5"/><text class="label" x="1078" y="575" font-weight="700">Zᵣ</text>
+  <circle cx="1452" cy="575" r="28" fill="#fff" stroke="#6C8EBF" stroke-width="2.5"/><text class="label" x="1452" y="575" font-weight="700">Z꜀</text>
+  <rect class="box" x="1010" y="645" width="215" height="70" fill="#F8CECC" stroke="#B85450"/><text class="small" x="1118" y="671">Row queries</text><text class="small" x="1118" y="695">Column context</text>
+  <rect class="box" x="1305" y="645" width="215" height="70" fill="#F8CECC" stroke="#B85450"/><text class="small" x="1413" y="671">Column queries</text><text class="small" x="1413" y="695">Row context</text>
+  <path class="line" d="M1078 603 V645"/><path class="line" d="M1452 603 V645"/>
+  <path class="context" d="M1424 575 C1350 590 1260 605 1200 650"/><path class="context" d="M1106 575 C1180 590 1270 605 1330 650"/>
+  <text class="small" x="1265" y="595">context exchange</text>
+  <path class="line" d="M1118 715 V735 H1200 V750"/><path class="line" d="M1413 715 V735 H1330 V750"/>
+  <rect class="box" x="1100" y="750" width="330" height="55" fill="#FCE5CD" stroke="#D79B00"/><text class="small" x="1265" y="778">Concatenate updated CLS representations</text>
+  <path class="line" d="M1200 805 V825 H1145 V840"/><path class="line" d="M1330 805 V825 H1395 V840"/>
+  <rect class="box" x="1055" y="840" width="180" height="45" fill="#D5E8D4" stroke="#82B366"/><text class="small" x="1145" y="863">Linear head</text>
+  <rect class="box" x="1295" y="840" width="200" height="45" fill="#D5E8D4" stroke="#82B366"/><text class="small" x="1395" y="863">LayerNorm + MLP head</text>
+</svg>
